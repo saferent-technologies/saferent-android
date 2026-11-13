@@ -39,7 +39,7 @@ class SplashAssetFiles @Inject constructor(
     }
 
     /**
-     * Downloads the logo and stores a device-ready copy as `logo.png`.
+     * Downloads a logo and stores a device-ready copy as `<name>.png`.
      *
      * The server sends a high-quality image (png / jpg / webp / heif / avif …). Here we
      * decode it with the platform decoder, downsample it to at most [MAX_LOGO_PX] px
@@ -49,14 +49,14 @@ class SplashAssetFiles @Inject constructor(
      * Returns null → the app's bundled logo is used, when the logo is SVG (no native
      * support) or this device can't decode the format (e.g. AVIF on older Android).
      */
-    fun downloadLogo(url: String, dir: File): File? {
+    fun downloadLogo(url: String, dir: File, name: String): File? {
         val ext = url.substringBefore('?').substringAfterLast('.', "").lowercase()
             .takeIf { it.isNotBlank() && it.length <= 5 } ?: "img"
         if (ext == "svg") {
             logger.w(TAG, "SVG logo not supported natively — using app logo: $url")
             return null
         }
-        val original = download(url, File(dir, "logo-original.$ext"))
+        val original = download(url, File(dir, "$name-original.$ext"))
         try {
             if (original.looksLikeSvg()) {
                 logger.w(TAG, "Logo is SVG content — not supported, using app logo: $url")
@@ -67,7 +67,7 @@ class SplashAssetFiles @Inject constructor(
                 logger.w(TAG, "This device can't decode the logo format — using app logo: $url")
                 return null
             }
-            val logo = File(dir, "logo.png")
+            val logo = File(dir, "$name.png")
             try {
                 logo.outputStream().use { out ->
                     if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) {

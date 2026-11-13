@@ -13,20 +13,31 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.saferenttechnologies.android.core.media.LocalRemoteImageLoader
+import com.saferenttechnologies.android.core.media.RemoteImageLoader
+import com.saferenttechnologies.android.presentation.onboarding.OnboardingIntent
+import com.saferenttechnologies.android.presentation.onboarding.OnboardingScreen
+import com.saferenttechnologies.android.presentation.onboarding.OnboardingViewModel
 import com.saferenttechnologies.android.presentation.splash.SplashScreen
 import com.saferenttechnologies.android.presentation.splash.SplashViewModel
 import com.saferenttechnologies.android.ui.theme.SafeRentTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val splashViewModel: SplashViewModel by viewModels()
+    private val onboardingViewModel: OnboardingViewModel by viewModels()
+
+    @Inject
+    lateinit var remoteImageLoader: RemoteImageLoader
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // System splash (colour only) stays until the saved splash is read → no flash.
@@ -38,17 +49,34 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         setContent {
-            SafeRentTheme {
-                val splashState by splashViewModel.state.collectAsState()
-                if (!splashState.isFinished) {
-                    SplashScreen(state = splashState)
-                } else {
-                    LaunchedEffect(Unit) { enableEdgeToEdge() } // back to theme-based bar icons
-                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                        Greeting(
-                            name = "Android",
-                            modifier = Modifier.padding(innerPadding),
+            CompositionLocalProvider(LocalRemoteImageLoader provides remoteImageLoader) {
+                SafeRentTheme {
+                    val splashState by splashViewModel.state.collectAsState()
+                    val onboardingState by onboardingViewModel.state.collectAsState()
+                    // Decide about onboarding only after the splash (→ config is ready on first launch).
+                    LaunchedEffect(splashState.isFinished) {
+                        if (splashState.isFinished) onboardingViewModel.onIntent(OnboardingIntent.Load)
+                    }
+                    when {
+                        // Splash until its time is up AND we know whether onboarding is needed.
+                        !splashState.isFinished || !onboardingState.isLoaded ->
+                            SplashScreen(state = splashState)
+
+                        !onboardingState.isFinished -> OnboardingScreen(
+                            state = onboardingState,
+                            effects = onboardingViewModel.effect,
+                            onIntent = onboardingViewModel::onIntent,
                         )
+
+                        else -> {
+                            LaunchedEffect(Unit) { enableEdgeToEdge() } // back to theme-based bar icons
+                            Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                                Greeting(
+                                    name = "Android",
+                                    modifier = Modifier.padding(innerPadding),
+                                )
+                            }
+                        }
                     }
                 }
             }

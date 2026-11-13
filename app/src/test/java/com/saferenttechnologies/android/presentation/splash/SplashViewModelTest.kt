@@ -1,6 +1,9 @@
 package com.saferenttechnologies.android.presentation.splash
 
+import com.saferenttechnologies.android.core.log.NoOpLogger
 import com.saferenttechnologies.android.domain.model.AppConfig
+import com.saferenttechnologies.android.domain.model.ConfigSyncResult
+import com.saferenttechnologies.android.domain.usecase.AwaitInitialConfigUseCase
 import com.saferenttechnologies.android.domain.model.SplashAppearance
 import com.saferenttechnologies.android.domain.model.SplashSettings
 import com.saferenttechnologies.android.domain.usecase.GetSplashAppearanceUseCase
@@ -29,6 +32,8 @@ class SplashViewModelTest {
     private fun viewModel(saved: SplashAppearance = SplashAppearance()) = SplashViewModel(
         getSplashAppearance = GetSplashAppearanceUseCase(FakeSplashRepository(saved)),
         getSplashConfig = GetSplashConfigUseCase(config),
+        awaitInitialConfig = AwaitInitialConfigUseCase(config),
+        logger = NoOpLogger,
     )
 
     @Test
@@ -37,7 +42,8 @@ class SplashViewModelTest {
             version = "1.4",
             title = "SafeRent",
             description = "Verified homes. Honest renting.",
-            logoPath = "/data/splash/logo.png",
+            lightLogoPath = "/data/splash/logo-light.png",
+            darkLogoPath = "/data/splash/logo-dark.png",
             minDurationMs = 1500,
         )
         val vm = viewModel(saved)
@@ -63,7 +69,8 @@ class SplashViewModelTest {
 
         assertEquals(SplashAppearance(), vm.state.value.appearance)
         assertEquals("SafeRent", vm.state.value.appearance.title)
-        assertEquals(null, vm.state.value.appearance.logoPath)
+        assertEquals(null, vm.state.value.appearance.logoPath(darkTheme = false))
+        assertEquals(null, vm.state.value.appearance.logoPath(darkTheme = true))
     }
 
     @Test
@@ -74,5 +81,36 @@ class SplashViewModelTest {
 
         assertTrue(vm.state.value.isReady)
         assertTrue(vm.state.value.isFinished) // no 1.5s wait
+    }
+
+    @Test
+    fun `first launch - splash stays until the config API succeeds`() = runTest {
+        config.lastSavedAt = null // nothing cached yet
+        val vm = viewModel(SplashAppearance(minDurationMs = 1500))
+        runCurrent()
+
+        advanceTimeBy(5_000)
+        runCurrent()
+        assertFalse(vm.state.value.isFinished) // min time passed, but no config yet
+
+        config.syncResults.value = ConfigSyncResult.Updated(8)
+        runCurrent()
+        assertTrue(vm.state.value.isFinished)
+    }
+
+    @Test
+    fun `first launch offline - gives up after the max wait and continues`() = runTest {
+        config.lastSavedAt = null
+        config.syncResult = ConfigSyncResult.Failed(com.saferenttechnologies.android.domain.model.AppError.Network())
+        config.syncResults.value = config.syncResult
+        val vm = viewModel(SplashAppearance(minDurationMs = 1500))
+
+        advanceTimeBy(AwaitInitialConfigUseCase.MAX_WAIT_MS - 1)
+        runCurrent()
+        assertFalse(vm.state.value.isFinished)
+
+        advanceTimeBy(2)
+        runCurrent()
+        assertTrue(vm.state.value.isFinished)
     }
 }

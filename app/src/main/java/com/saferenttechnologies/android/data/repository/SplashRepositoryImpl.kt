@@ -51,14 +51,19 @@ class SplashRepositoryImpl @Inject constructor(
                 val dir = files.newVersionDir(remote.version)
                 try {
                     // Empty URL on the server = use the app's bundled logo / loading animation.
-                    val logo = remote.logoUrl.takeIf { it.isNotBlank() }?.let { files.downloadLogo(it, dir) }
+                    // Each theme gets its own logo; a missing one → bundled logo for that theme.
+                    val lightLogo = remote.lightLogoUrl.takeIf { it.isNotBlank() }
+                        ?.let { files.downloadLogo(it, dir, name = "logo-light") }
+                    val darkLogo = remote.darkLogoUrl.takeIf { it.isNotBlank() }
+                        ?.let { files.downloadLogo(it, dir, name = "logo-dark") }
                     val lottie = remote.lottieUrl.takeIf { it.isNotBlank() }?.let { files.downloadLottie(it, dir) }
 
                     val updated = SplashAppearance(
                         version = remote.version,
                         title = remote.title.ifBlank { SplashAppearance.DEFAULT_TITLE },
                         description = remote.description.ifBlank { SplashAppearance.DEFAULT_DESCRIPTION },
-                        logoPath = logo?.absolutePath,
+                        lightLogoPath = lightLogo?.absolutePath,
+                        darkLogoPath = darkLogo?.absolutePath,
                         lottiePath = lottie?.absolutePath,
                         minDurationMs = remote.minDurationMs.coerceIn(0L, SplashAppearance.MAX_MIN_DURATION_MS),
                     )
@@ -78,7 +83,7 @@ class SplashRepositoryImpl @Inject constructor(
         }
 
     private fun SplashAppearance.filesExist(): Boolean =
-        listOfNotNull(logoPath, lottiePath).all { File(it).isFile }
+        listOfNotNull(lightLogoPath, darkLogoPath, lottiePath).all { File(it).isFile }
 
     private companion object {
         const val TAG = "SafeRent-Splash"

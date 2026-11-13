@@ -19,6 +19,12 @@ class FakeConfigRepository : ConfigRepository {
     /** When set, sync suspends until it completes — lets tests observe isSyncing. */
     var gate: CompletableDeferred<Unit>? = null
 
+    /** Latest sync result, like the real repository. */
+    val syncResults = MutableStateFlow<ConfigSyncResult?>(null)
+
+    /** Non-null = config already cached (any launch after the first). */
+    var lastSavedAt: Long? = 1L
+
     var syncCalls = 0
         private set
     var forceCalls = 0
@@ -37,13 +43,15 @@ class FakeConfigRepository : ConfigRepository {
     private suspend fun finishSync(): ConfigSyncResult {
         gate?.await()
         configAfterSync?.let { config.value = it }
+        syncResults.value = syncResult
         return syncResult
     }
 
+    override fun observeSyncResult(): Flow<ConfigSyncResult?> = syncResults
     override fun observeConfig(): Flow<AppConfig> = config
     override suspend fun getConfig() = config.value
     override suspend fun getConfigVersion() = config.value.configVersion
-    override suspend fun getLastSavedAt(): Long? = null
+    override suspend fun getLastSavedAt(): Long? = lastSavedAt
     override suspend fun getApp() = config.value.app
     override suspend fun getMaintenance() = config.value.maintenance
     override suspend fun getFeatures() = config.value.features

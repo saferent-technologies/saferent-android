@@ -219,7 +219,10 @@ data class SplashSettings(
     val enabled: Boolean = true,
     val title: String = "SafeRent",
     val description: String = "",
-    val logoUrl: String = "",
+    /** Logo for the light theme. "" → app's bundled logo. */
+    val lightLogoUrl: String = "",
+    /** Logo for the dark theme. "" → app's bundled logo. */
+    val darkLogoUrl: String = "",
     val lottieUrl: String = "",
     val minDurationMs: Long = 1500L,
 )
@@ -228,17 +231,45 @@ data class OnboardingScreen(
     val id: String = "",
     val title: String = "",
     val description: String = "",
+    /** Primary button label ("Next", "Get started"). "" → app default. */
+    val buttonText: String = "",
+    /** NONE | IMAGE | VIDEO | LOTTIE — informational; see [mediaCandidates]. */
     val mediaType: String = "NONE",
-    val mediaUrl: String = "",
-)
+    val imageUrl: String = "",
+    val videoUrl: String = "",
+    val lottieUrl: String = "",
+) {
+    /**
+     * Media to try, best first, by what is actually available:
+     * video → image → lottie → the app's bundled image (always last).
+     * If one fails to load/play, the screen falls back to the next.
+     */
+    val mediaCandidates: List<OnboardingMedia>
+        get() = buildList {
+            if (videoUrl.isNotBlank()) add(OnboardingMedia.Video(videoUrl))
+            if (imageUrl.isNotBlank()) add(OnboardingMedia.Image(imageUrl))
+            if (lottieUrl.isNotBlank()) add(OnboardingMedia.Lottie(lottieUrl))
+            add(OnboardingMedia.Bundled)
+        }
+}
+
+sealed interface OnboardingMedia {
+    data class Video(val url: String) : OnboardingMedia
+    data class Image(val url: String) : OnboardingMedia
+    data class Lottie(val url: String) : OnboardingMedia
+
+    /** The app's built-in onboarding image. */
+    data object Bundled : OnboardingMedia
+}
 
 data class OnboardingSettings(
-    /** Content version (e.g. "2.0"). "" = unknown / built-in default. */
+    /** Content version (e.g. "1.4"). "" = unknown / built-in default. */
     val version: String = "",
-    val enabled: Boolean = false,
+    /** true by default so a missing onboarding shows the app's default screens. */
+    val enabled: Boolean = true,
     val showOnce: Boolean = true,
     val skippable: Boolean = true,
-    val contentId: String = "",
+    val skipButtonText: String = "Skip",
     val screens: List<OnboardingScreen> = emptyList(),
 )
 

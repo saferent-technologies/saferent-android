@@ -89,7 +89,7 @@ fun SplashScreen(
             modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            SplashLogo(logoPath = appearance.logoPath)
+            SplashLogo(logoPath = appearance.logoPath(darkTheme))
             Spacer(Modifier.height(28.dp))
             Text(
                 text = brandTitle(appearance.title, palette),

@@ -31,6 +31,12 @@ interface ConfigRepository {
     /** Same as [syncOnce] but ignores the once-per-process guard (still sends the ETag). */
     suspend fun forceRefresh(): ConfigSyncResult
 
+    /**
+     * Result of the latest real network attempt (syncOnce / forceRefresh) in this process;
+     * null until the first attempt finishes. AlreadySynced is never emitted.
+     */
+    fun observeSyncResult(): Flow<ConfigSyncResult?>
+
     /** Emits the cached config (or defaults) immediately, then again whenever it changes. */
     fun observeConfig(): Flow<AppConfig>
 

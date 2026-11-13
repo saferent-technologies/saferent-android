@@ -210,7 +210,8 @@ fun SplashDto.toDomain() = SplashSettings(
     enabled = enabled,
     title = title,
     description = description,
-    logoUrl = logoUrl,
+    lightLogoUrl = lightLogoUrl,
+    darkLogoUrl = darkLogoUrl,
     lottieUrl = lottieUrl,
     minDurationMs = minDurationMs,
 )
@@ -219,8 +220,11 @@ fun OnboardingScreenDto.toDomain() = OnboardingScreen(
     id = id,
     title = title,
     description = description,
+    buttonText = buttonText,
     mediaType = mediaType,
-    mediaUrl = mediaUrl,
+    imageUrl = imageUrl,
+    videoUrl = videoUrl,
+    lottieUrl = lottieUrl,
 )
 
 fun OnboardingDto.toDomain() = OnboardingSettings(
@@ -228,7 +232,7 @@ fun OnboardingDto.toDomain() = OnboardingSettings(
     enabled = enabled,
     showOnce = showOnce,
     skippable = skippable,
-    contentId = contentId,
+    skipButtonText = skipButtonText,
     screens = if (enabled) screens.map { it.toDomain() } else emptyList(),
 )
 

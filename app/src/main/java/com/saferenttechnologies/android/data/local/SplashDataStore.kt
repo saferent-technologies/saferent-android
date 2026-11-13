@@ -29,7 +29,8 @@ class SplashDataStore @Inject constructor(
                 title = p[KEY_TITLE]?.takeIf { it.isNotBlank() } ?: SplashAppearance.DEFAULT_TITLE,
                 description = p[KEY_DESCRIPTION]?.takeIf { it.isNotBlank() }
                     ?: SplashAppearance.DEFAULT_DESCRIPTION,
-                logoPath = p[KEY_LOGO_PATH],
+                lightLogoPath = p[KEY_LIGHT_LOGO_PATH],
+                darkLogoPath = p[KEY_DARK_LOGO_PATH],
                 lottiePath = p[KEY_LOTTIE_PATH],
                 minDurationMs = p[KEY_MIN_DURATION_MS] ?: SplashAppearance.DEFAULT_MIN_DURATION_MS,
             )
@@ -44,7 +45,9 @@ class SplashDataStore @Inject constructor(
             p[KEY_TITLE] = appearance.title
             p[KEY_DESCRIPTION] = appearance.description
             p[KEY_MIN_DURATION_MS] = appearance.minDurationMs
-            appearance.logoPath?.let { p[KEY_LOGO_PATH] = it } ?: p.remove(KEY_LOGO_PATH)
+            appearance.lightLogoPath?.let { p[KEY_LIGHT_LOGO_PATH] = it } ?: p.remove(KEY_LIGHT_LOGO_PATH)
+            appearance.darkLogoPath?.let { p[KEY_DARK_LOGO_PATH] = it } ?: p.remove(KEY_DARK_LOGO_PATH)
+            p.remove(KEY_LEGACY_LOGO_PATH) // single-logo key from splash ≤ 1.5
             appearance.lottiePath?.let { p[KEY_LOTTIE_PATH] = it } ?: p.remove(KEY_LOTTIE_PATH)
         }
     }
@@ -54,7 +57,9 @@ class SplashDataStore @Inject constructor(
         private val KEY_VERSION = stringPreferencesKey("splash_version")
         private val KEY_TITLE = stringPreferencesKey("splash_title")
         private val KEY_DESCRIPTION = stringPreferencesKey("splash_description")
-        private val KEY_LOGO_PATH = stringPreferencesKey("splash_logo_path")
+        private val KEY_LIGHT_LOGO_PATH = stringPreferencesKey("splash_light_logo_path")
+        private val KEY_DARK_LOGO_PATH = stringPreferencesKey("splash_dark_logo_path")
+        private val KEY_LEGACY_LOGO_PATH = stringPreferencesKey("splash_logo_path")
         private val KEY_LOTTIE_PATH = stringPreferencesKey("splash_lottie_path")
         private val KEY_MIN_DURATION_MS = longPreferencesKey("splash_min_duration_ms")
     }

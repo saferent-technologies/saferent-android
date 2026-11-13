@@ -27,6 +27,8 @@ import com.saferenttechnologies.android.domain.model.UiSettings
 import com.saferenttechnologies.android.domain.repository.ConfigRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
@@ -64,6 +66,10 @@ class ConfigRepositoryImpl @Inject constructor(
     @Volatile
     private var alreadySynced = false
 
+    private val lastSyncResult = MutableStateFlow<ConfigSyncResult?>(null)
+
+    override fun observeSyncResult(): Flow<ConfigSyncResult?> = lastSyncResult.asStateFlow()
+
     // ---------------------------------------------------------------- network
 
     override suspend fun syncOnce(): ConfigSyncResult = syncMutex.withLock {
@@ -73,11 +79,19 @@ class ConfigRepositoryImpl @Inject constructor(
         }
         // Flag is set only when the attempt completes (success OR failure) — a cancelled
         // attempt leaves it false so a later call can still sync.
-        fetchAndStore().also { alreadySynced = true; logResult("syncOnce", it) }
+        fetchAndStore().also {
+            alreadySynced = true
+            lastSyncResult.value = it
+            logResult("syncOnce", it)
+        }
     }
 
     override suspend fun forceRefresh(): ConfigSyncResult = syncMutex.withLock {
-        fetchAndStore().also { alreadySynced = true; logResult("forceRefresh", it) }
+        fetchAndStore().also {
+            alreadySynced = true
+            lastSyncResult.value = it
+            logResult("forceRefresh", it)
+        }
     }
 
     /** Debug only: which call happened and everything that is saved in DataStore now. */

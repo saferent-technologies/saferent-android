@@ -1,6 +1,8 @@
 package com.saferenttechnologies.android.domain.model
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,12 +31,22 @@ class SplashUpdatePolicyTest {
 
     @Test
     fun `same version but files missing downloads again`() {
-        val saved = SplashAppearance(version = "1.4", logoPath = "/gone/logo.png")
+        val saved = SplashAppearance(version = "1.4", darkLogoPath = "/gone/logo-dark.png")
         assertTrue(SplashUpdatePolicy.needsUpdate(saved, SplashSettings(version = "1.4"), false))
     }
 
     @Test
     fun `blank server version never downloads`() {
         assertFalse(SplashUpdatePolicy.needsUpdate(defaults, SplashSettings(version = ""), false))
+    }
+
+    @Test
+    fun `each theme gets its own logo, missing one falls back to bundled`() {
+        val both = SplashAppearance(lightLogoPath = "/l.png", darkLogoPath = "/d.png")
+        assertEquals("/l.png", both.logoPath(darkTheme = false))
+        assertEquals("/d.png", both.logoPath(darkTheme = true))
+
+        val lightOnly = SplashAppearance(lightLogoPath = "/l.png")
+        assertNull(lightOnly.logoPath(darkTheme = true)) // → bundled dark logo
     }
 }

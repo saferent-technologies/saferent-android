@@ -11,12 +11,17 @@ data class SplashAppearance(
     val version: String = DEFAULT_VERSION,
     val title: String = DEFAULT_TITLE,
     val description: String = DEFAULT_DESCRIPTION,
-    /** Absolute path of the downloaded logo image, or null for the bundled logo. */
-    val logoPath: String? = null,
+    /** Downloaded light-theme logo, or null → bundled logo. */
+    val lightLogoPath: String? = null,
+    /** Downloaded dark-theme logo, or null → bundled logo. */
+    val darkLogoPath: String? = null,
     /** Absolute path of the downloaded loading Lottie, or null for the bundled one. */
     val lottiePath: String? = null,
     val minDurationMs: Long = DEFAULT_MIN_DURATION_MS,
 ) {
+    /** Logo file for the current theme, or null → bundled logo for that theme. */
+    fun logoPath(darkTheme: Boolean): String? = if (darkTheme) darkLogoPath else lightLogoPath
+
     companion object {
         const val DEFAULT_VERSION = "0"
         const val DEFAULT_TITLE = "SafeRent"
