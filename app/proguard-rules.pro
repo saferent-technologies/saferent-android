@@ -13,3 +13,11 @@
 
 # --- Add model/data classes used for JSON or Firestore serialization below ---
 # -keep class com.saferenttechnologies.android.data.model.** { *; }
+
+# --- kotlinx.serialization: keep generated serializers for API DTOs ---
+# (Retrofit resolves ApiEnvelope<JsonObject> reflectively via the Companion.)
+-keepclassmembers @kotlinx.serialization.Serializable class com.saferenttechnologies.android.data.remote.dto.** {
+    *** Companion;
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keep,includedescriptorclasses class com.saferenttechnologies.android.data.remote.dto.**$$serializer { *; }
