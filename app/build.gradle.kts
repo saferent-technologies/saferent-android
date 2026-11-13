@@ -79,6 +79,8 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.kotlinx.serialization.json)
+    debugImplementation(libs.chucker)
+    releaseImplementation(libs.chucker.no.op)
 
     // Storage
     implementation(libs.androidx.datastore.preferences)

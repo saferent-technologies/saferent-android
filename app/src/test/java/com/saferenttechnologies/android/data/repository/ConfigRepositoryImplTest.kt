@@ -1,7 +1,9 @@
 package com.saferenttechnologies.android.data.repository
 
+import com.saferenttechnologies.android.core.log.NoOpLogger
 import com.saferenttechnologies.android.data.local.CachedConfig
 import com.saferenttechnologies.android.data.local.ConfigDataStore
+import com.saferenttechnologies.android.data.remote.SafeApiCall
 import com.saferenttechnologies.android.data.remote.SafeRentJson
 import com.saferenttechnologies.android.domain.model.AppConfig
 import com.saferenttechnologies.android.domain.model.AppError
@@ -47,9 +49,11 @@ class ConfigRepositoryImplTest {
 
     private fun TestScope.repository() = ConfigRepositoryImpl(
         api = api,
+        safeApiCall = SafeApiCall(SafeRentJson.instance, NoOpLogger),
         store = store,
         json = SafeRentJson.instance,
         ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+        logger = NoOpLogger,
     )
 
     private suspend fun seedCache(): CachedConfig {

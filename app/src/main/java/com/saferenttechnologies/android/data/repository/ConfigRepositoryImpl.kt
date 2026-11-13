@@ -1,11 +1,12 @@
 package com.saferenttechnologies.android.data.repository
 
 import com.saferenttechnologies.android.core.di.IoDispatcher
+import com.saferenttechnologies.android.core.log.AppLogger
 import com.saferenttechnologies.android.data.local.ConfigDataStore
 import com.saferenttechnologies.android.data.mapper.toAppConfig
+import com.saferenttechnologies.android.data.remote.ApiResult
 import com.saferenttechnologies.android.data.remote.ConfigApi
-import com.saferenttechnologies.android.data.remote.toAppError
-import com.saferenttechnologies.android.data.remote.toServerError
+import com.saferenttechnologies.android.data.remote.SafeApiCall
 import com.saferenttechnologies.android.domain.model.AppConfig
 import com.saferenttechnologies.android.domain.model.AppError
 import com.saferenttechnologies.android.domain.model.AppInfo
@@ -32,13 +33,13 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Call policy:
@@ -51,9 +52,11 @@ import kotlin.coroutines.cancellation.CancellationException
 @Singleton
 class ConfigRepositoryImpl @Inject constructor(
     private val api: ConfigApi,
+    private val safeApiCall: SafeApiCall,
     private val store: ConfigDataStore,
     private val json: Json,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    private val logger: AppLogger,
 ) : ConfigRepository {
 
     private val syncMutex = Mutex()
@@ -64,52 +67,76 @@ class ConfigRepositoryImpl @Inject constructor(
     // ---------------------------------------------------------------- network
 
     override suspend fun syncOnce(): ConfigSyncResult = syncMutex.withLock {
-        if (alreadySynced) return@withLock ConfigSyncResult.AlreadySynced
+        if (alreadySynced) {
+            logger.d(TAG, "syncOnce → AlreadySynced (no request)")
+            return@withLock ConfigSyncResult.AlreadySynced
+        }
         // Flag is set only when the attempt completes (success OR failure) — a cancelled
         // attempt leaves it false so a later call can still sync.
-        fetchAndStore().also { alreadySynced = true }
+        fetchAndStore().also { alreadySynced = true; logResult("syncOnce", it) }
     }
 
     override suspend fun forceRefresh(): ConfigSyncResult = syncMutex.withLock {
-        fetchAndStore().also { alreadySynced = true }
+        fetchAndStore().also { alreadySynced = true; logResult("forceRefresh", it) }
+    }
+
+    /** Debug only: which call happened and everything that is saved in DataStore now. */
+    private suspend fun logResult(call: String, result: ConfigSyncResult) {
+        if (!logger.isEnabled) return
+        when (result) {
+            is ConfigSyncResult.Failed -> logger.w(TAG, "$call → Failed: ${result.error} (cache kept)")
+            else -> logger.d(TAG, "$call → $result")
+        }
+        logSavedConfig()
+    }
+
+    private suspend fun logSavedConfig() {
+        val cached = store.read()
+        val raw = cached.json
+        if (raw.isNullOrBlank()) {
+            logger.d(TAG, "Saved config: <empty cache → defaults>")
+            return
+        }
+        val pretty = try {
+            prettyJson.encodeToString(JsonObject.serializer(), json.parseToJsonElement(raw).jsonObject)
+        } catch (e: IllegalArgumentException) {
+            raw
+        }
+        logger.d(
+            TAG,
+            "Saved config | version=${cached.version} etag=${cached.etag} savedAt=${cached.savedAt}\n$pretty",
+        )
     }
 
     private suspend fun fetchAndStore(): ConfigSyncResult {
         val savedEtag = store.read().etag
+        logger.d(TAG, "→ GET api/v1/app/config (If-None-Match=${savedEtag ?: "<none>"})")
 
-        val response = try {
-            api.config(savedEtag)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            return ConfigSyncResult.Failed(e.toAppError())
+        val result = safeApiCall("GET app/config") { api.config(savedEtag) }
+        return when (result) {
+            is ApiResult.NotModified -> ConfigSyncResult.NotModified
+            is ApiResult.Failure -> ConfigSyncResult.Failed(result.error)
+            is ApiResult.Success -> save(result)
         }
+    }
 
-        if (response.code() == HTTP_NOT_MODIFIED) return ConfigSyncResult.NotModified
-        if (!response.isSuccessful) return ConfigSyncResult.Failed(response.toServerError(json))
-
-        val envelope = response.body()
-            ?: return ConfigSyncResult.Failed(AppError.Parse())
-        if (!envelope.success) {
-            return ConfigSyncResult.Failed(
-                AppError.Server(
-                    httpCode = response.code(),
-                    message = envelope.message.ifBlank { AppError.Server(response.code()).message },
-                ),
-            )
+    private suspend fun save(result: ApiResult.Success<JsonObject>): ConfigSyncResult {
+        val data = result.data
+        if (data == null) {
+            logger.w(TAG, "200 OK but \"data\" is null — cache kept")
+            return ConfigSyncResult.Failed(AppError.Parse())
         }
-        val data = envelope.data ?: return ConfigSyncResult.Failed(AppError.Parse())
-
         val version = parseOrNull(data)?.configVersion ?: 0
         return try {
             store.save(
                 json = data.toString(),
-                etag = response.headers()[HEADER_ETAG]?.takeIf { it.isNotBlank() },
+                etag = result.headers[HEADER_ETAG]?.takeIf { it.isNotBlank() },
                 version = version,
                 savedAt = System.currentTimeMillis(),
             )
             ConfigSyncResult.Updated(version)
         } catch (e: IOException) {
+            logger.w(TAG, "Couldn't save config to DataStore — cache kept", e)
             ConfigSyncResult.Failed(AppError.Storage())
         }
     }
@@ -161,7 +188,14 @@ class ConfigRepositoryImpl @Inject constructor(
     }
 
     private companion object {
-        const val HTTP_NOT_MODIFIED = 304
+        const val TAG = "SafeRent-Config"
+
+        @OptIn(ExperimentalSerializationApi::class)
+        val prettyJson = Json {
+            prettyPrint = true
+            prettyPrintIndent = "  "
+        }
+
         const val HEADER_ETAG = "ETag"
     }
 }

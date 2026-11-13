@@ -3,6 +3,8 @@ package com.saferenttechnologies.android.di
 import com.saferenttechnologies.android.BuildConfig
 import com.saferenttechnologies.android.core.di.AppVersionName
 import com.saferenttechnologies.android.core.di.IoDispatcher
+import com.saferenttechnologies.android.core.log.AndroidAppLogger
+import com.saferenttechnologies.android.core.log.AppLogger
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -21,4 +23,7 @@ object AppModule {
     @Provides
     @AppVersionName
     fun provideAppVersionName(): String = BuildConfig.VERSION_NAME
+
+    @Provides
+    fun provideAppLogger(logger: AndroidAppLogger): AppLogger = logger
 }

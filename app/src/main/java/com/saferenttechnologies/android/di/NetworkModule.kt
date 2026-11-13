@@ -1,10 +1,16 @@
 package com.saferenttechnologies.android.di
 
+import android.content.Context
+import com.chuckerteam.chucker.api.ChuckerCollector
+import com.chuckerteam.chucker.api.ChuckerInterceptor
+import com.chuckerteam.chucker.api.RetentionManager
 import com.saferenttechnologies.android.BuildConfig
+import com.saferenttechnologies.android.core.log.AppLogger
 import com.saferenttechnologies.android.data.remote.SafeRentJson
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -12,6 +18,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.net.Proxy
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
@@ -26,11 +33,26 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
+    fun provideOkHttpClient(@ApplicationContext context: Context): OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .apply {
             if (BuildConfig.DEBUG) {
+                // Chucker: every call shows in a notification → tap it to open the inspector.
+                // Release builds use library-no-op, so this is a no-op there.
+                addInterceptor(
+                    ChuckerInterceptor.Builder(context)
+                        .collector(
+                            ChuckerCollector(
+                                context = context,
+                                showNotification = true,
+                                retentionPeriod = RetentionManager.Period.ONE_DAY,
+                            ),
+                        )
+                        .redactHeaders("Authorization", "Cookie", "Set-Cookie")
+                        .alwaysReadResponseBody(true)
+                        .build(),
+                )
                 addInterceptor(
                     HttpLoggingInterceptor().apply {
                         level = HttpLoggingInterceptor.Level.HEADERS
@@ -46,9 +68,12 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(client: OkHttpClient, json: Json): Retrofit = Retrofit.Builder()
-        .baseUrl(BuildConfig.API_BASE_URL)
-        .client(client)
-        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-        .build()
+    fun provideRetrofit(client: OkHttpClient, json: Json, logger: AppLogger): Retrofit {
+        logger.d("SafeRent-Network", "Retrofit base URL: ${BuildConfig.API_BASE_URL}")
+        return Retrofit.Builder()
+            .baseUrl(BuildConfig.API_BASE_URL)
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+    }
 }
