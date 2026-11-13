@@ -206,6 +206,7 @@ fun SupportDto.toDomain() = SupportSettings(
 )
 
 fun SplashDto.toDomain() = SplashSettings(
+    version = version,
     enabled = enabled,
     title = title,
     description = description,
@@ -223,6 +224,7 @@ fun OnboardingScreenDto.toDomain() = OnboardingScreen(
 )
 
 fun OnboardingDto.toDomain() = OnboardingSettings(
+    version = version,
     enabled = enabled,
     showOnce = showOnce,
     skippable = skippable,

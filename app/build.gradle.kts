@@ -85,6 +85,11 @@ dependencies {
     // Storage
     implementation(libs.androidx.datastore.preferences)
 
+    // Splash: animations, background asset downloads, system splash hand-off
+    implementation(libs.lottie.compose)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.core.splashscreen)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))

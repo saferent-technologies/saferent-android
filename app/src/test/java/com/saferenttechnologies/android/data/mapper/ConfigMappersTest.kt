@@ -51,11 +51,20 @@ class ConfigMappersTest {
         assertEquals(ReferralProgram("TENANT_TO_TENANT", 50.0, null), config.referrals.programs[0])
         assertEquals(ReferralProgram("LANDLORD_TO_LANDLORD", null, 1), config.referrals.programs[2])
 
+        assertEquals("1.4", config.splash.version)
+        assertEquals("2.0", config.onboarding.version)
         assertEquals(1500L, config.splash.minDurationMs)
         assertTrue(config.splash.lottieUrl.startsWith("http://"))
 
         assertEquals(listOf("LOTTIE", "IMAGE", "VIDEO"), config.onboarding.screens.map { it.mediaType })
         assertEquals("3f9a1c7b2e10", config.onboarding.contentId)
+    }
+
+    @Test
+    fun `missing splash and onboarding version defaults to empty`() {
+        val config = parse("""{"splash":{"enabled":true},"onboarding":{"enabled":true}}""")
+        assertEquals("", config.splash.version)
+        assertEquals("", config.onboarding.version)
     }
 
     @Test

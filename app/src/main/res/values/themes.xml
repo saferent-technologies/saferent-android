@@ -1,5 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.SafeRent" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.SafeRent" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Same colour as the splash so there is no white flash on launch. -->
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+
+    <!-- Launch theme: system splash shows only the splash colour, then hands off to
+         the Compose splash (SplashScreen.kt). -->
+    <style name="Theme.SafeRent.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_system_icon_blank</item>
+        <item name="postSplashScreenTheme">@style/Theme.SafeRent</item>
+    </style>
 </resources>

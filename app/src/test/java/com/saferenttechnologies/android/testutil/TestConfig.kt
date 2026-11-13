@@ -39,11 +39,11 @@ object TestConfig {
                                    { "type": "LANDLORD_TO_TENANT", "rewardAmount": 50, "durationMonths": null },
                                    { "type": "LANDLORD_TO_LANDLORD", "rewardAmount": null, "durationMonths": 1 } ] },
       "support": { "email": "support@saferenttechnologies.com", "phone": "", "whatsapp": "", "helpCenterUrl": "", "faqEnabled": false },
-      "splash": { "enabled": true, "title": "SafeRent", "description": "Verified homes. Honest renting.",
+      "splash": { "version": "1.4", "enabled": true, "title": "SafeRent", "description": "Verified homes. Honest renting.",
                   "logoUrl": "http://192.168.1.46:4000/api/v1/app/assets/0b6f2c1e-6d3a-4f7e-9a51-1c2d3e4f5a6b.png",
                   "lottieUrl": "http://192.168.1.46:4000/api/v1/app/assets/7c1d9e2a-3b4f-4a5e-8f6d-2e3f4a5b6c7d.json",
                   "minDurationMs": 1500 },
-      "onboarding": { "enabled": true, "showOnce": true, "skippable": true, "contentId": "3f9a1c7b2e10",
+      "onboarding": { "version": "2.0", "enabled": true, "showOnce": true, "skippable": true, "contentId": "3f9a1c7b2e10",
         "screens": [
           { "id": "screen-a1b2c3", "title": "Verified owners", "description": "Every owner is verified with DigiLocker before listing.", "mediaType": "LOTTIE", "mediaUrl": "http://192.168.1.46:4000/api/v1/app/assets/1a2b3c4d-1111-4a5e-8f6d-2e3f4a5b6c7d.json" },
           { "id": "screen-d4e5f6", "title": "Every charge upfront", "description": "Rent, deposit and maintenance before you apply.", "mediaType": "IMAGE", "mediaUrl": "https://cdn.example.com/charges.webp" },

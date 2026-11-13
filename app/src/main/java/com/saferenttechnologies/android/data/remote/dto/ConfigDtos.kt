@@ -167,6 +167,8 @@ data class SupportDto(
 
 @Serializable
 data class SplashDto(
+    /** Content version of the splash (e.g. "1.4"); changes when admins edit it. */
+    val version: String = "",
     val enabled: Boolean = true,
     val title: String = "SafeRent",
     val description: String = "",
@@ -187,6 +189,8 @@ data class OnboardingScreenDto(
 
 @Serializable
 data class OnboardingDto(
+    /** Content version of onboarding (e.g. "2.0"); changes when admins edit it. */
+    val version: String = "",
     val enabled: Boolean = false,
     val showOnce: Boolean = true,
     val skippable: Boolean = true,

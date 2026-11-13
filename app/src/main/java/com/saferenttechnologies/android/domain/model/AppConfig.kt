@@ -214,6 +214,8 @@ data class SupportSettings(
 )
 
 data class SplashSettings(
+    /** Content version (e.g. "1.4"). "" = unknown / built-in default. */
+    val version: String = "",
     val enabled: Boolean = true,
     val title: String = "SafeRent",
     val description: String = "",
@@ -231,6 +233,8 @@ data class OnboardingScreen(
 )
 
 data class OnboardingSettings(
+    /** Content version (e.g. "2.0"). "" = unknown / built-in default. */
+    val version: String = "",
     val enabled: Boolean = false,
     val showOnce: Boolean = true,
     val skippable: Boolean = true,

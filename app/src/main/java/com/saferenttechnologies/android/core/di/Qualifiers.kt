@@ -16,3 +16,8 @@ annotation class AppVersionName
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class ConfigPreferences
+
+/** Preferences DataStore "saferent_splash" (downloaded splash assets). */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class SplashPreferences

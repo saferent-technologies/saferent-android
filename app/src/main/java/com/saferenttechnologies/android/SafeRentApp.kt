@@ -10,6 +10,7 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.saferenttechnologies.android.domain.usecase.ForceRefreshAppConfigUseCase
+import com.saferenttechnologies.android.domain.usecase.ScheduleSplashAssetsUpdateUseCase
 import com.saferenttechnologies.android.domain.usecase.SyncAppConfigUseCase
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -28,13 +29,20 @@ class SafeRentApp : Application() {
     @Inject
     lateinit var forceRefreshAppConfig: ForceRefreshAppConfigUseCase
 
+    @Inject
+    lateinit var scheduleSplashAssetsUpdate: ScheduleSplashAssetsUpdateUseCase
+
     /** Lives as long as the process. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate() // Hilt injects fields here
         // Once per process: sends If-None-Match, 304 keeps cache, never throws.
-        appScope.launch { syncAppConfig() }
+        // Then, if the splash version changed, download the new splash in the background.
+        appScope.launch {
+            syncAppConfig()
+            scheduleSplashAssetsUpdate()
+        }
         if (BuildConfig.DEBUG) {
             Log.d(
                 TAG,
@@ -83,7 +91,10 @@ class SafeRentApp : Application() {
                 if (waitingForLocalNetwork && activity.isGranted(PERMISSION_ACCESS_LOCAL_NETWORK)) {
                     waitingForLocalNetwork = false
                     Log.d(TAG, "ACCESS_LOCAL_NETWORK granted → retrying config call")
-                    appScope.launch { forceRefreshAppConfig() }
+                    appScope.launch {
+                        forceRefreshAppConfig()
+                        scheduleSplashAssetsUpdate()
+                    }
                 }
             }
 
