@@ -102,11 +102,20 @@ class UserProfileViewModel @Inject constructor(
     private suspend fun skip() {
         val state = currentState
         if (state.busy || !state.skippable || state.registrationRequired) return
+        val role = state.form.role
+        if (role == null) {
+            // Skip only after choosing landlord / tenant (that's the dashboard we open).
+            return setState { copy(fieldErrors = fieldErrors + (UserProfileField.ROLE to SKIP_NEEDS_ROLE)) }
+        }
         setState { copy(isSkipping = true, banner = null) }
-        when (val r = skipUserProfile(state.user)) {
+        when (val r = skipUserProfile(state.user, role)) {
             is AppResult.Success -> setState { copy(isSkipping = false, dashboard = r.data) }
             is AppResult.Failure -> setState { copy(isSkipping = false, banner = r.error.bannerText()) }
         }
+    }
+
+    private companion object {
+        const val SKIP_NEEDS_ROLE = "Choose landlord or tenant to continue"
     }
 
     private fun AppError.bannerText(): String = when (this) {

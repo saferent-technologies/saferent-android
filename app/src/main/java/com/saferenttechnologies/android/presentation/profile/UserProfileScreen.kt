@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -90,7 +92,8 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
                 if (state.skippable && !state.registrationRequired) {
                     Text(
                         if (state.isSkipping) "Skipping…" else "Skip",
-                        color = AuthColors.Body,
+                        // Muted until a role is picked — Skip needs landlord / tenant first.
+                        color = if (state.form.role != null) AuthColors.Body else AuthColors.Muted,
                         fontFamily = Inter,
                         fontWeight = FontWeight.Medium,
                         fontSize = 16.ssp,
@@ -122,7 +125,11 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
 
             Spacer(Modifier.height(24.sdp))
             SectionLabel("I am a")
-            Row(horizontalArrangement = Arrangement.spacedBy(12.sdp)) {
+            // Equal cards: the row is as tall as the taller card, both fill that height.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.sdp),
+                modifier = Modifier.height(IntrinsicSize.Min),
+            ) {
                 RoleCard(
                     title = "Landlord",
                     subtitle = "I own / manage homes",
@@ -303,6 +310,7 @@ private fun RoleCard(
     }
     Column(
         modifier = modifier
+            .fillMaxHeight()
             .clip(shape)
             .background(if (selected) AuthColors.OtpFilled else AuthColors.Field)
             .border(if (selected) 2.sdp else 1.sdp, borderColor, shape)
@@ -326,7 +334,7 @@ private fun RoleCard(
         Spacer(Modifier.height(14.sdp))
         Text(title, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 17.ssp)
         Spacer(Modifier.height(4.sdp))
-        Text(subtitle, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, lineHeight = 16.ssp)
+        Text(subtitle, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, lineHeight = 16.ssp, minLines = 2)
     }
 }
 

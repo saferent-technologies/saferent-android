@@ -175,16 +175,20 @@ class SaveUserProfileUseCase @Inject constructor(
     }
 }
 
-/** Skip (existing account only): POST userProfile { isProfileCompleted:false, role: user.role } → dashboard. */
+/**
+ * Skip (existing account only): POST userProfile { isProfileCompleted:false, role } → dashboard.
+ * [role] = landlord / tenant picked on the screen (Skip needs one), else the account's role.
+ */
 class SkipUserProfileUseCase @Inject constructor(private val account: AccountRepository) {
-    suspend operator fun invoke(user: AccountUser?): AppResult<PostLoginDestination.Dashboard> {
-        val request = UserProfileRequest(isProfileCompleted = false, role = user?.role)
+    suspend operator fun invoke(user: AccountUser?, role: UserRole? = user?.role): AppResult<PostLoginDestination.Dashboard> {
+        val request = UserProfileRequest(isProfileCompleted = false, role = role ?: user?.role)
         return when (val r = account.saveUserProfile(request)) {
             is AppResult.Success -> {
                 val saved = r.data.user.takeIf { it.id.isNotBlank() } ?: user ?: r.data.user
-                val role = ActiveRole.resolve(account.getSavedActiveRole(), saved)
-                role?.let { account.saveActiveRole(it) }
-                AppResult.Success(PostLoginDestination.Dashboard(saved, role))
+                // Open the dashboard of the role picked on the screen (server's answer wins if it sends one).
+                val active = r.data.role ?: request.role ?: ActiveRole.resolve(account.getSavedActiveRole(), saved)
+                active?.let { account.saveActiveRole(it) }
+                AppResult.Success(PostLoginDestination.Dashboard(saved, active))
             }
             is AppResult.Failure -> r
         }

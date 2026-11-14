@@ -232,6 +232,16 @@ class AccountUseCasesTest {
         assertEquals(UserRole.TENANT, r.data.activeRole)
     }
 
+    @Test
+    fun `skip uses the role picked on the screen`() = runTest {
+        val user = AccountUser(id = "u1", role = UserRole.TENANT, roles = listOf(UserRole.TENANT))
+        account.savedRole = UserRole.TENANT
+        val r = SkipUserProfileUseCase(account)(user, UserRole.LANDLORD) as AppResult.Success
+        assertEquals(UserRole.LANDLORD, account.requests.single().role)
+        assertEquals(UserRole.LANDLORD, r.data.activeRole)
+        assertEquals(UserRole.LANDLORD, account.savedRole)
+    }
+
     // ---- FCM token lifecycle ----
 
     private val sync = SyncFcmTokenUseCase(auth, account, deviceTokens)

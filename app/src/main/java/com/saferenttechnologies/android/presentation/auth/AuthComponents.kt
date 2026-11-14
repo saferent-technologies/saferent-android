@@ -1,5 +1,32 @@
 package com.saferenttechnologies.android.presentation.auth
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.onFocusEvent
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalDensity
 import com.saferenttechnologies.android.core.ui.sdp
 import com.saferenttechnologies.android.core.ui.ssp
 import androidx.annotation.DrawableRes
@@ -155,3 +182,67 @@ internal fun AuthPrimaryButton(
     }
 }
 
+
+/**
+ * Login / OTP layout: [top] content + [bottom] block (terms, button) pinned to the bottom.
+ * Keyboard open → the bottom block stays where it is (behind the keyboard) so it never covers
+ * the text field; the field itself moves up just enough via [keepAboveKeyboard]. Anything that
+ * scrolls up is clipped at the status bar (goes behind it, never draws over it).
+ */
+@Composable
+internal fun KeyboardAwareScreen(
+    top: @Composable ColumnScope.() -> Unit,
+    bottom: @Composable ColumnScope.() -> Unit,
+) {
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .background(AuthColors.Background)
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+    ) {
+        val fullHeight = maxHeight // height WITHOUT the keyboard
+        val scroll = rememberScrollState()
+        Column(
+            Modifier
+                .fillMaxSize()
+                .imePadding()
+                .verticalScroll(scroll),
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = fullHeight),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(content = top)
+                Column(content = bottom)
+            }
+        }
+    }
+}
+
+/**
+ * Put on the text field (or a Box around it): when the keyboard opens while it's focused, the
+ * screen scrolls only as much as needed to show the field plus [margin] above the keyboard.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun Modifier.keepAboveKeyboard(margin: Dp = 20.sdp): Modifier {
+    val requester = remember { BringIntoViewRequester() }
+    val density = LocalDensity.current
+    val imeBottom = WindowInsets.ime.getBottom(density)
+    val marginPx = with(density) { margin.toPx() }
+    var focused by remember { mutableStateOf(false) }
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    // Re-runs while the keyboard animates in, so the field rides up with it.
+    LaunchedEffect(imeBottom, focused) {
+        if (focused && imeBottom > 0 && size != IntSize.Zero) {
+            requester.bringIntoView(Rect(0f, 0f, size.width.toFloat(), size.height + marginPx))
+        }
+    }
+    return this
+        .bringIntoViewRequester(requester)
+        .onSizeChanged { size = it }
+        .onFocusEvent { focused = it.hasFocus }
+}

@@ -78,99 +78,96 @@ import com.saferenttechnologies.android.ui.theme.PlusJakartaSans
 
 @Composable
 internal fun MobileEntryScreen(state: AuthState, onIntent: (AuthIntent) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AuthColors.Background)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .imePadding(),
-    ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.sdp),
-        ) {
-            Spacer(Modifier.height(16.sdp))
-            Header()
-            Spacer(Modifier.height(32.sdp))
-            TrustBadge()
-            Spacer(Modifier.height(18.sdp))
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(SpanStyle(color = AuthColors.Ink)) { append("Get Started with\n") }
-                    withStyle(SpanStyle(color = AuthColors.OrangeText)) { append("SafeRent") }
+    // Keyboard open → the button stays down (never lands on the field) and only the field
+    // moves up a little (keepAboveKeyboard); nothing draws over the status bar.
+    KeyboardAwareScreen(
+        top = {
+            Column(modifier = Modifier.padding(horizontal = 24.sdp)) {
+                Spacer(Modifier.height(16.sdp))
+                Header()
+                Spacer(Modifier.height(32.sdp))
+                TrustBadge()
+                Spacer(Modifier.height(18.sdp))
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(color = AuthColors.Ink)) { append("Get Started with\n") }
+                        withStyle(SpanStyle(color = AuthColors.OrangeText)) { append("SafeRent") }
                 },
-                fontFamily = PlusJakartaSans,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 30.ssp,
-                lineHeight = 37.ssp,
-            )
-            Spacer(Modifier.height(10.sdp))
-            Text(
-                text = "Enter your mobile number to sign in or create your verified rental account.",
-                color = AuthColors.Body,
-                fontFamily = Inter,
-                fontSize = 15.ssp,
-                lineHeight = 22.ssp,
-            )
-            Spacer(Modifier.height(22.sdp))
-            Spacer(Modifier.height(6.sdp)) // tenant / landlord is asked on the demographics screen
-            Text(
-                text = "MOBILE NUMBER",
-                color = AuthColors.Ink,
-                fontFamily = Inter,
-                fontWeight = FontWeight.Medium,
-                fontSize = 13.ssp,
-                letterSpacing = 0.6.ssp,
-            )
-            Spacer(Modifier.height(10.sdp))
-            PhoneField(
-                digits = state.phoneDigits,
-                valid = state.isPhoneValid,
-                onChange = { onIntent(AuthIntent.PhoneChanged(it)) },
-                onDone = { onIntent(AuthIntent.ContinueClicked) },
-            )
-            Spacer(Modifier.height(10.sdp))
-            if (state.error != null) {
-                Text(state.error, color = AuthColors.Error, fontFamily = Inter, fontSize = 13.ssp)
-            } else {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                    Icon(
-                        painterResource(R.drawable.ic_lock),
-                        null,
-                        tint = AuthColors.Muted,
-                        modifier = Modifier
-                            .padding(top = 2.sdp) // line up with the first text line
-                            .size(13.sdp),
-                    )
-                    Spacer(Modifier.width(6.sdp))
-                    Text(
-                        "We never share your number with unauthorized brokers. adasdasd",
-                        color = AuthColors.Muted,
-                        fontFamily = Inter,
-                        fontSize = 12.ssp,
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 30.ssp,
+                    lineHeight = 37.ssp,
+                )
+                Spacer(Modifier.height(10.sdp))
+                Text(
+                    text = "Enter your mobile number to sign in or create your verified rental account.",
+                    color = AuthColors.Body,
+                    fontFamily = Inter,
+                    fontSize = 15.ssp,
+                    lineHeight = 22.ssp,
+                )
+                Spacer(Modifier.height(22.sdp))
+                Spacer(Modifier.height(6.sdp)) // tenant / landlord is asked on the demographics screen
+                Text(
+                    text = "MOBILE NUMBER",
+                    color = AuthColors.Ink,
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.ssp,
+                    letterSpacing = 0.6.ssp,
+                )
+                Spacer(Modifier.height(10.sdp))
+                // Keyboard open → only this field moves up (with a small gap), not the whole screen.
+                Box(Modifier.keepAboveKeyboard()) {
+                    PhoneField(
+                        digits = state.phoneDigits,
+                        valid = state.isPhoneValid,
+                        onChange = { onIntent(AuthIntent.PhoneChanged(it)) },
+                        onDone = { onIntent(AuthIntent.ContinueClicked) },
                     )
                 }
+                Spacer(Modifier.height(10.sdp))
+                if (state.error != null) {
+                    Text(state.error, color = AuthColors.Error, fontFamily = Inter, fontSize = 13.ssp)
+                } else {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                        Icon(
+                            painterResource(R.drawable.ic_lock),
+                            null,
+                            tint = AuthColors.Muted,
+                            modifier = Modifier
+                                .padding(top = 2.sdp) // line up with the first text line
+                                .size(13.sdp),
+                        )
+                        Spacer(Modifier.width(6.sdp))
+                        Text(
+                            "We never share your number with unauthorized brokers. adasdasd",
+                            color = AuthColors.Muted,
+                            fontFamily = Inter,
+                            fontSize = 12.ssp,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(24.sdp))
             }
-            Spacer(Modifier.height(24.sdp))
-        }
 
-        // Bottom: Terms (always unticked by default) right above the button.
-        Column(Modifier.padding(horizontal = 24.sdp)) {
-            ConsentBlock(state = state, onIntent = onIntent)
-            Spacer(Modifier.height(14.sdp))
-            AuthPrimaryButton(
-                text = "Continue with OTP",
-                enabled = !state.isSendingOtp, // always same colour; missing input → error text
-                loading = state.isSendingOtp,
-                trailingIcon = R.drawable.ic_arrow_forward,
-                onClick = { onIntent(AuthIntent.ContinueClicked) },
-            )
-            Spacer(Modifier.height(16.sdp))
-        }
-    }
+        },
+        bottom = {
+            // Bottom: Terms (always unticked by default) right above the button.
+            Column(Modifier.padding(horizontal = 24.sdp)) {
+                ConsentBlock(state = state, onIntent = onIntent)
+                Spacer(Modifier.height(14.sdp))
+                AuthPrimaryButton(
+                    text = "Continue with OTP",
+                    enabled = !state.isSendingOtp, // always same colour; missing input → error text
+                    loading = state.isSendingOtp,
+                    trailingIcon = R.drawable.ic_arrow_forward,
+                    onClick = { onIntent(AuthIntent.ContinueClicked) },
+                )
+                Spacer(Modifier.height(16.sdp))
+            }
+        },
+    )
 }
 
 @Composable

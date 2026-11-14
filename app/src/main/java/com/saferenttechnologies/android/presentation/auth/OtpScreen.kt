@@ -71,109 +71,105 @@ import com.saferenttechnologies.android.ui.theme.PlusJakartaSans
 
 @Composable
 internal fun OtpScreen(state: AuthState, onIntent: (AuthIntent) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AuthColors.Background)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .imePadding(),
-    ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.sdp),
-        ) {
-            Spacer(Modifier.height(12.sdp))
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    // Keyboard open → the button stays down (never lands on the field) and only the field
+    // moves up a little (keepAboveKeyboard); nothing draws over the status bar.
+    KeyboardAwareScreen(
+        top = {
+            Column(modifier = Modifier.padding(horizontal = 24.sdp)) {
+                Spacer(Modifier.height(12.sdp))
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .size(44.sdp)
+                            .clip(CircleShape)
+                            .background(AuthColors.Surface)
+                            .clickable(role = Role.Button) { onIntent(AuthIntent.EditNumber) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_chevron_left), "Back", tint = AuthColors.Ink, modifier = Modifier.size(22.sdp))
+                    }
+                    Text(
+                        "VERIFICATION",
+                        color = AuthColors.Body,
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.ssp,
+                        letterSpacing = 1.4.ssp,
+                    )
+                }
+
+                Spacer(Modifier.height(28.sdp))
                 Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .size(44.sdp)
-                        .clip(CircleShape)
-                        .background(AuthColors.Surface)
-                        .clickable(role = Role.Button) { onIntent(AuthIntent.EditNumber) },
+                    Modifier
+                        .size(58.sdp)
+                        .clip(RoundedCornerShape(16.sdp))
+                        .background(AuthColors.OrangeSoft),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(painterResource(R.drawable.ic_chevron_left), "Back", tint = AuthColors.Ink, modifier = Modifier.size(22.sdp))
+                    Icon(painterResource(R.drawable.ic_smartphone), null, tint = AuthColors.OrangeText, modifier = Modifier.size(26.sdp))
                 }
+                Spacer(Modifier.height(20.sdp))
                 Text(
-                    "VERIFICATION",
+                    "Verify your mobile",
+                    color = AuthColors.Ink,
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 28.ssp,
+                )
+                Spacer(Modifier.height(8.sdp))
+                Text(
+                    "We've sent a 6-digit verification code via SMS to",
                     color = AuthColors.Body,
                     fontFamily = Inter,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.ssp,
-                    letterSpacing = 1.4.ssp,
-                )
-            }
-
-            Spacer(Modifier.height(28.sdp))
-            Box(
-                Modifier
-                    .size(58.sdp)
-                    .clip(RoundedCornerShape(16.sdp))
-                    .background(AuthColors.OrangeSoft),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(painterResource(R.drawable.ic_smartphone), null, tint = AuthColors.OrangeText, modifier = Modifier.size(26.sdp))
-            }
-            Spacer(Modifier.height(20.sdp))
-            Text(
-                "Verify your mobile",
-                color = AuthColors.Ink,
-                fontFamily = PlusJakartaSans,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 28.ssp,
-            )
-            Spacer(Modifier.height(8.sdp))
-            Text(
-                "We've sent a 6-digit verification code via SMS to",
-                color = AuthColors.Body,
-                fontFamily = Inter,
-                fontSize = 15.ssp,
-            )
-            Spacer(Modifier.height(4.sdp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(state.displayPhone, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 15.ssp)
-                Spacer(Modifier.width(10.sdp))
-                Text(
-                    "Edit",
-                    color = AuthColors.OrangeText,
-                    fontFamily = Inter,
-                    fontWeight = FontWeight.Medium,
                     fontSize = 15.ssp,
-                    textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.clickable(role = Role.Button) { onIntent(AuthIntent.EditNumber) },
                 )
+                Spacer(Modifier.height(4.sdp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(state.displayPhone, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 15.ssp)
+                    Spacer(Modifier.width(10.sdp))
+                    Text(
+                        "Edit",
+                        color = AuthColors.OrangeText,
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 15.ssp,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.clickable(role = Role.Button) { onIntent(AuthIntent.EditNumber) },
+                    )
+                }
+
+                Spacer(Modifier.height(24.sdp))
+                Box(Modifier.keepAboveKeyboard()) {
+                    OtpInput(otp = state.otp, onChange = { onIntent(AuthIntent.OtpChanged(it)) })
+                }
+                Spacer(Modifier.height(16.sdp))
+
+                when {
+                    state.error != null -> Text(state.error, color = AuthColors.Error, fontFamily = Inter, fontSize = 14.ssp)
+                    state.isDetectingSms -> DetectingSmsChip()
+                }
+
+                Spacer(Modifier.height(14.sdp))
+                ResendRow(state = state, onResend = { onIntent(AuthIntent.ResendClicked) })
+                Spacer(Modifier.height(24.sdp))
             }
 
-            Spacer(Modifier.height(24.sdp))
-            OtpInput(otp = state.otp, onChange = { onIntent(AuthIntent.OtpChanged(it)) })
-            Spacer(Modifier.height(16.sdp))
-
-            when {
-                state.error != null -> Text(state.error, color = AuthColors.Error, fontFamily = Inter, fontSize = 14.ssp)
-                state.isDetectingSms -> DetectingSmsChip()
+        },
+        bottom = {
+            // Same size / position as "Continue with OTP" on the login screen.
+            Column(Modifier.padding(horizontal = 24.sdp)) {
+                AuthPrimaryButton(
+                    text = "Verify & Continue",
+                    enabled = !state.isVerifying, // always same colour; short code → error text
+                    loading = state.isVerifying,
+                    leadingIcon = R.drawable.ic_shield_check,
+                    onClick = { onIntent(AuthIntent.VerifyClicked) },
+                )
+                Spacer(Modifier.height(16.sdp))
             }
-
-            Spacer(Modifier.height(14.sdp))
-            ResendRow(state = state, onResend = { onIntent(AuthIntent.ResendClicked) })
-            Spacer(Modifier.height(24.sdp))
-        }
-
-        // Same size / position as "Continue with OTP" on the login screen.
-        Column(Modifier.padding(horizontal = 24.sdp)) {
-            AuthPrimaryButton(
-                text = "Verify & Continue",
-                enabled = !state.isVerifying, // always same colour; short code → error text
-                loading = state.isVerifying,
-                leadingIcon = R.drawable.ic_shield_check,
-                onClick = { onIntent(AuthIntent.VerifyClicked) },
-            )
-            Spacer(Modifier.height(16.sdp))
-        }
-    }
+        },
+    )
 }
 
 /**
