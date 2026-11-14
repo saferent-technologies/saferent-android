@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.profile
 
+import com.saferenttechnologies.android.core.ui.sdp
+import com.saferenttechnologies.android.core.ui.ssp
 import android.content.res.Configuration
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
@@ -82,45 +84,45 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 24.sdp),
         ) {
-            Box(Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+            Box(Modifier.fillMaxWidth().heightIn(min = 48.sdp)) {
                 if (state.skippable && !state.registrationRequired) {
                     Text(
                         if (state.isSkipping) "Skipping…" else "Skip",
                         color = AuthColors.Body,
                         fontFamily = Inter,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 16.sp,
+                        fontSize = 16.ssp,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(8.sdp))
                             .clickable(enabled = !state.busy, role = Role.Button) { onIntent(UserProfileIntent.Skip) }
-                            .padding(12.dp),
+                            .padding(12.sdp),
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(8.sdp))
             Text(
                 "Tell us about yourself",
                 color = AuthColors.Ink,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 28.sp,
-                lineHeight = 34.sp,
+                fontSize = 28.ssp,
+                lineHeight = 34.ssp,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(8.sdp))
             Text(
                 "A few quick details help us personalise SafeRent for you.",
                 color = AuthColors.Body,
                 fontFamily = Inter,
-                fontSize = 15.sp,
-                lineHeight = 22.sp,
+                fontSize = 15.ssp,
+                lineHeight = 22.ssp,
             )
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(24.sdp))
             SectionLabel("I am a")
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.sdp)) {
                 RoleCard(
                     title = "Landlord",
                     subtitle = "I own / manage homes",
@@ -142,7 +144,7 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
             }
             ErrorText(errors[UserProfileField.ROLE])
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(20.sdp))
             Field(
                 label = "Full name",
                 value = form.fullName,
@@ -151,7 +153,7 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
                 capitalization = KeyboardCapitalization.Words,
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(20.sdp))
             SectionLabel("Gender")
             GenderGrid(
                 selected = form.gender,
@@ -160,15 +162,15 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
             )
             ErrorText(errors[UserProfileField.GENDER])
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(20.sdp))
             DateField(
                 value = form.dateOfBirth,
                 error = errors[UserProfileField.DATE_OF_BIRTH],
                 onClick = { onIntent(UserProfileIntent.OpenDatePicker) },
             )
 
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Spacer(Modifier.height(16.sdp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.sdp)) {
                 Field(
                     label = "City",
                     value = form.city,
@@ -187,7 +189,7 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(16.sdp))
             Field(
                 label = "Email (optional)",
                 value = form.email,
@@ -197,7 +199,7 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
             )
 
             if (state.showOccupation) {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.sdp))
                 Field(
                     label = "Occupation (optional)",
                     value = form.occupation,
@@ -207,7 +209,7 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
                 )
             }
             if (state.showReferral) {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.sdp))
                 Field(
                     label = "Referral code (optional)",
                     value = form.referralCode,
@@ -217,17 +219,17 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
                     imeAction = ImeAction.Done,
                 )
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(24.sdp))
         }
 
-        Column(Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp, top = 8.dp)) {
+        Column(Modifier.padding(start = 24.sdp, end = 24.sdp, bottom = 16.sdp, top = 8.sdp)) {
             state.banner?.let {
                 Text(
                     it,
                     color = AuthColors.Error,
                     fontFamily = Inter,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(bottom = 10.dp),
+                    fontSize = 13.ssp,
+                    modifier = Modifier.padding(bottom = 10.sdp),
                 )
             }
             if (state.consentMissing) {
@@ -237,12 +239,12 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
                     color = AuthColors.OrangeText,
                     fontFamily = Inter,
                     fontWeight = FontWeight.Medium,
-                    fontSize = 15.sp,
+                    fontSize = 15.ssp,
                     modifier = Modifier
-                        .padding(bottom = 10.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .padding(bottom = 10.sdp)
+                        .clip(RoundedCornerShape(8.sdp))
                         .clickable(role = Role.Button) { onIntent(UserProfileIntent.BackToLogin) }
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = 8.sdp),
                 )
             }
             AuthPrimaryButton(
@@ -271,15 +273,15 @@ private fun SectionLabel(text: String) {
         color = AuthColors.Ink,
         fontFamily = Inter,
         fontWeight = FontWeight.Medium,
-        fontSize = 14.sp,
-        modifier = Modifier.padding(bottom = 8.dp),
+        fontSize = 14.ssp,
+        modifier = Modifier.padding(bottom = 8.sdp),
     )
 }
 
 @Composable
 private fun ErrorText(error: String?) {
     if (error != null) {
-        Text(error, color = AuthColors.Error, fontFamily = Inter, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+        Text(error, color = AuthColors.Error, fontFamily = Inter, fontSize = 12.ssp, modifier = Modifier.padding(top = 6.sdp))
     }
 }
 
@@ -293,7 +295,7 @@ private fun RoleCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(16.sdp)
     val borderColor = when {
         selected -> AuthColors.Orange
         isError -> AuthColors.Error
@@ -303,13 +305,13 @@ private fun RoleCard(
         modifier = modifier
             .clip(shape)
             .background(if (selected) AuthColors.OtpFilled else AuthColors.Field)
-            .border(if (selected) 2.dp else 1.dp, borderColor, shape)
+            .border(if (selected) 2.sdp else 1.sdp, borderColor, shape)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-            .padding(16.dp),
+            .padding(16.sdp),
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(44.sdp)
                 .clip(CircleShape)
                 .background(if (selected) AuthColors.Orange else AuthColors.OrangeSoft),
             contentAlignment = Alignment.Center,
@@ -318,36 +320,36 @@ private fun RoleCard(
                 painterResource(icon),
                 contentDescription = null,
                 tint = if (selected) Color.White else AuthColors.OrangeText,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(22.sdp),
             )
         }
-        Spacer(Modifier.height(14.dp))
-        Text(title, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
-        Spacer(Modifier.height(4.dp))
-        Text(subtitle, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.sp, lineHeight = 16.sp)
+        Spacer(Modifier.height(14.sdp))
+        Text(title, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 17.ssp)
+        Spacer(Modifier.height(4.sdp))
+        Text(subtitle, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, lineHeight = 16.ssp)
     }
 }
 
 @Composable
 private fun GenderGrid(selected: Gender?, isError: Boolean, onSelect: (Gender) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {
         Gender.entries.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.sdp)) {
                 row.forEach { gender ->
                     val isSelected = gender == selected
-                    val shape = RoundedCornerShape(12.dp)
+                    val shape = RoundedCornerShape(12.sdp)
                     Text(
                         gender.label,
                         color = if (isSelected) AuthColors.OrangeText else AuthColors.Ink,
                         fontFamily = Inter,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
+                        fontSize = 14.ssp,
                         modifier = Modifier
                             .weight(1f)
                             .clip(shape)
                             .background(if (isSelected) AuthColors.OtpFilled else AuthColors.Field)
                             .border(
-                                1.dp,
+                                1.sdp,
                                 when {
                                     isSelected -> AuthColors.Orange
                                     isError -> AuthColors.Error
@@ -356,7 +358,7 @@ private fun GenderGrid(selected: Gender?, isError: Boolean, onSelect: (Gender) -
                                 shape,
                             )
                             .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(gender) })
-                            .padding(horizontal = 14.dp, vertical = 14.dp),
+                            .padding(horizontal = 14.sdp, vertical = 14.sdp),
                     )
                 }
             }
@@ -404,7 +406,7 @@ private fun Field(
         isError = error != null,
         supportingText = if (error != null) { { Text(error, fontFamily = Inter) } } else null,
         keyboardOptions = KeyboardOptions(capitalization = capitalization, keyboardType = keyboardType, imeAction = imeAction),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(12.sdp),
         colors = fieldColors(),
         modifier = modifier.fillMaxWidth(),
     )
@@ -421,11 +423,11 @@ private fun DateField(value: String, error: String?, onClick: () -> Unit) {
             label = { Text("Date of birth", fontFamily = Inter) },
             placeholder = { Text("DD MMM YYYY", fontFamily = Inter) },
             trailingIcon = {
-                Icon(painterResource(R.drawable.ic_chevron_down), null, tint = AuthColors.Body, modifier = Modifier.size(20.dp))
+                Icon(painterResource(R.drawable.ic_chevron_down), null, tint = AuthColors.Body, modifier = Modifier.size(20.sdp))
             },
             isError = error != null,
             supportingText = if (error != null) { { Text(error, fontFamily = Inter, color = AuthColors.Error) } } else null,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(12.sdp),
             colors = fieldColors(),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -433,7 +435,7 @@ private fun DateField(value: String, error: String?, onClick: () -> Unit) {
         Box(
             Modifier
                 .matchParentSize()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(12.sdp))
                 .clickable(role = Role.Button, onClickLabel = "Pick date of birth", onClick = onClick),
         )
     }

@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.splash
 
+import com.saferenttechnologies.android.core.ui.sdp
+import com.saferenttechnologies.android.core.ui.ssp
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -90,24 +92,24 @@ fun SplashScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             SplashLogo(logoPath = appearance.logoPath(darkTheme))
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(28.sdp))
             Text(
                 text = brandTitle(appearance.title, palette),
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 34.sp,
+                fontSize = 34.ssp,
                 letterSpacing = (-0.5).sp,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(4.sdp))
             Text(
                 text = appearance.description,
                 color = palette.description,
                 fontFamily = Inter,
                 fontWeight = FontWeight.Normal,
-                fontSize = 15.sp,
+                fontSize = 15.ssp,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 32.dp),
+                modifier = Modifier.padding(horizontal = 32.sdp),
             )
         }
 
@@ -115,24 +117,24 @@ fun SplashScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 40.dp),
+                .padding(bottom = 40.sdp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.sdp),
         ) {
             Text(
                 text = "SAFERENT TECHNOLOGIES",
                 color = palette.footer,
                 fontFamily = Inter,
                 fontWeight = FontWeight.Medium,
-                fontSize = 12.sp,
-                letterSpacing = 1.2.sp,
+                fontSize = 12.ssp,
+                letterSpacing = 1.2.ssp,
             )
             SplashLoading(lottiePath = appearance.lottiePath, darkTheme = darkTheme)
         }
     }
 }
 
-private val BRAND_LOGO_SIZE = 148.dp
+private val BRAND_LOGO_SIZE get() = 148.sdp
 
 /** "SafeRent" — dark theme paints the trailing "Rent" in the accent colour (as designed). */
 private fun brandTitle(title: String, palette: SplashPalette) = buildAnnotatedString {
@@ -148,7 +150,7 @@ private fun brandTitle(title: String, palette: SplashPalette) = buildAnnotatedSt
 /** Downloaded server logo when present and readable, otherwise the app's brand logo. */
 @Composable
 private fun SplashLogo(logoPath: String?) {
-    val logoSize = 112.dp
+    val logoSize = 112.sdp
     val sizePx = with(LocalDensity.current) { logoSize.roundToPx() }
     val bitmap by produceState<ImageBitmap?>(initialValue = null, logoPath, sizePx) {
         value = logoPath?.let { path ->
@@ -191,8 +193,8 @@ private fun SplashLoading(lottiePath: String?, darkTheme: Boolean) {
         composition = composition,
         iterations = LottieConstants.IterateForever,
         modifier = Modifier
-            .width(132.dp)
-            .height(24.dp),
+            .width(132.sdp)
+            .height(24.sdp),
     )
 }
 

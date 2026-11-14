@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.onboarding
 
+import com.saferenttechnologies.android.core.ui.sdp
+import com.saferenttechnologies.android.core.ui.ssp
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
@@ -133,11 +135,11 @@ fun OnboardingScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+                .padding(start = 20.sdp, end = 20.sdp, bottom = 24.sdp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             PageDots(count = pages.size, current = state.currentPage)
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(28.sdp))
             PrimaryButton(
                 text = current.buttonText,
                 onClick = {
@@ -195,26 +197,26 @@ private fun OnboardingPageContent(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .navigationBarsPadding()
-                .padding(start = 20.dp, end = 20.dp, bottom = 140.dp),
+                .padding(start = 20.sdp, end = 20.sdp, bottom = 140.sdp),
         ) {
             StepChip(step = index + 1, total = count)
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(16.sdp))
             Text(
                 text = highlightedTitle(page.title),
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 34.sp,
-                lineHeight = 40.sp,
+                fontSize = 34.ssp,
+                lineHeight = 40.ssp,
                 letterSpacing = (-0.5).sp,
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(12.sdp))
             Text(
                 text = page.description,
                 color = OnboardingColors.TextMuted,
                 fontFamily = Inter,
                 fontWeight = FontWeight.Normal,
-                fontSize = 17.sp,
-                lineHeight = 25.sp,
+                fontSize = 17.ssp,
+                lineHeight = 25.ssp,
             )
         }
     }
@@ -251,24 +253,24 @@ private fun TopBar(
         modifier = modifier
             .statusBarsPadding()
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 20.sdp, vertical = 12.sdp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .size(44.sdp)
+                .clip(RoundedCornerShape(12.sdp))
                 .background(OnboardingColors.Control)
-                .border(1.dp, OnboardingColors.ControlBorder, RoundedCornerShape(12.dp)),
+                .border(1.sdp, OnboardingColors.ControlBorder, RoundedCornerShape(12.sdp)),
             contentAlignment = Alignment.Center,
         ) {
             Image(
                 painter = painterResource(R.drawable.splash_logo),
                 contentDescription = null,
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(40.sdp),
             )
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(12.sdp))
         Text(
             text = buildAnnotatedString {
                 withStyle(SpanStyle(color = OnboardingColors.Text)) { append("Safe") }
@@ -276,16 +278,16 @@ private fun TopBar(
             },
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.ExtraBold,
-            fontSize = 22.sp,
+            fontSize = 22.ssp,
         )
         Spacer(Modifier.weight(1f))
         if (showMute) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(44.sdp)
                     .clip(CircleShape)
                     .background(OnboardingColors.Control)
-                    .border(1.dp, OnboardingColors.ControlBorder, CircleShape)
+                    .border(1.sdp, OnboardingColors.ControlBorder, CircleShape)
                     .clickable(role = Role.Button, onClick = onToggleMute),
                 contentAlignment = Alignment.Center,
             ) {
@@ -293,20 +295,20 @@ private fun TopBar(
                     painter = painterResource(if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume_on),
                     contentDescription = if (muted) "Unmute video" else "Mute video",
                     tint = OnboardingColors.Text,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(20.sdp),
                 )
             }
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(10.sdp))
         }
         if (skippable) {
             Box(
                 modifier = Modifier
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(22.dp))
+                    .height(44.sdp)
+                    .clip(RoundedCornerShape(22.sdp))
                     .background(OnboardingColors.Control)
-                    .border(1.dp, OnboardingColors.ControlBorder, RoundedCornerShape(22.dp))
+                    .border(1.sdp, OnboardingColors.ControlBorder, RoundedCornerShape(22.sdp))
                     .clickable(role = Role.Button, onClick = onSkip)
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = 20.sdp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -314,7 +316,7 @@ private fun TopBar(
                     color = OnboardingColors.Text,
                     fontFamily = Inter,
                     fontWeight = FontWeight.Medium,
-                    fontSize = 16.sp,
+                    fontSize = 16.ssp,
                 )
             }
         }
@@ -327,41 +329,41 @@ private fun StepChip(step: Int, total: Int) {
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(Color.White.copy(alpha = 0.14f))
-            .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(50))
-            .padding(horizontal = 14.dp, vertical = 7.dp),
+            .border(1.sdp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(50))
+            .padding(horizontal = 14.sdp, vertical = 7.sdp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
-                .size(6.dp)
+                .size(6.sdp)
                 .clip(CircleShape)
                 .background(OnboardingColors.Accent),
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(8.sdp))
         Text(
             text = "STEP $step OF $total",
             color = OnboardingColors.Text,
             fontFamily = Inter,
             fontWeight = FontWeight.Medium,
-            fontSize = 13.sp,
-            letterSpacing = 1.sp,
+            fontSize = 13.ssp,
+            letterSpacing = 1.ssp,
         )
     }
 }
 
 @Composable
 private fun PageDots(count: Int, current: Int) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.sdp), verticalAlignment = Alignment.CenterVertically) {
         repeat(count) { index ->
             val active = index == current
-            val width by animateDpAsState(if (active) 36.dp else 8.dp, label = "dotWidth")
+            val width by animateDpAsState(if (active) 36.sdp else 8.sdp, label = "dotWidth")
             val color by animateColorAsState(
                 if (active) OnboardingColors.Accent else OnboardingColors.DotInactive,
                 label = "dotColor",
             )
             Box(
                 Modifier
-                    .height(8.dp)
+                    .height(8.sdp)
                     .width(width)
                     .clip(CircleShape)
                     .background(color),
@@ -372,13 +374,13 @@ private fun PageDots(count: Int, current: Int) {
 
 @Composable
 private fun PrimaryButton(text: String, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(18.sdp)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(60.dp)
+            .height(60.sdp)
             .shadow(
-                elevation = 18.dp,
+                elevation = 18.sdp,
                 shape = shape,
                 ambientColor = OnboardingColors.ButtonStart,
                 spotColor = OnboardingColors.ButtonStart,
@@ -394,14 +396,14 @@ private fun PrimaryButton(text: String, onClick: () -> Unit) {
                 color = Color.White,
                 fontFamily = Inter,
                 fontWeight = FontWeight.Medium,
-                fontSize = 19.sp,
+                fontSize = 19.ssp,
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(10.sdp))
             Icon(
                 painter = painterResource(R.drawable.ic_arrow_forward),
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(22.sdp),
             )
         }
     }

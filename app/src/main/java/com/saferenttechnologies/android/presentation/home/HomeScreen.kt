@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.home
 
+import com.saferenttechnologies.android.core.ui.sdp
+import com.saferenttechnologies.android.core.ui.ssp
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,7 +44,7 @@ fun HomeScreen(state: HomeState, onIntent: (HomeIntent) -> Unit) {
             .background(AuthColors.Background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(24.dp),
+            .padding(24.sdp),
     ) {
         val name = state.user?.fullName?.trim()?.substringBefore(' ').orEmpty()
         Text(
@@ -50,30 +52,30 @@ fun HomeScreen(state: HomeState, onIntent: (HomeIntent) -> Unit) {
             color = AuthColors.Ink,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.ExtraBold,
-            fontSize = 26.sp,
+            fontSize = 26.ssp,
         )
         if (state.showRoleSwitcher) {
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(16.sdp))
             RoleSwitcher(roles = state.roles, active = state.activeRole, onSelect = { onIntent(HomeIntent.SwitchRole(it)) })
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(16.sdp))
         // Placeholder until the dashboard API (GET api/v1/dashboard?role=) format + design are final.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(16.sdp))
                 .background(AuthColors.Surface)
-                .padding(20.dp),
+                .padding(20.sdp),
         ) {
             Text(
                 "${state.activeRole.label()} dashboard",
                 color = AuthColors.Ink,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 18.sp,
+                fontSize = 18.ssp,
             )
-            Spacer(Modifier.height(6.dp))
-            Text("Coming soon.", color = AuthColors.Body, fontFamily = Inter, fontSize = 14.sp)
+            Spacer(Modifier.height(6.sdp))
+            Text("Coming soon.", color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
         }
         Spacer(Modifier.weight(1f))
         Text(
@@ -81,11 +83,11 @@ fun HomeScreen(state: HomeState, onIntent: (HomeIntent) -> Unit) {
             color = AuthColors.Error,
             fontFamily = Inter,
             fontWeight = FontWeight.Medium,
-            fontSize = 15.sp,
+            fontSize = 15.ssp,
             modifier = Modifier
-                .heightIn(min = 48.dp)
+                .heightIn(min = 48.sdp)
                 .clickable(enabled = !state.isSigningOut, role = Role.Button) { onIntent(HomeIntent.SignOut) }
-                .padding(vertical = 14.dp),
+                .padding(vertical = 14.sdp),
         )
     }
 }
@@ -102,9 +104,9 @@ private fun RoleSwitcher(roles: List<UserRole>, active: UserRole?, onSelect: (Us
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.sdp))
             .background(AuthColors.Surface)
-            .padding(4.dp),
+            .padding(4.sdp),
     ) {
         roles.forEach { role ->
             val selected = role == active
@@ -113,14 +115,14 @@ private fun RoleSwitcher(roles: List<UserRole>, active: UserRole?, onSelect: (Us
                 color = if (selected) Color.White else AuthColors.Body,
                 fontFamily = Inter,
                 fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
+                fontSize = 14.ssp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(10.sdp))
                     .background(if (selected) AuthColors.Orange else Color.Transparent)
                     .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(role) })
-                    .padding(vertical = 10.dp),
+                    .padding(vertical = 10.sdp),
             )
         }
     }

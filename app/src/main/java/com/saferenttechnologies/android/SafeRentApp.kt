@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android
 
+import com.saferenttechnologies.android.core.ui.ResponsiveScale
 import android.Manifest
 import android.app.Activity
 import android.app.Application
@@ -58,6 +59,7 @@ class SafeRentApp : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate() // Hilt injects fields here
+        ResponsiveScale.update(resources.configuration) // sdp / ssp for this device
         registerActivityLifecycleCallbacks(currentActivityHolder) // Firebase phone auth needs it
         // Once per process: sends If-None-Match, 304 keeps cache, never throws.
         // Then, if the splash version changed, download the new splash in the background.

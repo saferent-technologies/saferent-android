@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.auth
 
+import com.saferenttechnologies.android.core.ui.sdp
+import com.saferenttechnologies.android.core.ui.ssp
 import android.content.res.Configuration
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -81,87 +83,87 @@ internal fun OtpScreen(state: AuthState, onIntent: (AuthIntent) -> Unit) {
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 24.sdp),
         ) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(12.sdp))
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
-                        .size(44.dp)
+                        .size(44.sdp)
                         .clip(CircleShape)
                         .background(AuthColors.Surface)
                         .clickable(role = Role.Button) { onIntent(AuthIntent.EditNumber) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(painterResource(R.drawable.ic_chevron_left), "Back", tint = AuthColors.Ink, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(R.drawable.ic_chevron_left), "Back", tint = AuthColors.Ink, modifier = Modifier.size(22.sdp))
                 }
                 Text(
                     "VERIFICATION",
                     color = AuthColors.Body,
                     fontFamily = Inter,
                     fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    letterSpacing = 1.4.sp,
+                    fontSize = 14.ssp,
+                    letterSpacing = 1.4.ssp,
                 )
             }
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(28.sdp))
             Box(
                 Modifier
-                    .size(58.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .size(58.sdp)
+                    .clip(RoundedCornerShape(16.sdp))
                     .background(AuthColors.OrangeSoft),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(painterResource(R.drawable.ic_smartphone), null, tint = AuthColors.OrangeText, modifier = Modifier.size(26.dp))
+                Icon(painterResource(R.drawable.ic_smartphone), null, tint = AuthColors.OrangeText, modifier = Modifier.size(26.sdp))
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(20.sdp))
             Text(
                 "Verify your mobile",
                 color = AuthColors.Ink,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 28.sp,
+                fontSize = 28.ssp,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(8.sdp))
             Text(
                 "We've sent a 6-digit verification code via SMS to",
                 color = AuthColors.Body,
                 fontFamily = Inter,
-                fontSize = 15.sp,
+                fontSize = 15.ssp,
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(4.sdp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(state.displayPhone, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 15.sp)
-                Spacer(Modifier.width(10.dp))
+                Text(state.displayPhone, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 15.ssp)
+                Spacer(Modifier.width(10.sdp))
                 Text(
                     "Edit",
                     color = AuthColors.OrangeText,
                     fontFamily = Inter,
                     fontWeight = FontWeight.Medium,
-                    fontSize = 15.sp,
+                    fontSize = 15.ssp,
                     textDecoration = TextDecoration.Underline,
                     modifier = Modifier.clickable(role = Role.Button) { onIntent(AuthIntent.EditNumber) },
                 )
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(24.sdp))
             OtpInput(otp = state.otp, onChange = { onIntent(AuthIntent.OtpChanged(it)) })
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(16.sdp))
 
             when {
-                state.error != null -> Text(state.error, color = AuthColors.Error, fontFamily = Inter, fontSize = 14.sp)
+                state.error != null -> Text(state.error, color = AuthColors.Error, fontFamily = Inter, fontSize = 14.ssp)
                 state.isDetectingSms -> DetectingSmsChip()
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(14.sdp))
             ResendRow(state = state, onResend = { onIntent(AuthIntent.ResendClicked) })
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(24.sdp))
         }
 
         // Same size / position as "Continue with OTP" on the login screen.
-        Column(Modifier.padding(horizontal = 24.dp)) {
+        Column(Modifier.padding(horizontal = 24.sdp)) {
             AuthPrimaryButton(
                 text = "Verify & Continue",
                 enabled = !state.isVerifying, // always same colour; short code → error text
@@ -169,7 +171,7 @@ internal fun OtpScreen(state: AuthState, onIntent: (AuthIntent) -> Unit) {
                 leadingIcon = R.drawable.ic_shield_check,
                 onClick = { onIntent(AuthIntent.VerifyClicked) },
             )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(16.sdp))
         }
     }
 }
@@ -217,17 +219,17 @@ private fun OtpBoxes(otp: String) {
         animationSpec = infiniteRepeatable(tween(500), RepeatMode.Reverse),
         label = "cursorAlpha",
     )
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.sdp)) {
         repeat(VerifyOtpUseCase.OTP_LENGTH) { index ->
-            val shape = RoundedCornerShape(12.dp)
+            val shape = RoundedCornerShape(12.sdp)
             val filled = index < otp.length
             val active = index == otp.length
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(60.dp)
+                    .height(60.sdp)
                     .then(
-                        if (active) Modifier.shadow(6.dp, shape, ambientColor = AuthColors.Orange, spotColor = AuthColors.Orange)
+                        if (active) Modifier.shadow(6.sdp, shape, ambientColor = AuthColors.Orange, spotColor = AuthColors.Orange)
                         else Modifier,
                     )
                     .clip(shape)
@@ -239,7 +241,7 @@ private fun OtpBoxes(otp: String) {
                         },
                     )
                     .border(
-                        width = if (active) 2.dp else 1.dp,
+                        width = if (active) 2.sdp else 1.sdp,
                         color = when {
                             active -> AuthColors.Orange
                             filled -> AuthColors.OtpFilledBorder
@@ -255,16 +257,16 @@ private fun OtpBoxes(otp: String) {
                         color = AuthColors.Ink,
                         fontFamily = Inter,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 24.sp,
+                        fontSize = 24.ssp,
                     )
                     active -> Box(
                         Modifier
-                            .width(2.dp)
-                            .height(26.dp)
+                            .width(2.sdp)
+                            .height(26.sdp)
                             .alpha(blink)
                             .background(AuthColors.Ink),
                     )
-                    else -> Text("·", color = AuthColors.Muted, fontSize = 22.sp)
+                    else -> Text("·", color = AuthColors.Muted, fontSize = 22.ssp)
                 }
             }
         }
@@ -276,28 +278,28 @@ private fun DetectingSmsChip() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.sdp))
             .background(AuthColors.GreenBg)
-            .border(1.dp, AuthColors.GreenBorder, RoundedCornerShape(12.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .border(1.sdp, AuthColors.GreenBorder, RoundedCornerShape(12.sdp))
+            .padding(horizontal = 16.sdp, vertical = 12.sdp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
-                .size(8.dp)
+                .size(8.sdp)
                 .clip(CircleShape)
                 .background(AuthColors.GreenDot),
         )
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(10.sdp))
         Text(
             "Detecting OTP from SMS…",
             color = AuthColors.GreenText,
             fontFamily = Inter,
             fontWeight = FontWeight.Medium,
-            fontSize = 14.sp,
+            fontSize = 14.ssp,
             modifier = Modifier.weight(1f),
         )
-        Text("Auto-fill", color = AuthColors.Green, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+        Text("Auto-fill", color = AuthColors.Green, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 14.ssp)
     }
 }
 
@@ -313,7 +315,7 @@ private fun ResendRow(state: AuthState, onResend: () -> Unit) {
                 }
             },
             fontFamily = Inter,
-            fontSize = 14.sp,
+            fontSize = 14.ssp,
         )
     } else {
         Text(
@@ -321,7 +323,7 @@ private fun ResendRow(state: AuthState, onResend: () -> Unit) {
             color = if (state.canResend) AuthColors.OrangeText else AuthColors.Muted,
             fontFamily = Inter,
             fontWeight = FontWeight.Medium,
-            fontSize = 14.sp,
+            fontSize = 14.ssp,
             modifier = Modifier.clickable(enabled = state.canResend, role = Role.Button, onClick = onResend),
         )
     }

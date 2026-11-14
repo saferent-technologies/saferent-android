@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android
 
+import com.saferenttechnologies.android.core.ui.ResponsiveScale
+import com.saferenttechnologies.android.core.ui.sdp
 import android.graphics.Color
 import android.Manifest
 import android.content.pm.PackageManager
@@ -63,6 +65,10 @@ class MainActivity : ComponentActivity() {
         // System splash (colour only) stays until the saved splash is read → no flash.
         installSplashScreen().setKeepOnScreenCondition { !splashViewModel.state.value.isReady }
         super.onCreate(savedInstanceState)
+        ResponsiveScale.update(resources.configuration) // re-read after rotation / fold / window resize
+        if (BuildConfig.DEBUG) {
+            Log.d("SafeRent-UI", "smallestWidth=${resources.configuration.smallestScreenWidthDp}dp → scale ${ResponsiveScale.factor}")
+        }
         // Splash backgrounds (orange / near-black) both need light status-bar icons.
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -185,6 +191,6 @@ private fun LoadingScreen() {
             .background(AuthColors.Background),
         contentAlignment = Alignment.Center,
     ) {
-        CircularProgressIndicator(color = AuthColors.Orange, strokeWidth = 3.dp, modifier = Modifier.size(36.dp))
+        CircularProgressIndicator(color = AuthColors.Orange, strokeWidth = 3.sdp, modifier = Modifier.size(36.sdp))
     }
 }

@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.auth
 
+import com.saferenttechnologies.android.core.ui.sdp
+import com.saferenttechnologies.android.core.ui.ssp
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -122,31 +124,31 @@ internal fun AuthPrimaryButton(
     @DrawableRes leadingIcon: Int? = null,
     @DrawableRes trailingIcon: Int? = null,
 ) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(14.sdp)
     val active = enabled && !loading
     // Static look: same colour + shadow in every state (no fade when disabled / loading).
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp)
-            .shadow(12.dp, shape, ambientColor = AuthColors.Orange, spotColor = AuthColors.Orange)
+            .height(56.sdp)
+            .shadow(12.sdp, shape, ambientColor = AuthColors.Orange, spotColor = AuthColors.Orange)
             .clip(shape)
             .background(AuthColors.Orange)
             .clickable(enabled = active, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         if (loading) {
-            CircularProgressIndicator(color = Color.White, strokeWidth = 2.5.dp, modifier = Modifier.size(24.dp))
+            CircularProgressIndicator(color = Color.White, strokeWidth = 2.5.sdp, modifier = Modifier.size(24.sdp))
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 leadingIcon?.let {
-                    Icon(painterResource(it), null, tint = Color.White, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
+                    Icon(painterResource(it), null, tint = Color.White, modifier = Modifier.size(20.sdp))
+                    Spacer(Modifier.width(10.sdp))
                 }
-                Text(text, color = Color.White, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 17.sp)
+                Text(text, color = Color.White, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 17.ssp)
                 trailingIcon?.let {
-                    Spacer(Modifier.width(10.dp))
-                    Icon(painterResource(it), null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.sdp))
+                    Icon(painterResource(it), null, tint = Color.White, modifier = Modifier.size(20.sdp))
                 }
             }
         }

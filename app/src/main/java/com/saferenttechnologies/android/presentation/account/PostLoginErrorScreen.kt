@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.account
 
+import com.saferenttechnologies.android.core.ui.sdp
+import com.saferenttechnologies.android.core.ui.ssp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,7 +36,7 @@ fun PostLoginErrorScreen(message: String, onIntent: (PostLoginIntent) -> Unit) {
             .background(AuthColors.Background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(24.dp),
+            .padding(24.sdp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -43,24 +45,24 @@ fun PostLoginErrorScreen(message: String, onIntent: (PostLoginIntent) -> Unit) {
             color = AuthColors.Ink,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.ExtraBold,
-            fontSize = 22.sp,
+            fontSize = 22.ssp,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(10.dp))
-        Text(message, color = AuthColors.Body, fontFamily = Inter, fontSize = 15.sp, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(10.sdp))
+        Text(message, color = AuthColors.Body, fontFamily = Inter, fontSize = 15.ssp, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(28.sdp))
         AuthPrimaryButton(text = "Try again", enabled = true, loading = false, onClick = { onIntent(PostLoginIntent.Retry) })
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(8.sdp))
         Text(
             "Sign out",
             color = AuthColors.Error,
             fontFamily = Inter,
             fontWeight = FontWeight.Medium,
-            fontSize = 15.sp,
+            fontSize = 15.ssp,
             modifier = Modifier
-                .heightIn(min = 48.dp)
+                .heightIn(min = 48.sdp)
                 .clickable(role = Role.Button) { onIntent(PostLoginIntent.SignOut) }
-                .padding(14.dp),
+                .padding(14.sdp),
         )
     }
 }
