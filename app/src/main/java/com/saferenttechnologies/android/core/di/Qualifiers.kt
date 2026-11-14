@@ -26,3 +26,8 @@ annotation class SplashPreferences
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class OnboardingPreferences
+
+/** Preferences DataStore "saferent_session". */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class SessionPreferences

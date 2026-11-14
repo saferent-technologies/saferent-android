@@ -75,6 +75,10 @@ data class AuthDto(
     val otpExpiryMinutes: Int = 5,
     val otpResendSeconds: Int = 60,
     val otpMaxAttempts: Int = 5,
+    /** Ask for demographics (name, etc.) after sign-in. */
+    val showDemographics: Boolean = true,
+    /** User may skip the demographics step. */
+    val demographicsSkippable: Boolean = true,
 )
 
 @Serializable
@@ -168,13 +172,13 @@ data class SupportDto(
 @Serializable
 data class SplashDto(
     /** Content version of the splash (e.g. "1.4"); changes when admins edit it. */
-    val version: String = "",
+    val version: String = "1.0",
     val enabled: Boolean = true,
     val title: String = "SafeRent",
-    val description: String = "",
-    /** Logo for the light theme. "" → app's bundled logo. */
+    val description: String = "Verified homes. Honest renting.",
+    /** Logo for the light theme. "" → app's bundled logo. PNG / JPG / WEBP (no SVG). */
     val lightLogoUrl: String = "",
-    /** Logo for the dark theme. "" → app's bundled logo. */
+    /** Logo for the dark theme. "" → falls back to [lightLogoUrl], then the bundled logo. */
     val darkLogoUrl: String = "",
     val lottieUrl: String = "",
     val minDurationMs: Long = 1500L,
@@ -185,9 +189,9 @@ data class OnboardingScreenDto(
     val id: String = "",
     val title: String = "",
     val description: String = "",
-    /** Primary button label for this screen ("Next", "Get started"). "" → app default. */
-    val buttonText: String = "",
-    /** NONE | IMAGE | VIDEO | LOTTIE (informational — the app picks video → image → lottie). */
+    /** Primary button label ("Next"; the server sends "Get started" on the last screen). */
+    val buttonText: String = "Next",
+    /** NONE | IMAGE | VIDEO | LOTTIE — only the URL matching this type is filled. */
     val mediaType: String = "NONE",
     val imageUrl: String = "",
     val videoUrl: String = "",
@@ -196,8 +200,8 @@ data class OnboardingScreenDto(
 
 @Serializable
 data class OnboardingDto(
-    /** Content version of onboarding (e.g. "2.0"); changes when admins edit it. */
-    val version: String = "",
+    /** Content version of onboarding ("1.0" … "2.0"); compared with == only. */
+    val version: String = "1.0",
     /** Missing onboarding → true, so the app's default onboarding is shown. */
     val enabled: Boolean = true,
     val showOnce: Boolean = true,
@@ -226,4 +230,8 @@ data class LegalDto(
     val privacyPolicyUrl: String = "",
     val termsUrl: String = "",
     val refundPolicyUrl: String = "",
+    /** Current Terms of Service version — users must have accepted this one. */
+    val termsVersion: String = "2026-11-01",
+    /** Current Privacy Policy version. */
+    val privacyVersion: String = "2026-11-01",
 )

@@ -17,7 +17,8 @@ object TestConfig {
                     "propertyTaxDocuments": true, "otherDocuments": true, "notifications": true, "referrals": true,
                     "support": true, "chat": false },
       "auth": { "emailLogin": true, "phoneLogin": true, "emailOtp": true, "phoneOtp": true, "googleLogin": false,
-                "otpExpiryMinutes": 5, "otpResendSeconds": 60, "otpMaxAttempts": 5 },
+                "otpExpiryMinutes": 5, "otpResendSeconds": 60, "otpMaxAttempts": 5,
+                "showDemographics": true, "demographicsSkippable": true },
       "properties": {
         "enabledTypes": [
           { "key": "APARTMENT", "label": "Apartment", "category": "RESIDENTIAL", "structure": "MULTI_UNIT" },

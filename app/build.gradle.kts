@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.google.services)
 }
 
 // API base URL comes from local.properties (never committed). Must end with "/".
@@ -82,6 +83,18 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     debugImplementation(libs.chucker)
     releaseImplementation(libs.chucker.no.op)
+
+    // Auth: Firebase phone OTP
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.messaging)
+    implementation(libs.androidx.browser)
+
+    // Onboarding media
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
 
     // Storage
     implementation(libs.androidx.datastore.preferences)

@@ -6,6 +6,7 @@ import com.chuckerteam.chucker.api.ChuckerInterceptor
 import com.chuckerteam.chucker.api.RetentionManager
 import com.saferenttechnologies.android.BuildConfig
 import com.saferenttechnologies.android.core.log.AppLogger
+import com.saferenttechnologies.android.data.auth.AuthInterceptor
 import com.saferenttechnologies.android.data.remote.SafeRentJson
 import dagger.Module
 import dagger.Provides
@@ -33,9 +34,13 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(@ApplicationContext context: Context): OkHttpClient = OkHttpClient.Builder()
+    fun provideOkHttpClient(
+        @ApplicationContext context: Context,
+        authInterceptor: AuthInterceptor,
+    ): OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
+        .addInterceptor(authInterceptor) // Firebase ID token on every request when signed in
         .apply {
             if (BuildConfig.DEBUG) {
                 // Chucker: every call shows in a notification → tap it to open the inspector.

@@ -146,6 +146,7 @@ internal fun Response<*>.toServerError(json: Json): AppError.Server {
         httpCode = code(),
         errorCode = dto?.errorCode,
         reason = dto?.reason,
+        details = dto?.details?.takeUnless { it is kotlinx.serialization.json.JsonNull }?.toString(),
         message = dto?.message?.takeIf { it.isNotBlank() }
             ?: "Server error (${code()}). Please try again.",
     )

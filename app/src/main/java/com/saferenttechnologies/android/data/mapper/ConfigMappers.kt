@@ -126,6 +126,8 @@ fun AuthDto.toDomain() = AuthSettings(
     otpExpiryMinutes = otpExpiryMinutes,
     otpResendSeconds = otpResendSeconds,
     otpMaxAttempts = otpMaxAttempts,
+    showDemographics = showDemographics,
+    demographicsSkippable = demographicsSkippable,
 )
 
 fun PropertyTypeDto.toDomain() = PropertyType(
@@ -254,4 +256,6 @@ fun LegalDto.toDomain() = LegalSettings(
     privacyPolicyUrl = privacyPolicyUrl,
     termsUrl = termsUrl,
     refundPolicyUrl = refundPolicyUrl,
+    termsVersion = termsVersion,
+    privacyVersion = privacyVersion,
 )

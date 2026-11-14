@@ -18,6 +18,24 @@ sealed interface AppError {
         val errorCode: String? = null,
         val reason: String? = null,
         override val message: String = "Something went wrong. Please try again.",
+        /** Raw JSON of the error envelope's "details" (parsed by the feature that needs it). */
+        val details: String? = null,
+    ) : AppError
+
+    /** 400 VALIDATION_ERROR — the server listed which profile fields are missing / invalid. */
+    data class Validation(
+        override val message: String,
+        val missingFields: List<String> = emptyList(),
+    ) : AppError
+
+    /** 409 EMAIL_IN_USE — another account already uses this email. */
+    data class EmailInUse(
+        override val message: String = "This email is already used by another account.",
+    ) : AppError
+
+    /** LOGIN_METHOD_DISABLED — phone sign-in switched off on the server. */
+    data class LoginMethodDisabled(
+        override val message: String = "Phone sign-in is turned off right now",
     ) : AppError
 
     data class Parse(

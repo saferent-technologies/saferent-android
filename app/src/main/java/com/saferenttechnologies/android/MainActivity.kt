@@ -1,26 +1,46 @@
 package com.saferenttechnologies.android
 
 import android.graphics.Color
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.saferenttechnologies.android.presentation.auth.AuthColors
+import com.saferenttechnologies.android.domain.model.PostLoginDestination
+import com.saferenttechnologies.android.presentation.account.PostLoginErrorScreen
+import com.saferenttechnologies.android.presentation.account.PostLoginIntent
+import com.saferenttechnologies.android.presentation.account.PostLoginViewModel
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import com.saferenttechnologies.android.core.media.LocalRemoteImageLoader
-import com.saferenttechnologies.android.core.media.RemoteImageLoader
+import com.saferenttechnologies.android.presentation.auth.AuthIntent
+import com.saferenttechnologies.android.presentation.auth.AuthScreen
+import com.saferenttechnologies.android.presentation.auth.AuthViewModel
+import com.saferenttechnologies.android.presentation.profile.UserProfileIntent
+import com.saferenttechnologies.android.presentation.home.HomeIntent
+import com.saferenttechnologies.android.presentation.home.HomeScreen
+import com.saferenttechnologies.android.presentation.home.HomeViewModel
+import com.saferenttechnologies.android.presentation.profile.UserProfileScreen
+import com.saferenttechnologies.android.presentation.profile.UserProfileViewModel
 import com.saferenttechnologies.android.presentation.onboarding.OnboardingIntent
 import com.saferenttechnologies.android.presentation.onboarding.OnboardingScreen
 import com.saferenttechnologies.android.presentation.onboarding.OnboardingViewModel
@@ -28,16 +48,16 @@ import com.saferenttechnologies.android.presentation.splash.SplashScreen
 import com.saferenttechnologies.android.presentation.splash.SplashViewModel
 import com.saferenttechnologies.android.ui.theme.SafeRentTheme
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val splashViewModel: SplashViewModel by viewModels()
     private val onboardingViewModel: OnboardingViewModel by viewModels()
-
-    @Inject
-    lateinit var remoteImageLoader: RemoteImageLoader
+    private val authViewModel: AuthViewModel by viewModels()
+    private val postLoginViewModel: PostLoginViewModel by viewModels()
+    private val userProfileViewModel: UserProfileViewModel by viewModels()
+    private val homeViewModel: HomeViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // System splash (colour only) stays until the saved splash is read → no flash.
@@ -49,18 +69,75 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         setContent {
-            CompositionLocalProvider(LocalRemoteImageLoader provides remoteImageLoader) {
+            run {
                 SafeRentTheme {
                     val splashState by splashViewModel.state.collectAsState()
                     val onboardingState by onboardingViewModel.state.collectAsState()
-                    // Decide about onboarding only after the splash (→ config is ready on first launch).
+                    val authState by authViewModel.state.collectAsState()
+                    val postLoginState by postLoginViewModel.state.collectAsState()
+                    val userProfileState by userProfileViewModel.state.collectAsState()
+                    val homeState by homeViewModel.state.collectAsState()
+
+                    // After the splash (→ config ready on first launch) decide the next steps.
                     LaunchedEffect(splashState.isFinished) {
-                        if (splashState.isFinished) onboardingViewModel.onIntent(OnboardingIntent.Load)
+                        if (splashState.isFinished) {
+                            onboardingViewModel.onIntent(OnboardingIntent.Load)
+                            authViewModel.onIntent(AuthIntent.Load)
+                        }
                     }
+                    // Every sign-in / app start while signed in: phone/complete (+ FCM token) → auth/me.
+                    LaunchedEffect(authState.isSignedIn) {
+                        if (authState.isSignedIn) {
+                            postLoginViewModel.onIntent(PostLoginIntent.Load)
+                        }
+                    }
+                    // Android 13+: ask for notifications once signed in (push for rent reminders etc.).
+                    // Denied → nothing changes; the app never blocks on it.
+                    val notificationPermission = rememberLauncherForActivityResult(
+                        ActivityResultContracts.RequestPermission(),
+                    ) { granted -> Log.d("SafeRent-Push", "POST_NOTIFICATIONS granted=$granted") }
+                    LaunchedEffect(authState.isSignedIn) {
+                        if (authState.isSignedIn &&
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(
+                                this@MainActivity,
+                                Manifest.permission.POST_NOTIFICATIONS,
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                    // UserProfile or straight to the active role's dashboard.
+                    LaunchedEffect(postLoginState.destination) {
+                        when (val destination = postLoginState.destination) {
+                            is PostLoginDestination.UserProfile ->
+                                userProfileViewModel.onIntent(UserProfileIntent.Start(destination))
+                            is PostLoginDestination.Dashboard -> homeViewModel.onIntent(HomeIntent.Open(destination))
+                            null -> Unit
+                        }
+                    }
+                    // UserProfile saved / skipped → dashboard of the returned role.
+                    LaunchedEffect(userProfileState.dashboard) {
+                        userProfileState.dashboard?.let { homeViewModel.onIntent(HomeIntent.Open(it)) }
+                    }
+
+                    // Splash → Onboarding → Login/OTP → phone/complete → UserProfile? → Dashboard
+                    val showSplash = !splashState.isFinished || !onboardingState.isLoaded ||
+                        (onboardingState.isFinished && !authState.isLoaded)
+                    val onLightScreen = !showSplash && onboardingState.isFinished
+                    // Splash / onboarding always want light bar icons; login & later screens follow the
+                    // system theme (dark icons on the light screens, light icons in dark mode).
+                    LaunchedEffect(onLightScreen) {
+                        if (onLightScreen) {
+                            enableEdgeToEdge(
+                                statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+                                navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+                            )
+                        }
+                    }
+
                     when {
-                        // Splash until its time is up AND we know whether onboarding is needed.
-                        !splashState.isFinished || !onboardingState.isLoaded ->
-                            SplashScreen(state = splashState)
+                        showSplash -> SplashScreen(state = splashState)
 
                         !onboardingState.isFinished -> OnboardingScreen(
                             state = onboardingState,
@@ -68,15 +145,30 @@ class MainActivity : ComponentActivity() {
                             onIntent = onboardingViewModel::onIntent,
                         )
 
-                        else -> {
-                            LaunchedEffect(Unit) { enableEdgeToEdge() } // back to theme-based bar icons
-                            Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                                Greeting(
-                                    name = "Android",
-                                    modifier = Modifier.padding(innerPadding),
-                                )
+                        !authState.isSignedIn -> AuthScreen(
+                            state = authState,
+                            effects = authViewModel.effect,
+                            onIntent = authViewModel::onIntent,
+                        )
+
+                        postLoginState.error != null -> PostLoginErrorScreen(
+                            message = postLoginState.error.orEmpty(),
+                            onIntent = postLoginViewModel::onIntent,
+                        )
+
+                        postLoginState.destination == null -> LoadingScreen()
+
+                        postLoginState.destination is PostLoginDestination.UserProfile &&
+                            userProfileState.dashboard == null ->
+                            if (userProfileState.isStarted) {
+                                UserProfileScreen(state = userProfileState, onIntent = userProfileViewModel::onIntent)
+                            } else {
+                                LoadingScreen()
                             }
-                        }
+
+                        homeState.user == null -> LoadingScreen()
+
+                        else -> HomeScreen(state = homeState, onIntent = homeViewModel::onIntent)
                     }
                 }
             }
@@ -84,18 +176,15 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** Short wait between screens (themed so there is no flash). */
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier,
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    SafeRentTheme {
-        Greeting("Android")
+private fun LoadingScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AuthColors.Background),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(color = AuthColors.Orange, strokeWidth = 3.dp, modifier = Modifier.size(36.dp))
     }
 }

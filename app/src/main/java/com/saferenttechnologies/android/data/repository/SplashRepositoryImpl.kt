@@ -54,8 +54,10 @@ class SplashRepositoryImpl @Inject constructor(
                     // Each theme gets its own logo; a missing one → bundled logo for that theme.
                     val lightLogo = remote.lightLogoUrl.takeIf { it.isNotBlank() }
                         ?.let { files.downloadLogo(it, dir, name = "logo-light") }
+                    // Dark logo missing → reuse the light one (spec: darkLogoUrl.ifBlank { lightLogoUrl }).
                     val darkLogo = remote.darkLogoUrl.takeIf { it.isNotBlank() }
                         ?.let { files.downloadLogo(it, dir, name = "logo-dark") }
+                        ?: lightLogo
                     val lottie = remote.lottieUrl.takeIf { it.isNotBlank() }?.let { files.downloadLottie(it, dir) }
 
                     val updated = SplashAppearance(

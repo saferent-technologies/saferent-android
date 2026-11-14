@@ -42,13 +42,14 @@ sealed interface SplashAssetsResult {
 object SplashUpdatePolicy {
     /**
      * @param savedFilesExist false when a saved asset file was removed (e.g. storage cleared).
-     * @return true when the server version differs from the saved one (upgrade or rollback),
-     *         or the same version is saved but its files are missing.
-     *         A blank server version never triggers a download.
+     * @return true when the server version is not == the saved one (versions are plain strings
+     *         like "1.0" … "1.9" → "2.0"; any change downloads), or the same version is saved but
+     *         its files are missing. A blank server version never triggers a download.
      */
     fun needsUpdate(saved: SplashAppearance, remote: SplashSettings, savedFilesExist: Boolean): Boolean {
-        if (remote.version.isBlank()) return false
-        if (AppInfo.compareVersions(remote.version, saved.version) != 0) return true
+        val version = remote.version.trim()
+        if (version.isEmpty()) return false
+        if (version != saved.version.trim()) return true
         return !savedFilesExist
     }
 }

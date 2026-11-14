@@ -36,7 +36,7 @@ class GetOnboardingUseCaseTest {
     @Test
     fun `server screens are used with their button texts and media priority`() = runTest {
         settings(
-            OnboardingScreen(id = "a", title = "A", buttonText = "Continue", videoUrl = "v.mp4", imageUrl = "i.png"),
+            OnboardingScreen(id = "a", title = "A", buttonText = "Continue", mediaType = "VIDEO", videoUrl = "v.mp4"),
             OnboardingScreen(id = "b", title = "B", buttonText = "Let's go"),
         ) { copy(skipButtonText = "Later") }
 
@@ -49,7 +49,11 @@ class GetOnboardingUseCaseTest {
 
     @Test
     fun `blank button texts fall back to Next and Get started on the last page`() = runTest {
-        settings(OnboardingScreen(id = "a"), OnboardingScreen(id = "b"), OnboardingScreen(id = "c")) {
+        settings(
+            OnboardingScreen(id = "a", buttonText = ""),
+            OnboardingScreen(id = "b", buttonText = ""),
+            OnboardingScreen(id = "c", buttonText = ""),
+        ) {
             copy(skipButtonText = "")
         }
 

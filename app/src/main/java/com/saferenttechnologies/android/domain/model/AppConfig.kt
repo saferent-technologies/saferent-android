@@ -134,6 +134,10 @@ data class AuthSettings(
     val otpExpiryMinutes: Int = 5,
     val otpResendSeconds: Int = 60,
     val otpMaxAttempts: Int = 5,
+    /** Ask for demographics (name, etc.) after sign-in. */
+    val showDemographics: Boolean = true,
+    /** User may skip the demographics step. */
+    val demographicsSkippable: Boolean = true,
 )
 
 data class PropertyType(
@@ -215,13 +219,13 @@ data class SupportSettings(
 
 data class SplashSettings(
     /** Content version (e.g. "1.4"). "" = unknown / built-in default. */
-    val version: String = "",
+    val version: String = "1.0",
     val enabled: Boolean = true,
     val title: String = "SafeRent",
-    val description: String = "",
-    /** Logo for the light theme. "" → app's bundled logo. */
+    val description: String = "Verified homes. Honest renting.",
+    /** Logo for the light theme. "" → app's bundled logo. PNG / JPG / WEBP (no SVG). */
     val lightLogoUrl: String = "",
-    /** Logo for the dark theme. "" → app's bundled logo. */
+    /** Logo for the dark theme. "" → falls back to [lightLogoUrl], then the bundled logo. */
     val darkLogoUrl: String = "",
     val lottieUrl: String = "",
     val minDurationMs: Long = 1500L,
@@ -231,24 +235,26 @@ data class OnboardingScreen(
     val id: String = "",
     val title: String = "",
     val description: String = "",
-    /** Primary button label ("Next", "Get started"). "" → app default. */
-    val buttonText: String = "",
-    /** NONE | IMAGE | VIDEO | LOTTIE — informational; see [mediaCandidates]. */
+    /** Primary button label ("Next"; the server sends "Get started" on the last screen). */
+    val buttonText: String = "Next",
+    /** NONE | IMAGE | VIDEO | LOTTIE — only the URL matching this type is filled. */
     val mediaType: String = "NONE",
     val imageUrl: String = "",
     val videoUrl: String = "",
     val lottieUrl: String = "",
 ) {
     /**
-     * Media to try, best first, by what is actually available:
-     * video → image → lottie → the app's bundled image (always last).
-     * If one fails to load/play, the screen falls back to the next.
+     * Media to show, by [mediaType]: IMAGE → imageUrl, VIDEO → videoUrl, LOTTIE → lottieUrl.
+     * The app's bundled image is always last — used for NONE / unknown type / empty URL,
+     * or when the media fails to load or play.
      */
     val mediaCandidates: List<OnboardingMedia>
         get() = buildList {
-            if (videoUrl.isNotBlank()) add(OnboardingMedia.Video(videoUrl))
-            if (imageUrl.isNotBlank()) add(OnboardingMedia.Image(imageUrl))
-            if (lottieUrl.isNotBlank()) add(OnboardingMedia.Lottie(lottieUrl))
+            when (mediaType.uppercase()) {
+                "IMAGE" -> imageUrl.takeIf { it.isNotBlank() }?.let { add(OnboardingMedia.Image(it)) }
+                "VIDEO" -> videoUrl.takeIf { it.isNotBlank() }?.let { add(OnboardingMedia.Video(it)) }
+                "LOTTIE" -> lottieUrl.takeIf { it.isNotBlank() }?.let { add(OnboardingMedia.Lottie(it)) }
+            }
             add(OnboardingMedia.Bundled)
         }
 }
@@ -263,8 +269,8 @@ sealed interface OnboardingMedia {
 }
 
 data class OnboardingSettings(
-    /** Content version (e.g. "1.4"). "" = unknown / built-in default. */
-    val version: String = "",
+    /** Content version ("1.0" … "2.0"); compared with == only. */
+    val version: String = "1.0",
     /** true by default so a missing onboarding shows the app's default screens. */
     val enabled: Boolean = true,
     val showOnce: Boolean = true,
@@ -291,4 +297,8 @@ data class LegalSettings(
     val privacyPolicyUrl: String = "",
     val termsUrl: String = "",
     val refundPolicyUrl: String = "",
+    /** Current Terms of Service version — users must have accepted this one. */
+    val termsVersion: String = "2026-11-01",
+    /** Current Privacy Policy version. */
+    val privacyVersion: String = "2026-11-01",
 )

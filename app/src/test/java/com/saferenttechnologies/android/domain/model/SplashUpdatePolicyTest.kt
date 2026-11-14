@@ -19,7 +19,8 @@ class SplashUpdatePolicyTest {
     fun `same version with files present needs nothing`() {
         val saved = SplashAppearance(version = "1.4")
         assertFalse(SplashUpdatePolicy.needsUpdate(saved, SplashSettings(version = "1.4"), true))
-        assertFalse(SplashUpdatePolicy.needsUpdate(saved, SplashSettings(version = "1.4.0"), true))
+        // Plain string compare (== only): "1.4.0" is a different version string.
+        assertTrue(SplashUpdatePolicy.needsUpdate(saved, SplashSettings(version = "1.4.0"), true))
     }
 
     @Test

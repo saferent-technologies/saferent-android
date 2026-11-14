@@ -52,6 +52,8 @@ class ConfigMappersTest {
         assertEquals(ReferralProgram("TENANT_TO_TENANT", 50.0, null), config.referrals.programs[0])
         assertEquals(ReferralProgram("LANDLORD_TO_LANDLORD", null, 1), config.referrals.programs[2])
 
+        assertTrue(config.auth.showDemographics)
+        assertTrue(config.auth.demographicsSkippable)
         assertEquals("1.4", config.splash.version)
         assertTrue(config.splash.lightLogoUrl.endsWith("0b6f2c1e-6d3a-4f7e-9a51-1c2d3e4f5a6b.png"))
         assertTrue(config.splash.darkLogoUrl.endsWith("4c3d2e1f-7a8b-4c9d-8e7f-6a5b4c3d2e1f.png"))
@@ -74,33 +76,50 @@ class ConfigMappersTest {
     }
 
     @Test
-    fun `missing splash and onboarding version defaults to empty`() {
-        val config = parse("""{"splash":{"enabled":true},"onboarding":{"enabled":true}}""")
-        assertEquals("", config.splash.version)
-        assertEquals("", config.onboarding.version)
+    fun `media is picked by mediaType, bundled image always last`() {
+        val config = parse(
+            """{"onboarding":{"enabled":true,"screens":[
+              {"id":"img","mediaType":"IMAGE","imageUrl":"https://x/a.png"},
+              {"id":"vid","mediaType":"VIDEO","videoUrl":"https://x/a.mp4"},
+              {"id":"lot","mediaType":"LOTTIE","lottieUrl":"https://x/a.json"},
+              {"id":"none","mediaType":"NONE","imageUrl":"https://x/ignored.png"},
+              {"id":"empty","mediaType":"VIDEO","videoUrl":""}
+            ]}}""",
+        )
+        val (img, vid, lot, none, empty) = config.onboarding.screens
+        assertEquals(listOf(OnboardingMedia.Image("https://x/a.png"), OnboardingMedia.Bundled), img.mediaCandidates)
+        assertEquals(listOf(OnboardingMedia.Video("https://x/a.mp4"), OnboardingMedia.Bundled), vid.mediaCandidates)
+        assertEquals(listOf(OnboardingMedia.Lottie("https://x/a.json"), OnboardingMedia.Bundled), lot.mediaCandidates)
+        assertEquals(listOf(OnboardingMedia.Bundled), none.mediaCandidates)
+        assertEquals(listOf(OnboardingMedia.Bundled), empty.mediaCandidates)
     }
 
     @Test
-    fun `media priority is video, then image, then lottie, then bundled - mediaType ignored`() {
+    fun `new backend JSON parses - unknown fields ignored, removed fields don't break`() {
         val config = parse(
-            """{"onboarding":{"enabled":true,"screens":[
-              {"id":"all","mediaType":"LOTTIE","imageUrl":"https://x/a.png","videoUrl":"https://x/a.mp4","lottieUrl":"https://x/a.json"},
-              {"id":"img+lottie","mediaType":"NONE","imageUrl":"https://x/b.png","lottieUrl":"https://x/b.json"},
-              {"id":"none","mediaType":"VIDEO"}
-            ]}}""",
+            """{"configVersion":12,"brandNew":{"a":1},
+               "splash":{"version":"1.9","logoUrl":"https://old/logo.png","lightLogoUrl":"https://x/l.png","darkLogoUrl":""},
+               "onboarding":{"version":"2.0","enabled":true,"contentId":"old","skipButtonText":"Skip",
+                 "screens":[{"id":"a","mediaUrl":"https://old","mediaType":"IMAGE","imageUrl":"https://x/a.webp","buttonText":"Get started","extra":true}]},
+               "auth":{"showDemographics":false,"demographicsSkippable":false,"newFlag":1},
+               "legal":{"termsVersion":"2026-12-01","privacyVersion":"2026-11-01"}}""",
         )
-        val (all, imageLottie, none) = config.onboarding.screens
-        assertEquals(
-            listOf(
-                OnboardingMedia.Video("https://x/a.mp4"),
-                OnboardingMedia.Image("https://x/a.png"),
-                OnboardingMedia.Lottie("https://x/a.json"),
-                OnboardingMedia.Bundled,
-            ),
-            all.mediaCandidates,
-        )
-        assertEquals(OnboardingMedia.Image("https://x/b.png"), imageLottie.mediaCandidates.first())
-        assertEquals(listOf(OnboardingMedia.Bundled), none.mediaCandidates)
+        assertEquals("1.9", config.splash.version)
+        assertEquals("https://x/l.png", config.splash.lightLogoUrl)
+        assertEquals("2.0", config.onboarding.version)
+        assertEquals("Get started", config.onboarding.screens.single().buttonText)
+        assertFalse(config.auth.showDemographics)
+        assertFalse(config.auth.demographicsSkippable)
+        assertEquals("2026-12-01", config.legal.termsVersion)
+    }
+
+    @Test
+    fun `missing splash and onboarding use the spec defaults`() {
+        val config = JsonObject(emptyMap()).toAppConfig(json)
+        assertEquals("1.0", config.splash.version)
+        assertEquals("Verified homes. Honest renting.", config.splash.description)
+        assertEquals("1.0", config.onboarding.version)
+        assertEquals("2026-11-01", config.legal.termsVersion)
     }
 
     @Test

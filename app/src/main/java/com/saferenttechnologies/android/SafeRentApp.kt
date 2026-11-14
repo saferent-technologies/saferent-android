@@ -9,10 +9,17 @@ import android.os.Bundle
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.saferenttechnologies.android.core.android.CurrentActivityHolder
 import com.saferenttechnologies.android.domain.usecase.ForceRefreshAppConfigUseCase
 import com.saferenttechnologies.android.domain.usecase.ScheduleSplashAssetsUpdateUseCase
 import com.saferenttechnologies.android.domain.usecase.SyncAppConfigUseCase
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.crossfade
 import dagger.hilt.android.HiltAndroidApp
+import okhttp3.OkHttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,10 +28,24 @@ import javax.inject.Inject
 
 /** Hilt entry point. Syncs the app config once per process at startup. */
 @HiltAndroidApp
-class SafeRentApp : Application() {
+class SafeRentApp : Application(), SingletonImageLoader.Factory {
+
+    /** Lazy: Coil asks for its loader only when the first image is shown. */
+    @Inject
+    lateinit var okHttpClient: dagger.Lazy<OkHttpClient>
+
+    /** Coil uses the app's OkHttp client (Chucker / logging in debug, same timeouts). */
+    override fun newImageLoader(context: PlatformContext): ImageLoader =
+        ImageLoader.Builder(context)
+            .components { add(OkHttpNetworkFetcherFactory(callFactory = { okHttpClient.get() })) }
+            .crossfade(true)
+            .build()
 
     @Inject
     lateinit var syncAppConfig: SyncAppConfigUseCase
+
+    @Inject
+    lateinit var currentActivityHolder: CurrentActivityHolder
 
     @Inject
     lateinit var forceRefreshAppConfig: ForceRefreshAppConfigUseCase
@@ -37,6 +58,7 @@ class SafeRentApp : Application() {
 
     override fun onCreate() {
         super.onCreate() // Hilt injects fields here
+        registerActivityLifecycleCallbacks(currentActivityHolder) // Firebase phone auth needs it
         // Once per process: sends If-None-Match, 304 keeps cache, never throws.
         // Then, if the splash version changed, download the new splash in the background.
         appScope.launch {
@@ -55,7 +77,8 @@ class SafeRentApp : Application() {
 
     /**
      * Debug only, asked on the first screen of each launch while missing:
-     * - POST_NOTIFICATIONS (Android 13+) → Chucker's "tap to inspect" notification.
+     * - POST_NOTIFICATIONS (Android 13+) → Chucker's "tap to inspect" notification
+     *   (release builds ask after login instead — see MainActivity).
      * - ACCESS_LOCAL_NETWORK (Android 17+, targetSdk 37) → reach the dev API on the
      *   laptop's LAN IP. Without it connections to 192.168.x.x silently time out.
      * The startup sync usually fires before the user answers the popup, so when
