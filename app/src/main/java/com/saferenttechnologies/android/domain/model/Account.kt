@@ -43,6 +43,8 @@ data class AccountUser(
 /** POST auth/phone/complete (right after Firebase OTP). */
 data class PhoneCompletion(
     val ok: Boolean = true,
+    /** Missing in the response (new user) → ACTIVE. */
+    val accountStatus: AccountStatus = AccountStatus.ACTIVE,
     val registrationRequired: Boolean = false,
     val mustChangePassword: Boolean = false,
     val isProfileCompleted: Boolean = false,

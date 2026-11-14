@@ -17,6 +17,8 @@ data class LogoutBody(val fcmToken: String? = null)
 /** POST api/v1/auth/phone/complete → data */
 @Serializable
 data class PhoneCompleteDto(
+    /** ACTIVE | SUSPENDED | DEACTIVATED | DELETED — missing for a new user. */
+    val accountStatus: String? = null,
     val ok: Boolean = true,
     val registrationRequired: Boolean = false,
     val mustChangePassword: Boolean = false,
@@ -67,6 +69,25 @@ data class UserProfileResultDto(
     val roles: List<String> = emptyList(),
     val termsAccepted: Boolean = false,
     val consents: ConsentStatusDto = ConsentStatusDto(),
+)
+
+/** 403 ACCOUNT_DELETED / ACCOUNT_DISABLED → error "details". Every field may be null. */
+@Serializable
+data class AccountBlockedDetailsDto(
+    val accountStatus: String? = null,
+    val title: String? = null,
+    val reason: String? = null,
+    /** ISO-8601 UTC, e.g. "2026-11-14T10:32:05.120Z" */
+    val at: String? = null,
+    val support: SupportContactDto? = null,
+)
+
+@Serializable
+data class SupportContactDto(
+    val email: String? = null,
+    val phone: String? = null,
+    val whatsapp: String? = null,
+    val helpCenterUrl: String? = null,
 )
 
 const val PLATFORM_ANDROID = "ANDROID"

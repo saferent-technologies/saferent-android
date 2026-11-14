@@ -1,6 +1,8 @@
 package com.saferenttechnologies.android.data.remote
 
 import com.saferenttechnologies.android.core.log.AppLogger
+import com.saferenttechnologies.android.data.mapper.isAccountBlocked
+import com.saferenttechnologies.android.data.mapper.toAccountBlockedOrSelf
 import com.saferenttechnologies.android.data.remote.dto.ApiEnvelope
 import com.saferenttechnologies.android.data.remote.dto.ApiErrorDto
 import com.saferenttechnologies.android.domain.model.AppError
@@ -78,12 +80,14 @@ class SafeApiCall @Inject constructor(
 
         if (!response.isSuccessful) {
             val error = response.toServerError(json)
+            // Reason / message text of a blocked account is personal → not logged.
+            val blocked = isAccountBlocked(code, error.errorCode, error.reason)
             logger.w(
                 TAG,
                 "✗ $name → HTTP $code ($url) errorCode=${error.errorCode} " +
-                    "reason=${error.reason} message=\"${error.message}\"",
+                    if (blocked) "(account blocked)" else "reason=${error.reason} message=\"${error.message}\"",
             )
-            return ApiResult.Failure(error)
+            return ApiResult.Failure(error.toAccountBlockedOrSelf(json))
         }
 
         val envelope = response.body()

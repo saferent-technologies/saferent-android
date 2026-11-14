@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.core.session
 
+import com.saferenttechnologies.android.domain.model.AccountBlockedInfo
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -12,6 +13,9 @@ sealed interface SessionEvent {
 
     /** The server rejected our token (401) — sign out and show login. */
     data object Expired : SessionEvent
+
+    /** 403 ACCOUNT_DELETED / ACCOUNT_DISABLED from any signed-in API → blocked screen. */
+    data class AccountBlocked(val info: AccountBlockedInfo) : SessionEvent
 }
 
 /** App-wide session signals (e.g. from the network layer) that the login flow reacts to. */

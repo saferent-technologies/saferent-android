@@ -159,7 +159,7 @@ internal fun MobileEntryScreen(state: AuthState, onIntent: (AuthIntent) -> Unit)
                 Spacer(Modifier.height(14.sdp))
                 AuthPrimaryButton(
                     text = "Continue with OTP",
-                    enabled = !state.isSendingOtp, // always same colour; missing input → error text
+                    enabled = state.canContinue, // clickable only with 10 digits + Terms ticked (no fade)
                     loading = state.isSendingOtp,
                     trailingIcon = R.drawable.ic_arrow_forward,
                     onClick = { onIntent(AuthIntent.ContinueClicked) },

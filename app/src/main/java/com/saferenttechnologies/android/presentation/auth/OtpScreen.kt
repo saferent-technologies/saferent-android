@@ -161,7 +161,7 @@ internal fun OtpScreen(state: AuthState, onIntent: (AuthIntent) -> Unit) {
             Column(Modifier.padding(horizontal = 24.sdp)) {
                 AuthPrimaryButton(
                     text = "Verify & Continue",
-                    enabled = !state.isVerifying, // always same colour; short code → error text
+                    enabled = state.canVerify, // clickable only with all 6 digits
                     loading = state.isVerifying,
                     leadingIcon = R.drawable.ic_shield_check,
                     onClick = { onIntent(AuthIntent.VerifyClicked) },

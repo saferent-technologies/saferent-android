@@ -7,7 +7,9 @@ import com.saferenttechnologies.android.core.mvi.UiIntent
 import com.saferenttechnologies.android.core.mvi.UiState
 import com.saferenttechnologies.android.core.session.SessionEvent
 import com.saferenttechnologies.android.core.session.SessionEvents
+import com.saferenttechnologies.android.domain.model.AppError
 import com.saferenttechnologies.android.domain.model.AppResult
+import com.saferenttechnologies.android.domain.usecase.HandleAccountBlockedUseCase
 import com.saferenttechnologies.android.domain.model.PostLoginDestination
 import com.saferenttechnologies.android.domain.usecase.ResolvePostLoginUseCase
 import com.saferenttechnologies.android.domain.usecase.SignOutUseCase
@@ -35,6 +37,7 @@ sealed interface PostLoginEffect : UiEffect
 class PostLoginViewModel @Inject constructor(
     private val resolvePostLogin: ResolvePostLoginUseCase,
     private val signOut: SignOutUseCase,
+    private val handleAccountBlocked: HandleAccountBlockedUseCase,
     sessionEvents: SessionEvents,
 ) : MviViewModel<PostLoginState, PostLoginIntent, PostLoginEffect>(PostLoginState()) {
 
@@ -55,7 +58,16 @@ class PostLoginViewModel @Inject constructor(
         setState { PostLoginState(isLoading = true) }
         when (val r = resolvePostLogin()) {
             is AppResult.Success -> setState { PostLoginState(destination = r.data) }
-            is AppResult.Failure -> setState { PostLoginState(error = r.error.message) }
+            is AppResult.Failure -> {
+                val error = r.error
+                if (error is AppError.AccountBlocked) {
+                    // Blocked screen (still signed in so "Try again" can re-check).
+                    setState { PostLoginState() }
+                    handleAccountBlocked(error.info)
+                } else {
+                    setState { PostLoginState(error = error.message) }
+                }
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.domain.usecase
 
+import com.saferenttechnologies.android.core.log.NoOpLogger
 import com.saferenttechnologies.android.core.session.SessionEvents
 import com.saferenttechnologies.android.domain.model.AccountUser
 import com.saferenttechnologies.android.domain.model.AppConfig
@@ -39,7 +40,8 @@ class AccountUseCasesTest {
     private val config = FakeConfigRepository()
     private val session = FakeSessionRepository()
     private val auth = FakeAuthRepository()
-    private val resolve = ResolvePostLoginUseCase(account, config, deviceTokens)
+    private val completeLogin = CompletePhoneLoginUseCase(account, deviceTokens, NoOpLogger)
+    private val resolve = ResolvePostLoginUseCase(completeLogin, account, config)
     private val save = SaveUserProfileUseCase(account, session, config)
     private val today = SimpleDate(2026, 11, 14)
 

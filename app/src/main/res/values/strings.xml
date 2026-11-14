@@ -1,3 +1,28 @@
 <resources>
     <string name="app_name">SafeRent</string>
+
+    <!-- Account blocked (server title / message take priority; these are the fallback) -->
+    <string name="account_blocked_title_deleted">Account deleted</string>
+    <string name="account_blocked_title_deactivated">Account deactivated</string>
+    <string name="account_blocked_title_suspended">Account suspended</string>
+    <string name="account_blocked_message_default">This account can no longer be used. Please contact support if you think this is a mistake.</string>
+    <string name="account_blocked_status">Status</string>
+    <string name="account_blocked_changed_on">Status changed on</string>
+    <string name="account_blocked_reason">Reason</string>
+    <string name="account_blocked_status_deleted">Deleted</string>
+    <string name="account_blocked_status_deactivated">Deactivated</string>
+    <string name="account_blocked_status_suspended">Suspended</string>
+    <string name="account_blocked_contact_support">Contact support</string>
+    <string name="account_blocked_back_home">Back to home</string>
+    <string name="account_blocked_try_again">Try again</string>
+    <string name="account_blocked_sign_out">Sign out</string>
+    <string name="contact_support_title">Contact support</string>
+    <string name="contact_support_ticket_soon">Support tickets are coming soon. Meanwhile you can reach us here:</string>
+    <string name="contact_support_ticket_soon_no_channels">Support tickets are coming soon. Please try again later.</string>
+    <string name="account_blocked_no_app">No app found to open this</string>
+    <string name="account_blocked_email_subject">Account %1$s – help</string>
+    <string name="account_blocked_channel_email">Email</string>
+    <string name="account_blocked_channel_call">Call</string>
+    <string name="account_blocked_channel_whatsapp">WhatsApp</string>
+    <string name="account_blocked_channel_help">Help centre</string>
 </resources>

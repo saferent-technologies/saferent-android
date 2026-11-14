@@ -49,7 +49,11 @@ import com.saferenttechnologies.android.presentation.onboarding.OnboardingViewMo
 import com.saferenttechnologies.android.presentation.splash.SplashScreen
 import com.saferenttechnologies.android.presentation.splash.SplashViewModel
 import com.saferenttechnologies.android.ui.theme.SafeRentTheme
+import com.saferenttechnologies.android.core.session.BlockedAccountStore
+import com.saferenttechnologies.android.presentation.blocked.AccountBlockedScreen
+import com.saferenttechnologies.android.presentation.blocked.AccountBlockedViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -60,6 +64,10 @@ class MainActivity : ComponentActivity() {
     private val postLoginViewModel: PostLoginViewModel by viewModels()
     private val userProfileViewModel: UserProfileViewModel by viewModels()
     private val homeViewModel: HomeViewModel by viewModels()
+    private val accountBlockedViewModel: AccountBlockedViewModel by viewModels()
+
+    @Inject
+    lateinit var blockedAccountStore: BlockedAccountStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // System splash (colour only) stays until the saved splash is read → no flash.
@@ -83,6 +91,9 @@ class MainActivity : ComponentActivity() {
                     val postLoginState by postLoginViewModel.state.collectAsState()
                     val userProfileState by userProfileViewModel.state.collectAsState()
                     val homeState by homeViewModel.state.collectAsState()
+                    // Non-null = account deleted / deactivated / suspended (login or while using the app).
+                    val blockedInfo by blockedAccountStore.info.collectAsState()
+                    val blockedState by accountBlockedViewModel.state.collectAsState()
 
                     // After the splash (→ config ready on first launch) decide the next steps.
                     LaunchedEffect(splashState.isFinished) {
@@ -144,6 +155,14 @@ class MainActivity : ComponentActivity() {
 
                     when {
                         showSplash -> SplashScreen(state = splashState)
+
+                        // Above everything else. Try again → re-check; Sign out / back → login (never OTP).
+                        blockedInfo != null -> AccountBlockedScreen(
+                            state = blockedState,
+                            effects = accountBlockedViewModel.effect,
+                            onIntent = accountBlockedViewModel::onIntent,
+                            onRetry = { postLoginViewModel.onIntent(PostLoginIntent.Retry) },
+                        )
 
                         !onboardingState.isFinished -> OnboardingScreen(
                             state = onboardingState,

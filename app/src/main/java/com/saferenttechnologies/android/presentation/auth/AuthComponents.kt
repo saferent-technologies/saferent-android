@@ -153,14 +153,20 @@ internal fun AuthPrimaryButton(
 ) {
     val shape = RoundedCornerShape(14.sdp)
     val active = enabled && !loading
-    // Static look: same colour + shadow in every state (no fade when disabled / loading).
+    // Conditions not met → proper disabled state: grey, no glow, not clickable (no faded orange).
+    // Loading keeps the orange with a spinner.
+    val disabled = !enabled && !loading
+    val content = if (disabled) AuthColors.Muted else Color.White
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(56.sdp)
-            .shadow(12.sdp, shape, ambientColor = AuthColors.Orange, spotColor = AuthColors.Orange)
+            .then(
+                if (disabled) Modifier
+                else Modifier.shadow(12.sdp, shape, ambientColor = AuthColors.Orange, spotColor = AuthColors.Orange),
+            )
             .clip(shape)
-            .background(AuthColors.Orange)
+            .background(if (disabled) AuthColors.Border else AuthColors.Orange)
             .clickable(enabled = active, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -169,13 +175,13 @@ internal fun AuthPrimaryButton(
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 leadingIcon?.let {
-                    Icon(painterResource(it), null, tint = Color.White, modifier = Modifier.size(20.sdp))
+                    Icon(painterResource(it), null, tint = content, modifier = Modifier.size(20.sdp))
                     Spacer(Modifier.width(10.sdp))
                 }
-                Text(text, color = Color.White, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 17.ssp)
+                Text(text, color = content, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 17.ssp)
                 trailingIcon?.let {
                     Spacer(Modifier.width(10.sdp))
-                    Icon(painterResource(it), null, tint = Color.White, modifier = Modifier.size(20.sdp))
+                    Icon(painterResource(it), null, tint = content, modifier = Modifier.size(20.sdp))
                 }
             }
         }

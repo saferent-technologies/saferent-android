@@ -7,6 +7,7 @@ import com.saferenttechnologies.android.data.remote.dto.PLATFORM_ANDROID
 import com.saferenttechnologies.android.data.remote.dto.PhoneCompleteDto
 import com.saferenttechnologies.android.data.remote.dto.UserDto
 import com.saferenttechnologies.android.data.remote.dto.UserProfileResultDto
+import com.saferenttechnologies.android.domain.model.AccountStatus
 import com.saferenttechnologies.android.domain.model.AccountUser
 import com.saferenttechnologies.android.domain.model.AppError
 import com.saferenttechnologies.android.domain.model.ConsentStatus
@@ -30,6 +31,7 @@ import kotlinx.serialization.json.putJsonArray
 
 fun PhoneCompleteDto.toDomain() = PhoneCompletion(
     ok = ok,
+    accountStatus = AccountStatus.fromServer(accountStatus),
     registrationRequired = registrationRequired,
     mustChangePassword = mustChangePassword,
     isProfileCompleted = isProfileCompleted,

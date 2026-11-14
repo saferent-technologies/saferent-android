@@ -181,6 +181,8 @@ class AuthViewModel @Inject constructor(
             sessionEvents.events.collect { event ->
                 when (event) {
                     SessionEvent.Expired -> signOut(remote = false) // token already invalid; emits SignedOut
+                    // Handled app-wide (SafeRentApp → blocked screen + sign-out → SignedOut below).
+                    is SessionEvent.AccountBlocked -> Unit
                     SessionEvent.SignedOut -> {
                         sendJob?.cancel()
                         timerJob?.cancel()

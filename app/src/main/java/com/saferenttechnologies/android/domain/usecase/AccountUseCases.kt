@@ -1,5 +1,10 @@
 package com.saferenttechnologies.android.domain.usecase
 
+import com.saferenttechnologies.android.core.log.AppLogger
+import com.saferenttechnologies.android.core.session.BlockedAccountStore
+import com.saferenttechnologies.android.domain.model.AccountBlockedInfo
+import com.saferenttechnologies.android.domain.model.AccountStatus
+import com.saferenttechnologies.android.domain.model.LoginResult
 import com.saferenttechnologies.android.domain.model.AccountUser
 import com.saferenttechnologies.android.domain.model.ActiveRole
 import com.saferenttechnologies.android.domain.model.AppError
@@ -41,17 +46,20 @@ object PostLoginRules {
  * POST auth/phone/complete (+ FCM token when available) → GET auth/me → dashboard, or UserProfile.
  */
 class ResolvePostLoginUseCase @Inject constructor(
+    private val completePhoneLogin: CompletePhoneLoginUseCase,
     private val account: AccountRepository,
     private val config: ConfigRepository,
-    private val deviceTokens: DeviceTokenRepository,
 ) {
+    /** Blocked account → Failure(AppError.AccountBlocked). */
     suspend operator fun invoke(): AppResult<PostLoginDestination> {
-        val token = deviceTokens.currentToken() // null on failure → no body; login continues
-        val completion = when (val r = account.completePhoneSignIn(token)) {
-            is AppResult.Success -> r.data
+        val completion = when (val r = completePhoneLogin()) {
             is AppResult.Failure -> return r
+            is AppResult.Success -> when (val login = r.data) {
+                is LoginResult.Blocked -> return AppResult.Failure(AppError.AccountBlocked(login.info))
+                is LoginResult.GoToDashboard -> login.completion
+                is LoginResult.GoToUserProfile -> login.completion
+            }
         }
-        if (token != null && completion.fcmTokenSaved) deviceTokens.saveLastSentToken(token)
 
         val auth = config.getAuth()
         if (PostLoginRules.needsProfile(completion, auth)) {
@@ -236,5 +244,76 @@ class SyncFcmTokenUseCase @Inject constructor(
                 }
             }
         }
+    }
+}
+
+/**
+ * POST auth/phone/complete (+ FCM token) → what to do next.
+ *   403 ACCOUNT_DELETED / ACCOUNT_DISABLED → Blocked(info)
+ *   200 with accountStatus != ACTIVE      → Blocked(defaults)   (defensive)
+ *   registrationRequired || !isProfileCompleted → GoToUserProfile
+ *   else → GoToDashboard
+ * Logs only the outcome — never tokens, phone numbers or the reason text.
+ */
+class CompletePhoneLoginUseCase @Inject constructor(
+    private val account: AccountRepository,
+    private val deviceTokens: DeviceTokenRepository,
+    private val logger: AppLogger,
+) {
+    suspend operator fun invoke(): AppResult<LoginResult> {
+        val token = deviceTokens.currentToken() // null on failure → no body; login continues
+        val completion = when (val r = account.completePhoneSignIn(token)) {
+            is AppResult.Success -> r.data
+            is AppResult.Failure -> {
+                val error = r.error
+                if (error is AppError.AccountBlocked) {
+                    logger.d(TAG, "phone/complete → BLOCKED status=${error.info.status}")
+                    return AppResult.Success(LoginResult.Blocked(error.info))
+                }
+                return r
+            }
+        }
+        if (token != null && completion.fcmTokenSaved) deviceTokens.saveLastSentToken(token)
+
+        val result = when {
+            completion.accountStatus != AccountStatus.ACTIVE ->
+                LoginResult.Blocked(AccountBlockedInfo(status = completion.accountStatus))
+            completion.registrationRequired || !completion.isProfileCompleted -> LoginResult.GoToUserProfile(completion)
+            else -> LoginResult.GoToDashboard(completion)
+        }
+        logger.d(
+            TAG,
+            "phone/complete → status=${completion.accountStatus} registrationRequired=${completion.registrationRequired} " +
+                "isProfileCompleted=${completion.isProfileCompleted} → ${result::class.java.simpleName}",
+        )
+        return AppResult.Success(result)
+    }
+
+    private companion object {
+        const val TAG = "SafeRent-Auth"
+    }
+}
+
+/**
+ * Blocked account (login or while using the app): show the blocked screen. Firebase stays
+ * signed in so "Try again" can re-check the account (POST auth/phone/complete); the screen's
+ * "Sign out" signs out locally.
+ */
+class HandleAccountBlockedUseCase @Inject constructor(
+    private val store: BlockedAccountStore,
+) {
+    operator fun invoke(info: AccountBlockedInfo) {
+        store.show(info) // StateFlow ignores an equal value → one screen even if many calls fail
+    }
+}
+
+/** Blocked screen → "Sign out": local sign-out (no logout call — the server rejects this account). */
+class SignOutBlockedAccountUseCase @Inject constructor(
+    private val store: BlockedAccountStore,
+    private val signOut: SignOutUseCase,
+) {
+    suspend operator fun invoke() {
+        signOut(remote = false) // clears session + FCM token; SignedOut resets every screen
+        store.clear() // → login screen
     }
 }

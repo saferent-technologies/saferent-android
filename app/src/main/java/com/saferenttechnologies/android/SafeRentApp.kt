@@ -1,5 +1,9 @@
 package com.saferenttechnologies.android
 
+import com.saferenttechnologies.android.core.session.SessionEvent
+import com.saferenttechnologies.android.core.session.SessionEvents
+import com.saferenttechnologies.android.domain.usecase.HandleAccountBlockedUseCase
+import kotlinx.coroutines.flow.filterIsInstance
 import com.saferenttechnologies.android.core.ui.ResponsiveScale
 import android.Manifest
 import android.app.Activity
@@ -54,6 +58,12 @@ class SafeRentApp : Application(), SingletonImageLoader.Factory {
     @Inject
     lateinit var scheduleSplashAssetsUpdate: ScheduleSplashAssetsUpdateUseCase
 
+    @Inject
+    lateinit var sessionEvents: SessionEvents
+
+    @Inject
+    lateinit var handleAccountBlocked: HandleAccountBlockedUseCase
+
     /** Lives as long as the process. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -66,6 +76,12 @@ class SafeRentApp : Application(), SingletonImageLoader.Factory {
         appScope.launch {
             syncAppConfig()
             scheduleSplashAssetsUpdate()
+        }
+        // Account blocked while the app is open (403 ACCOUNT_* from any signed-in API, seen by
+        // AuthInterceptor) → "Account blocked" screen. Once, even if many calls fail.
+        appScope.launch {
+            sessionEvents.events.filterIsInstance<SessionEvent.AccountBlocked>()
+                .collect { handleAccountBlocked(it.info) }
         }
         if (BuildConfig.DEBUG) {
             Log.d(

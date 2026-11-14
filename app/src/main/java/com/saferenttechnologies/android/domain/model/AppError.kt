@@ -28,6 +28,12 @@ sealed interface AppError {
         val missingFields: List<String> = emptyList(),
     ) : AppError
 
+    /** 403 ACCOUNT_DELETED / ACCOUNT_DISABLED — from any signed-in API. */
+    data class AccountBlocked(
+        val info: AccountBlockedInfo,
+        override val message: String = info.message.ifBlank { "This account can no longer be used." },
+    ) : AppError
+
     /** 409 EMAIL_IN_USE — another account already uses this email. */
     data class EmailInUse(
         override val message: String = "This email is already used by another account.",
