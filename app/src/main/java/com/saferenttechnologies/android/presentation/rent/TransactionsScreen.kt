@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.rent
 
+import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
+import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -92,9 +94,9 @@ fun TransactionsScreen(state: TransactionsState, effects: Flow<RentEffect>, onIn
     Column(Modifier.fillMaxSize().background(AuthColors.Background).statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.sdp, vertical = 6.sdp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(44.sdp).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(TransactionsIntent.Close) },
+                Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(TransactionsIntent.Close) },
                 contentAlignment = Alignment.Center,
-            ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(22.sdp)) }
+            ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
             Spacer(Modifier.width(12.sdp))
             Text(stringResource(R.string.transactions_title), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 20.ssp)
         }

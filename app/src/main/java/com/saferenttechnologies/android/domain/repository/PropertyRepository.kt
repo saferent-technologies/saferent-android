@@ -57,6 +57,10 @@ interface PropertyRepository {
 
     suspend fun savePricing(id: String, pricing: PricingInput, unitId: String? = null): AppResult<Unit>
     suspend fun saveUtilities(id: String, values: TypedValues): AppResult<Unit>
+    /** Saved utilities (GET …/utilities), as form strings; empty when none yet. */
+    suspend fun utilities(id: String): AppResult<Map<String, String>>
+    /** Saved guest policies + extra rules (GET …/policies). */
+    suspend fun policies(id: String): AppResult<Pair<Map<String, String>, List<Pair<String, String>>>>
     suspend fun savePolicies(id: String, values: TypedValues, rules: List<Pair<String, String>>): AppResult<Unit>
     suspend fun amenities(): AppResult<List<AmenityGroup>>
     /** [unitId] / [roomId] = amenities inside that unit / PG room; both null = the building's (common) amenities. */

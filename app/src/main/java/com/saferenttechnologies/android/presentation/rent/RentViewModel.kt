@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.rent
 
+import com.saferenttechnologies.android.domain.model.PaymentProofRules
+import com.saferenttechnologies.android.domain.model.PaymentRequest
 import androidx.lifecycle.viewModelScope
 import com.saferenttechnologies.android.core.mvi.MviViewModel
 import com.saferenttechnologies.android.core.mvi.UiEffect
@@ -39,12 +41,25 @@ data class RentState(
     val remindingId: String? = null,
     /** Reminded in this session (button shows "Reminder sent"). */
     val reminded: Set<String> = emptySet(),
+    // ---- tenants' "I paid" proofs ----
+    /** The Requests tab is selected (instead of a rent bucket). */
+    val showRequests: Boolean = false,
+    val requests: List<PaymentRequest> = emptyList(),
+    val requestsLoading: Boolean = false,
+    /** Full-screen screenshot. */
+    val proofUrl: String? = null,
+    val approveId: String? = null,
+    val approveAmount: String = "",
+    val rejectId: String? = null,
+    val rejectReason: String = "",
+    val requestBusy: Boolean = false,
 ) : UiState {
     val receiptDue: RentDue? get() = items.firstOrNull { it.id == receiptDueId }
 }
 
 sealed interface RentIntent : UiIntent {
-    data class Open(val bucket: RentBucket, val period: String?) : RentIntent
+    /** [requests] = open on the tenants' payment proofs (push "Tenant sent payment proof"). */
+    data class Open(val bucket: RentBucket, val period: String?, val requests: Boolean = false) : RentIntent
     data object Close : RentIntent
     data class SelectBucket(val bucket: RentBucket) : RentIntent
     data object Refresh : RentIntent
@@ -52,6 +67,16 @@ sealed interface RentIntent : UiIntent {
     data object CloseReceipt : RentIntent
     data class Receipt(val action: ReceiptAction) : RentIntent
     data class Remind(val dueId: String) : RentIntent
+
+    data object ShowRequests : RentIntent
+    data class ViewProof(val url: String?) : RentIntent
+    data class AskApprove(val id: String) : RentIntent
+    data class ApproveAmount(val text: String) : RentIntent
+    data object ConfirmApprove : RentIntent
+    data class AskReject(val id: String) : RentIntent
+    data class RejectReason(val text: String) : RentIntent
+    data object ConfirmReject : RentIntent
+    data object DismissRequestDialog : RentIntent
 }
 
 sealed interface RentEffect : UiEffect {
@@ -77,15 +102,41 @@ class RentViewModel @Inject constructor(
     override suspend fun handleIntent(intent: RentIntent) {
         when (intent) {
             is RentIntent.Open -> {
-                setState { RentState(isOpen = true, bucket = intent.bucket, period = intent.period?.ifBlank { null }) }
-                load(refreshing = false)
+                setState { RentState(isOpen = true, bucket = intent.bucket, period = intent.period?.ifBlank { null }, showRequests = intent.requests) }
+                if (intent.requests) loadRequests() else load(refreshing = false)
+                // The Requests chip shows its count from the start.
+                if (!intent.requests) viewModelScope.launch { loadRequests() }
             }
             RentIntent.Close -> setState { RentState() }
-            is RentIntent.SelectBucket -> if (intent.bucket != currentState.bucket) {
-                setState { copy(bucket = intent.bucket, items = emptyList(), total = "", receiptDueId = null) }
+            is RentIntent.SelectBucket -> if (intent.bucket != currentState.bucket || currentState.showRequests) {
+                setState { copy(bucket = intent.bucket, showRequests = false, items = emptyList(), total = "", receiptDueId = null) }
                 load(refreshing = false)
             }
-            RentIntent.Refresh -> if (currentState.isOpen) load(refreshing = true)
+            RentIntent.Refresh -> if (currentState.isOpen) {
+                if (currentState.showRequests) loadRequests() else load(refreshing = true)
+            }
+            RentIntent.ShowRequests -> {
+                setState { copy(showRequests = true) }
+                loadRequests()
+            }
+            is RentIntent.ViewProof -> setState { copy(proofUrl = intent.url) }
+            is RentIntent.AskApprove -> currentState.requests.firstOrNull { it.id == intent.id }?.let { r ->
+                setState { copy(approveId = r.id, approveAmount = r.amount.toBigDecimalOrNull()?.stripTrailingZeros()?.toPlainString() ?: r.amount) }
+            }
+            is RentIntent.ApproveAmount -> setState { copy(approveAmount = intent.text.filter { it.isDigit() || it == '.' }.take(10)) }
+            RentIntent.ConfirmApprove -> {
+                val id = currentState.approveId ?: return
+                if (!PaymentProofRules.amountOk(currentState.approveAmount)) return
+                decide { repository.approveRequest(id, currentState.approveAmount) }
+            }
+            is RentIntent.AskReject -> setState { copy(rejectId = intent.id, rejectReason = "") }
+            is RentIntent.RejectReason -> setState { copy(rejectReason = intent.text.take(300)) }
+            RentIntent.ConfirmReject -> {
+                val id = currentState.rejectId ?: return
+                if (currentState.rejectReason.trim().length < 3) return
+                decide { repository.rejectRequest(id, currentState.rejectReason) }
+            }
+            RentIntent.DismissRequestDialog -> if (!currentState.requestBusy) setState { copy(approveId = null, rejectId = null) }
             is RentIntent.OpenReceipt -> setState { copy(receiptDueId = intent.dueId) }
             RentIntent.CloseReceipt -> if (currentState.fileBusy == null) setState { copy(receiptDueId = null) }
             is RentIntent.Receipt -> receipt(intent.action)
@@ -101,6 +152,31 @@ class RentViewModel @Inject constructor(
                 setState { copy(items = r.data.items, total = r.data.total, loading = false, refreshing = false) }
             }
             is AppResult.Failure -> setState { copy(loading = false, refreshing = false, error = r.error.takeUnless { it is AppError.AccountBlocked }?.message) }
+        }
+    }
+
+    private suspend fun loadRequests() {
+        setState { copy(requestsLoading = true) }
+        val r = repository.paymentRequests()
+        setState { copy(requestsLoading = false, requests = (r as? AppResult.Success)?.data ?: requests) }
+        if (r is AppResult.Failure && currentState.showRequests) {
+            r.error.takeUnless { it is AppError.AccountBlocked }?.message?.let { sendEffect(RentEffect.Message(it)) }
+        }
+    }
+
+    /** Approve / reject → server message, list reloads (the approved month moves to Collected). */
+    private suspend fun decide(call: suspend () -> AppResult<String>) {
+        if (currentState.requestBusy) return
+        setState { copy(requestBusy = true) }
+        val r = call()
+        setState { copy(requestBusy = false) }
+        when (r) {
+            is AppResult.Success -> {
+                setState { copy(approveId = null, rejectId = null) }
+                r.data.takeIf { it.isNotBlank() }?.let { sendEffect(RentEffect.Message(it)) }
+                loadRequests()
+            }
+            is AppResult.Failure -> r.error.takeUnless { it is AppError.AccountBlocked }?.message?.let { sendEffect(RentEffect.Message(it)) }
         }
     }
 

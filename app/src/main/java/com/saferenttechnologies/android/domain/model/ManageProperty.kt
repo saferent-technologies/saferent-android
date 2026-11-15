@@ -17,6 +17,18 @@ data class PropertySummary(
     val changesDraftOrRejected: Int = 0,
 ) {
     fun count(status: String): Int = byStatus[status] ?: 0
+
+    /** How many properties a My-properties tab would show (null = unknown → keep the tab). */
+    fun countFor(filter: PropertyFilter): Int? = when (filter) {
+        PropertyFilter.ALL -> total
+        PropertyFilter.AVAILABLE_UNITS -> unitsAvailable
+        // Not in the summary = 0 (Inactive / Archived too).
+        else -> (filter.publicationStatus ?: filter.activeStatus)?.let { byStatus[it] ?: 0 }
+    }
+
+    /** Tabs worth showing: All, the selected one, and every tab with at least one property. */
+    fun visibleFilters(selected: PropertyFilter): List<PropertyFilter> =
+        PropertyFilter.entries.filter { it == PropertyFilter.ALL || it == selected || (countFor(it) ?: 1) > 0 }
 }
 
 // ---------------- change requests (edits of a live listing) ----------------
@@ -131,6 +143,9 @@ data class Lease(
     /** Set on the all-properties list (GET leases without propertyId). */
     val propertyId: String = "",
     val propertyTitle: String = "",
+    /** APARTMENT / PG / INDEPENDENT_HOUSE … (+ the server's label) → the type tabs on the Tenants screen. */
+    val propertyType: String = "",
+    val propertyTypeLabel: String = "",
 )
 
 data class Invitation(

@@ -116,6 +116,7 @@ class PropertyDetailViewModel @Inject constructor(
                 loadActiveLeases()
             }
             PropertyDetailIntent.CloseUnit -> setState { copy(openUnitId = null) }
+            is PropertyDetailIntent.ReviewTenant -> sendEffect(PropertyDetailEffect.ReviewLease(intent.leaseId))
             PropertyDetailIntent.AddUnit -> currentState.propertyId?.takeIf { currentState.canEdit }?.let {
                 sendEffect(PropertyDetailEffect.OpenEditor(it, WizardStep.UNITS, newUnit = true))
             }
@@ -140,7 +141,10 @@ class PropertyDetailViewModel @Inject constructor(
             }
             is PropertyDetailIntent.WhatsAppTenant -> sendEffect(PropertyDetailEffect.WhatsApp(intent.phone))
 
-            is PropertyDetailIntent.StartInvite -> if (!InviteLocks.isLocked(currentState.pendingInvites, intent.unitId, intent.bedId)) setState {
+            // A closed lease of this property not reviewed yet → no new tenant until the landlord reviews.
+            is PropertyDetailIntent.StartInvite -> if (currentState.reviewsDue.isNotEmpty()) {
+                sendEffect(PropertyDetailEffect.ReviewFirst(currentState.reviewsDue.first().otherName))
+            } else if (!InviteLocks.isLocked(currentState.pendingInvites, intent.unitId, intent.bedId)) setState {
                 copy(inviteForm = InviteForm(unitId = intent.unitId, bedId = intent.bedId, target = intent.target, monthlyRent = intent.rent.substringBefore('.')))
             }
             is PropertyDetailIntent.InviteChanged -> setState { copy(inviteForm = intent.form.copy(error = null)) }
@@ -361,6 +365,9 @@ class PropertyDetailViewModel @Inject constructor(
     private suspend fun loadPendingInvites() {
         val id = currentState.propertyId ?: return
         if (!currentState.canManage) return
+        viewModelScope.launch {
+            (leases.pendingReviews() as? AppResult.Success)?.let { r -> setState { copy(reviewsDue = r.data.filter { it.propertyId == id }) } }
+        }
         (manage.invitations(id, "PENDING") as? AppResult.Success)?.let { r -> setState { copy(pendingInvites = r.data) } }
     }
 

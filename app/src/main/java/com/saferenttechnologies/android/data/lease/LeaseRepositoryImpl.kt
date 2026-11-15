@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.data.lease
 
+import com.saferenttechnologies.android.domain.model.DepositRefund
+import com.saferenttechnologies.android.domain.model.PendingReview
 import com.saferenttechnologies.android.core.log.AppLogger
 import com.saferenttechnologies.android.data.mapper.arrayAt
 import com.saferenttechnologies.android.data.mapper.asText
@@ -83,6 +85,17 @@ class LeaseRepositoryImpl @Inject constructor(
 
     override suspend fun postReview(leaseId: String, review: ReviewDraft): AppResult<LeaseActionResult> =
         action("POST lease review") { api.postReview(leaseId, LeaseExitMapper.reviewJson(review)) }
+
+    override suspend fun pendingReviews(): AppResult<List<PendingReview>> =
+        call("GET reviews/pending", { api.pendingReviews() }) { data, _ -> data.arrayAt("items", "reviews", "leases").mapNotNull { (it as? JsonObject)?.let(LeaseExitMapper::pending) } }
+
+    override suspend fun depositRefund(leaseId: String, answer: DepositRefund, amount: String): AppResult<LeaseActionResult> =
+        action("POST lease deposit-refund") {
+            api.depositRefund(leaseId, buildJsonObject {
+                put("refunded", answer.name)
+                if (answer == DepositRefund.PARTIAL) amount.toBigDecimalOrNull()?.let { put("amount", it.toDouble()) }
+            })
+        }
 
     // ---------------- plumbing ----------------
 
@@ -183,6 +196,23 @@ object LeaseExitMapper {
         put("ratings", buildJsonObject { r.ratings.filterValues { it in 1..5 }.forEach { (k, v) -> put(k, v) } })
         if (r.text.isNotBlank()) put("text", r.text.trim().take(ReviewDraft.MAX_TEXT))
         if (r.tags.isNotEmpty()) put("tags", buildJsonArray { r.tags.take(ReviewDraft.MAX_TAGS).forEach { add(JsonPrimitive(it)) } })
+    }
+
+    /** { leaseId | lease:{id}, property:{id,title}, place, counterparty|landlord|tenant:{fullName}, endedAt, deposit } */
+    fun pending(o: JsonObject): PendingReview? {
+        val lease = o.obj("lease")
+        val id = o.text("leaseId").ifBlank { lease?.text("id").orEmpty() }.ifBlank { return null }
+        val prop = o.obj("property") ?: lease?.obj("property")
+        val other = o.obj("counterparty") ?: o.obj("landlord") ?: o.obj("tenant")
+        return PendingReview(
+            leaseId = id,
+            propertyId = o.text("propertyId").ifBlank { prop?.text("id").orEmpty() },
+            propertyTitle = prop?.text("title").orEmpty(),
+            place = o.text("place").ifBlank { lease?.text("place").orEmpty() },
+            otherName = other?.text("fullName").orEmpty().ifBlank { o.text("otherName") },
+            endedAt = o.text("endedAt").ifBlank { lease?.text("endDate").orEmpty() },
+            depositAmount = o.text("securityDeposit").ifBlank { lease?.text("securityDeposit").orEmpty() },
+        )
     }
 
     fun closed(data: JsonElement?): Boolean = (data as? JsonObject)?.bool("closed") == true

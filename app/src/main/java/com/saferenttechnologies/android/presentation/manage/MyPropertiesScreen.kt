@@ -1,5 +1,9 @@
 package com.saferenttechnologies.android.presentation.manage
 
+import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
+import com.saferenttechnologies.android.presentation.common.TOP_ICON
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.BoxWithConstraints
 import com.saferenttechnologies.android.presentation.common.BoneLine
 import com.saferenttechnologies.android.presentation.common.Bone
 import com.saferenttechnologies.android.presentation.common.ShimmerHost
@@ -102,9 +106,9 @@ fun MyPropertiesScreen(
     ) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.sdp, vertical = 6.sdp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(44.sdp).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(MyPropertiesIntent.Close) },
+                Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(MyPropertiesIntent.Close) },
                 contentAlignment = Alignment.Center,
-            ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(22.sdp)) }
+            ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
             Spacer(Modifier.width(12.sdp))
             Text(stringResource(R.string.my_properties_title), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 20.ssp)
         }
@@ -117,12 +121,26 @@ fun MyPropertiesScreen(
             colors = propertyFieldColors(),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.sdp),
         )
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.sdp, vertical = 10.sdp),
-            horizontalArrangement = Arrangement.spacedBy(8.sdp),
-        ) {
-            items(PropertyFilter.entries) { f ->
-                Chip(filterLabel(f), selected = f == state.filter) { onIntent(MyPropertiesIntent.SelectFilter(f)) }
+        // Only tabs with properties in them (e.g. no "Under verification" when 0).
+        // Few tabs → they share the full width; many → scroll, each at least TAB_MIN_WIDTH wide.
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 10.sdp)) {
+            val tabs = state.filters
+            val gap = 8.sdp
+            val fits = TAB_MIN_WIDTH * tabs.size + gap * (tabs.size - 1) <= maxWidth - 32.sdp
+            if (fits) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.sdp), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    tabs.forEach { f ->
+                        Chip(filterLabel(f), selected = f == state.filter, modifier = Modifier.weight(1f), maxLines = 1) { onIntent(MyPropertiesIntent.SelectFilter(f)) }
+                    }
+                }
+            } else {
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.sdp), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    items(tabs) { f ->
+                        Chip(filterLabel(f), selected = f == state.filter, modifier = Modifier.widthIn(min = TAB_MIN_WIDTH), maxLines = 1) {
+                            onIntent(MyPropertiesIntent.SelectFilter(f))
+                        }
+                    }
+                }
             }
         }
 
@@ -279,3 +297,6 @@ fun changesBadge(item: PropertyListItem): Pair<String, androidx.compose.ui.graph
     ChangeBadge.REJECTED -> stringResource(R.string.changes_badge_rejected) to AuthColors.Error
     null -> null
 }
+
+/** Narrowest a My-properties tab gets (more tabs than fit → the row scrolls). */
+private val TAB_MIN_WIDTH get() = 96.sdp

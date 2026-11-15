@@ -31,13 +31,26 @@ data class TenantsState(
     val closeRequested: Set<String> = emptySet(),
     /** Search box: name, home, flat / room, code, phone. */
     val query: String = "",
+    /** Property type tab (null = all). */
+    val type: String? = null,
 ) : UiState {
     val open: Lease? get() = items.firstOrNull { it.id == openLeaseId }
-    val visible: List<Lease> get() = TenantSearch.filter(items, query)
+    /** One tab per property type that has tenants (a type with 0 gets no tab). */
+    val types: List<TenantTypeTab> get() = TenantSearch.typeTabs(items)
+    val visible: List<Lease> get() = TenantSearch.filter(items.filter { type == null || it.propertyType == type }, query)
 }
+
+data class TenantTypeTab(val type: String, val label: String, val count: Int)
 
 /** Client-side search over the loaded tenants (pure, unit-tested). Every word must match somewhere. */
 object TenantSearch {
+    /** Apartment (3), PG (1) … — only types that have tenants, biggest first. Unknown type → no tab. */
+    fun typeTabs(items: List<Lease>): List<TenantTypeTab> =
+        items.filter { it.propertyType.isNotBlank() }
+            .groupBy { it.propertyType }
+            .map { (type, list) -> TenantTypeTab(type, list.firstNotNullOfOrNull { it.propertyTypeLabel.ifBlank { null } }.orEmpty(), list.size) }
+            .sortedByDescending { it.count }
+
     fun filter(items: List<Lease>, query: String): List<Lease> {
         val words = query.trim().lowercase().split(Regex("\\s+")).filter { it.isNotBlank() }
         if (words.isEmpty()) return items
@@ -51,15 +64,20 @@ object TenantSearch {
 
 sealed interface TenantsIntent : UiIntent {
     data object Open : TenantsIntent
+    /** From a "close request" notification without a lease id: open the lease that waits for me. */
+    data object OpenCloseRequest : TenantsIntent
     data object Close : TenantsIntent
     data class ShowPast(val past: Boolean) : TenantsIntent
     data object Refresh : TenantsIntent
     data class OpenTenant(val leaseId: String) : TenantsIntent
     data object CloseTenant : TenantsIntent
     data class Search(val query: String) : TenantsIntent
+    data class SelectType(val type: String?) : TenantsIntent
 }
 
-sealed interface TenantsEffect : UiEffect
+sealed interface TenantsEffect : UiEffect {
+    data class OpenLease(val lease: Lease) : TenantsEffect
+}
 
 @HiltViewModel
 class TenantsViewModel @Inject constructor(
@@ -80,15 +98,23 @@ class TenantsViewModel @Inject constructor(
                 setState { TenantsState(isOpen = true) }
                 load(refreshing = false)
             }
+            TenantsIntent.OpenCloseRequest -> {
+                setState { TenantsState(isOpen = true) }
+                load(refreshing = false)
+                exitJob?.join()
+                // The (first) tenant who asked → that lease; none → the list stays (Back → home).
+                currentState.items.firstOrNull { it.id in currentState.closeRequested }?.let { sendEffect(TenantsEffect.OpenLease(it)) }
+            }
             TenantsIntent.Close -> setState { TenantsState() }
             is TenantsIntent.ShowPast -> if (intent.past != currentState.past) {
-                setState { copy(past = intent.past, items = emptyList(), openLeaseId = null) } // query stays
+                setState { copy(past = intent.past, items = emptyList(), openLeaseId = null, type = null) } // query stays
                 load(refreshing = false)
             }
             TenantsIntent.Refresh -> if (currentState.isOpen) load(refreshing = true)
             is TenantsIntent.OpenTenant -> setState { copy(openLeaseId = intent.leaseId) }
             TenantsIntent.CloseTenant -> setState { copy(openLeaseId = null) }
             is TenantsIntent.Search -> setState { copy(query = intent.query.take(60)) }
+            is TenantsIntent.SelectType -> setState { copy(type = intent.type) }
         }
     }
 

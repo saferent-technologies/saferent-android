@@ -1,5 +1,8 @@
 package com.saferenttechnologies.android.presentation.manage
 
+import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
+import com.saferenttechnologies.android.presentation.common.TOP_ICON
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -97,12 +100,14 @@ fun PropertyDetailScreen(
     onChanged: () -> Unit,
     onNotFound: () -> Unit = {},
     onOpenLease: (leaseId: String, preview: com.saferenttechnologies.android.domain.model.LeaseSummary) -> Unit = { _, _ -> },
+    onReviewLease: (leaseId: String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val uploading = stringResource(R.string.manage_photo_uploading)
     val copyLabel = stringResource(R.string.manage_copy_link)
     val linkReady = stringResource(R.string.manage_link_ready)
+    val reviewFirst = stringResource(R.string.manage_review_first)
     val copied = stringResource(R.string.manage_link_copied)
     val noApp = stringResource(R.string.account_blocked_no_app)
 
@@ -131,6 +136,8 @@ fun PropertyDetailScreen(
                 PropertyDetailEffect.Changed -> onChanged()
                 PropertyDetailEffect.NotFound -> onNotFound()
                 is PropertyDetailEffect.OpenLease -> onOpenLease(effect.leaseId, effect.preview)
+                is PropertyDetailEffect.ReviewLease -> onReviewLease(effect.leaseId)
+                is PropertyDetailEffect.ReviewFirst -> snackbar.showSnackbar(reviewFirst.format(effect.name.ifBlank { "your last tenant" }))
             }
         }
     }
@@ -175,7 +182,7 @@ fun PropertyDetailScreen(
                         enter = expandVertically(tween(260), expandFrom = Alignment.Top) + fadeIn(tween(260)),
                         exit = shrinkVertically(tween(220), shrinkTowards = Alignment.Top) + fadeOut(tween(180)),
                     ) {
-                        HorizontalPager(pager, Modifier.fillMaxWidth().height(220.sdp).background(AuthColors.Surface)) { page ->
+                        HorizontalPager(pager, Modifier.fillMaxWidth().aspectRatio(4f / 3f).background(AuthColors.Surface)) { page ->
                             AsyncImage(model = absoluteUrl(images[page].url), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                         }
                     }
@@ -324,6 +331,16 @@ private fun Banners(state: PropertyDetailState, onIntent: (PropertyDetailIntent)
     Column(Modifier.padding(horizontal = 16.sdp)) {
         // Change request of a live listing (unsent / being verified / rejected) or "last changes approved".
         state.detail?.let { ChangeRequestCard(it, state.busy, onIntent) }
+        // A past tenant to review first (blocks new invites for this property).
+        state.reviewsDue.firstOrNull()?.let { due ->
+            Banner(
+                stringResource(R.string.manage_review_tenant_title, due.otherName.ifBlank { stringResource(R.string.lease_the_tenant) }),
+                stringResource(R.string.manage_review_tenant_note),
+                com.saferenttechnologies.android.presentation.explore.Amber,
+                stringResource(R.string.lease_write_review),
+            ) { onIntent(PropertyDetailIntent.ReviewTenant(due.leaseId)) }
+            Spacer(Modifier.height(8.sdp))
+        }
         when {
             active == "SUSPENDED" -> Banner(stringResource(R.string.manage_banner_suspended), property.moderationNote, AuthColors.Error, stringResource(R.string.account_blocked_contact_support)) {
                 onIntent(PropertyDetailIntent.Action(PropertyAction.CONTACT_SUPPORT))
@@ -444,9 +461,9 @@ fun tabLabel(tab: DetailTab, rooms: Boolean, unitWord: String? = null): String =
 @Composable
 fun RoundButton(icon: Int, description: String, onClick: () -> Unit) {
     Box(
-        Modifier.size(44.sdp).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button, onClick = onClick),
+        Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Icon(painterResource(icon), description, tint = AuthColors.Ink, modifier = Modifier.size(22.sdp)) }
+    ) { Icon(painterResource(icon), description, tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
 }
 
 fun Context.tryStart(intent: Intent): Boolean =

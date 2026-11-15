@@ -43,7 +43,8 @@ class DeepLinkRouterTest {
     @Test fun `which routes have a screen today`() {
         assertTrue(NavRoute.PropertyDetail("p").available)
         assertTrue(NavRoute.Applications.available)
-        assertFalse(NavRoute.Rent.available)
+        assertFalse(NavRoute.Wallet.available)
+        assertTrue(NavRoute.Rent.available)
         assertTrue(NavRoute.LeaseDetail("l").available)
         assertTrue(NavRoute.Invitation("t").available)
     }
@@ -129,6 +130,7 @@ class AppLinkRoutesTest {
     @Test fun `notification-only paths`() {
         assertEquals(NavRoute.Leases, DeepLinkRouter.route("/leases"))
         assertEquals(NavRoute.Rent, DeepLinkRouter.route("/payments"))
+        assertEquals(NavRoute.RentRequests, DeepLinkRouter.route("/rent/requests"))
         assertEquals(NavRoute.Wallet, DeepLinkRouter.route("/wallet"))
         assertEquals(NavRoute.Maintenance, DeepLinkRouter.route("/maintenance"))
         assertEquals(NavRoute.SupportTicket("t9"), DeepLinkRouter.route("/support/t9"))
@@ -145,5 +147,17 @@ class AppLinkRoutesTest {
         assertEquals(true, DeepLinks.allowedFor(NavRoute.PropertyDetail("p1"), isTenant = false))
         assertEquals(true, DeepLinks.allowedFor(NavRoute.ListingDetail("l1"), isTenant = true))
         assertEquals(false, DeepLinks.allowedFor(NavRoute.Explore, isTenant = false))
+    }
+}
+
+
+class LeaseLinksTest {
+    @Test fun `bare leases link plus lease id opens that lease`() {
+        assertEquals("/leases/le1", LeaseLinks.withLeaseId("/leases", "le1"))
+        assertEquals("/leases/le1", LeaseLinks.withLeaseId("", "le1"))
+        assertEquals("/leases/le9", LeaseLinks.withLeaseId("/leases/le9", "le1"))
+        assertEquals("/properties/p1", LeaseLinks.withLeaseId("/properties/p1", "le1"))
+        assertEquals("/leases", LeaseLinks.withLeaseId("/leases", null))
+        assertEquals(NavRoute.LeaseDetail("le1"), DeepLinkRouter.route(LeaseLinks.withLeaseId("/leases", "le1")))
     }
 }

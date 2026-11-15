@@ -29,6 +29,14 @@ interface LeaseApi {
     @POST("api/v1/leases/{id}/exit/cancel")
     suspend fun cancelExit(@Path("id") id: String, @Body body: JsonObject): Response<ApiEnvelope<JsonElement>>
 
+    /** Closed leases I still have to review (tenant: before using the app; landlord: before the next invite). */
+    @GET("api/v1/reviews/pending")
+    suspend fun pendingReviews(): Response<ApiEnvelope<JsonElement>>
+
+    /** Tenant: was the security deposit refunded? */
+    @POST("api/v1/leases/{id}/deposit-refund")
+    suspend fun depositRefund(@Path("id") id: String, @Body body: JsonObject): Response<ApiEnvelope<JsonElement>>
+
     @GET("api/v1/leases/{id}/review")
     suspend fun review(@Path("id") id: String): Response<ApiEnvelope<JsonElement>>
 

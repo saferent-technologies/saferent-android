@@ -36,10 +36,16 @@ sealed interface NavRoute {
     data object Applications : NavRoute
     data class Invitation(val token: String) : NavRoute
     data object Rent : NavRoute
+    /** Landlord: tenants' payment proofs waiting ("/rent/requests"). */
+    data object RentRequests : NavRoute
     data object OwnerVerification : NavRoute
     data object Reviews : NavRoute
     data object Wallet : NavRoute
     data object Maintenance : NavRoute
+    /** One maintenance / service / complaint request ("/maintenance/{id}"). */
+    data class RequestDetail(val id: String) : NavRoute
+    /** Landlord announcement ("/announcements/{id}"); null id = the list. */
+    data class Announcements(val id: String? = null) : NavRoute
     data class SupportTicket(val ticketId: String?) : NavRoute
     data object Referrals : NavRoute
     data object MyDocuments : NavRoute
@@ -50,7 +56,8 @@ sealed interface NavRoute {
     val available: Boolean
         get() = this is PropertyDetail || this is ListingDetail || this == MyProperties || this == Explore ||
             this == Applications || this == Notifications || this == Home || this is Invitation ||
-            this is LeaseDetail || this == Leases
+            this is LeaseDetail || this == Leases || this == Rent || this == RentRequests ||
+            this == Maintenance || this is RequestDetail || this is Announcements
 }
 
 /**
@@ -113,11 +120,12 @@ object DeepLinkRouter {
             "leases", "lease" -> second?.let { NavRoute.LeaseDetail(it) } ?: NavRoute.Leases
             "applications" -> query["propertyId"]?.let { NavRoute.PropertyDetail(it, "applications") } ?: NavRoute.Applications
             "invite", "invitations" -> second?.let { NavRoute.Invitation(it) }
-            "rent", "payments" -> NavRoute.Rent
+            "rent", "payments" -> if (second?.lowercase() == "requests") NavRoute.RentRequests else NavRoute.Rent
             "verify", "kyc" -> NavRoute.OwnerVerification
             "reviews" -> NavRoute.Reviews
             "wallet" -> NavRoute.Wallet
-            "maintenance" -> NavRoute.Maintenance
+            "maintenance", "requests" -> second?.let { NavRoute.RequestDetail(it) } ?: NavRoute.Maintenance
+            "announcements" -> NavRoute.Announcements(second)
             "support" -> NavRoute.SupportTicket(second)
             "referrals" -> NavRoute.Referrals
             "my-documents" -> NavRoute.MyDocuments
@@ -179,5 +187,15 @@ object DeepLinks {
         }
         val clean = "/" + p.trim('/')
         return if (query.isNullOrBlank()) clean else "$clean?$query"
+    }
+}
+
+/** A bare "/leases" link + the lease id the server sent alongside → "/leases/{id}" (opens that lease). */
+object LeaseLinks {
+    fun withLeaseId(link: String, leaseId: String?): String {
+        val id = leaseId?.trim().orEmpty()
+        if (id.isEmpty()) return link
+        val path = link.substringBefore('?').trimEnd('/')
+        return if (path.isEmpty() || path.endsWith("/leases") || path == "leases") "/leases/$id" else link
     }
 }

@@ -27,16 +27,46 @@ sealed interface FieldError {
     data class Server(val message: String) : FieldError
 }
 
+/** Which fields of a form are shown right now ([ShownWhen]); hidden ones are cleared before saving. */
+object FormVisibility {
+    fun isShown(field: FieldDef, values: Map<String, String>, all: List<FieldDef>): Boolean {
+        val rule = field.shownWhen ?: return true
+        // A child of a hidden field is hidden too (meter number under "no separate meter").
+        all.firstOrNull { it.key == rule.field }?.let { parent -> if (!isShown(parent, values, all)) return false }
+        val v = values[rule.field].orEmpty().trim().uppercase()
+        return when {
+            rule.anyOf.isNotEmpty() -> v in rule.anyOf
+            rule.noneOf.isNotEmpty() -> v !in rule.noneOf
+            else -> v.isNotEmpty()
+        }
+    }
+
+    fun visible(fields: List<FieldDef>, values: Map<String, String>): List<FieldDef> = fields.filter { isShown(it, values, fields) }
+
+    /** Only the answers of shown fields (anything else is dropped, so it's never sent). */
+    fun clean(fields: List<FieldDef>, values: Map<String, String>): Map<String, String> {
+        val keys = visible(fields, values).map { it.key }.toSet()
+        return values.filterKeys { it in keys }
+    }
+
+    /** Shown fields with no answer → "x answers missing — tenants see 'Not disclosed'". */
+    fun unanswered(fields: List<FieldDef>, values: Map<String, String>): Int =
+        visible(fields, values).count { values[it.key].isNullOrBlank() }
+}
+
 /** Validation for the dynamic forms (building, units, rooms, pricing…). Values are strings. */
 object FieldValidator {
 
     fun isRequired(field: FieldDef, values: Map<String, String>): Boolean {
         val rule = field.requiredWhen ?: return field.required
-        return values[rule.field].orEmpty().equals(rule.equals, ignoreCase = true)
+        val v = values[rule.field].orEmpty().trim()
+        if (rule.equals == "*") return v.isNotEmpty()
+        return v.equals(rule.equals, ignoreCase = true) || rule.orEquals.any { it.equals(v, ignoreCase = true) }
     }
 
     fun validate(fields: List<FieldDef>, values: Map<String, String>): Map<String, FieldError> = buildMap {
-        for (field in fields) {
+        // Hidden fields (ShownWhen) are never checked — they're not sent.
+        for (field in FormVisibility.visible(fields, values)) {
             val value = values[field.key].orEmpty().trim()
             if (value.isEmpty()) {
                 if (isRequired(field, values)) put(field.key, FieldError.Required)
@@ -306,4 +336,86 @@ object FlatAmenityCycle {
         "NO" -> "NOT_DISCLOSED"
         else -> null
     }
+}
+
+/**
+ * Flat / unit availability (no "Availability" dropdown any more):
+ * - "Available from" date (default + min = today) → tenants see "Available now" / "Available from <date>".
+ * - Optional "Not ready to rent yet" switch → UNDER_MAINTENANCE / RESERVED / NOT_AVAILABLE.
+ * - OCCUPIED only comes from a lease: never sent, and an occupied unit sends neither field.
+ * The form keeps its state in the unit editor's values under [FROM], [STATUS] and [NOT_READY].
+ */
+object UnitAvailability {
+    const val STATUS = "availabilityStatus"
+    const val FROM = "availableFrom"
+    /** App-only key ("true" / ""): the switch. Never sent. */
+    const val NOT_READY = "_notReady"
+    const val OCCUPIED = "OCCUPIED"
+    val NOT_READY_STATUSES = listOf("UNDER_MAINTENANCE", "RESERVED", "NOT_AVAILABLE")
+
+    /** The server's unit fields minus the two we draw ourselves. */
+    fun formFields(fields: List<FieldDef>): List<FieldDef> = fields.filter { it.key != STATUS && it.key != FROM }
+
+    /** How the two fields are typed when sent (date as "YYYY-MM-DD", status as text). */
+    val sentFields = listOf(FieldDef(FROM, FROM, FieldType.DATE), FieldDef(STATUS, STATUS, FieldType.SELECT, options = listOf("AVAILABLE") + NOT_READY_STATUSES))
+
+    fun isOccupied(values: Map<String, String>) = values[STATUS].equals(OCCUPIED, true)
+
+    /**
+     * Editor values for a new (empty [values]) or existing unit: "Available from" = the unit's date
+     * (a past date or none → today), switch on when the status is one of the "not ready" ones.
+     */
+    fun prefill(values: Map<String, String>, today: SimpleDate): Map<String, String> {
+        if (isOccupied(values)) return values
+        val date = SimpleDate.parse(values[FROM].orEmpty().take(10))?.takeIf { it >= today } ?: today
+        val status = values[STATUS].orEmpty().uppercase()
+        val notReady = status in NOT_READY_STATUSES
+        return values + mapOf(FROM to date.iso(), STATUS to if (notReady) status else "", NOT_READY to if (notReady) "true" else "")
+    }
+
+    fun notReady(values: Map<String, String>) = values[NOT_READY] == "true"
+
+    /** Errors keyed like other fields: date before today, or switch on without a reason chip. */
+    fun validate(values: Map<String, String>, today: SimpleDate): Map<String, String> {
+        if (isOccupied(values)) return emptyMap()
+        val errors = mutableMapOf<String, String>()
+        val date = SimpleDate.parse(values[FROM].orEmpty())
+        if (date == null || date < today) errors[FROM] = ERR_DATE
+        if (notReady(values) && values[STATUS].orEmpty().uppercase() !in NOT_READY_STATUSES) errors[STATUS] = ERR_REASON
+        return errors
+    }
+
+    /**
+     * What goes in POST / PATCH unit: availableFrom always (unless occupied);
+     * availabilityStatus = the chip when "not ready", "AVAILABLE" on edit (a not-ready flat becomes
+     * rentable again), omitted on create. Never OCCUPIED.
+     */
+    fun body(values: Map<String, String>, isNew: Boolean, today: SimpleDate): Map<String, String> {
+        if (isOccupied(values)) return emptyMap()
+        val from = SimpleDate.parse(values[FROM].orEmpty())?.takeIf { it >= today } ?: today
+        val status = when {
+            notReady(values) -> values[STATUS].orEmpty().uppercase().takeIf { it in NOT_READY_STATUSES }
+            isNew -> null
+            else -> "AVAILABLE"
+        }
+        return buildMap {
+            put(FROM, from.iso())
+            status?.let { put(STATUS, it) }
+        }
+    }
+
+    /** Chip colour group for a unit (status + availableNow / date). */
+    enum class Tone { NOW, LATER, OCCUPIED, OTHER }
+
+    fun tone(status: String, availableNow: Boolean?, availableFrom: String, today: SimpleDate): Tone = when (status.uppercase()) {
+        OCCUPIED -> Tone.OCCUPIED
+        "AVAILABLE", "" -> {
+            val now = availableNow ?: (SimpleDate.parse(availableFrom.take(10))?.let { it <= today } ?: true)
+            if (now) Tone.NOW else Tone.LATER
+        }
+        else -> Tone.OTHER
+    }
+
+    const val ERR_DATE = "@unit_date"
+    const val ERR_REASON = "@unit_reason"
 }

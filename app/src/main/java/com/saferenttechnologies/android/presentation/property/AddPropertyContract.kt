@@ -66,6 +66,11 @@ data class FloorRow(
 
 data class AddPropertyState(
     val isOpen: Boolean = false,
+    /**
+     * Opened from "Edit" on a section (e.g. step 5) → Back on that step (or before it) closes the
+     * wizard instead of walking 4 → 3 → 2 → 1. Null for add / continue draft.
+     */
+    val editFromStep: Int? = null,
     val loading: Boolean = false,
     val saving: Boolean = false,
     /** Non-null → "Continue draft / Start new" sheet. */
@@ -99,6 +104,8 @@ data class AddPropertyState(
     val utilities: Map<String, String> = emptyMap(),
     val policies: Map<String, String> = emptyMap(),
     val rules: List<Pair<String, String>> = emptyList(),
+    /** Saved utilities / policies were loaded for this property id (pre-fill once). */
+    val optionalLoadedFor: String? = null,
     val amenityGroups: List<AmenityGroup> = emptyList(),
     /** amenity key → "YES" */
     val amenities: Map<String, String> = emptyMap(),

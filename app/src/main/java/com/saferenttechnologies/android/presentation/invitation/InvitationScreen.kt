@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.invitation
 
+import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
+import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import com.saferenttechnologies.android.presentation.common.DetailSkeleton
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -111,9 +113,9 @@ fun InvitationScreen(
 private fun TopBar(code: String, onBack: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.sdp, vertical = 6.sdp), verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.size(44.sdp).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button, onClick = onBack),
+            Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button, onClick = onBack),
             contentAlignment = Alignment.Center,
-        ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(22.sdp)) }
+        ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
         Spacer(Modifier.width(12.sdp))
         Text(
             stringResource(R.string.invitation_title),
@@ -129,8 +131,8 @@ private fun TopBar(code: String, onBack: () -> Unit) {
 
 @Composable
 private fun InvitationContent(inv: TenantInvitation, onOpenHome: (String) -> Unit) {
-    // Hero: 16:9 photo, status badge, title + place on a soft dark fade.
-    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(18.sdp))) {
+    // Hero: 4:3 photo, status badge, title + place on a soft dark fade.
+    Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(RoundedCornerShape(18.sdp))) {
         ListingCover(inv.coverImageId, Modifier.fillMaxSize())
         Box(
             Modifier.fillMaxSize().background(

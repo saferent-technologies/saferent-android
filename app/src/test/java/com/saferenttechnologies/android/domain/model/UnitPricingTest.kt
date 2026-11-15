@@ -111,3 +111,15 @@ class BuildingPhotosTest {
         org.junit.Assert.assertEquals(listOf("i1"), BuildingPhotos.of(p).map { it.id })
     }
 }
+
+class PropertyTabsTest {
+    @org.junit.Test fun `tabs with 0 properties are hidden`() {
+        val s = PropertySummary(total = 3, byStatus = mapOf("PUBLISHED" to 2, "DRAFT" to 1, "PENDING_VERIFICATION" to 0), unitsAvailable = 0)
+        val tabs = s.visibleFilters(PropertyFilter.ALL)
+        org.junit.Assert.assertTrue(PropertyFilter.LIVE in tabs && PropertyFilter.DRAFTS in tabs)
+        org.junit.Assert.assertFalse(PropertyFilter.UNDER_VERIFICATION in tabs)
+        org.junit.Assert.assertFalse(PropertyFilter.AVAILABLE_UNITS in tabs)
+        // The tab you came from stays even at 0.
+        org.junit.Assert.assertTrue(PropertyFilter.UNDER_VERIFICATION in s.visibleFilters(PropertyFilter.UNDER_VERIFICATION))
+    }
+}

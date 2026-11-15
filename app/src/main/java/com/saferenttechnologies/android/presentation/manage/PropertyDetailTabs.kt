@@ -244,8 +244,9 @@ fun UnitsTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) -> Uni
                             ).joinToString(" · "),
                         )
                     }
-                    AvailabilityChip(status)
+                    UnitAvailabilityChip(unit.values)
                 }
+                if (status.uppercase() == "OCCUPIED") OccupancyLines(unit.values)
                 if (state.canManage && status.uppercase() != "OCCUPIED") {
                     Spacer(Modifier.height(8.sdp))
                     AvailabilityPicker(status) { onIntent(PropertyDetailIntent.SetUnitAvailability(unit.id, it)) }
@@ -533,8 +534,8 @@ fun PhotosTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) -> Un
         Row(horizontalArrangement = Arrangement.spacedBy(8.sdp), modifier = Modifier.padding(vertical = 4.sdp)) {
             row.forEach { img ->
                 Column(Modifier.weight(1f)) {
-                    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(10.sdp)).background(AuthColors.Surface)) {
-                        AsyncImage(model = absoluteUrl(img.url), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+                    Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(RoundedCornerShape(10.sdp)).background(AuthColors.Surface)) {
+                        AsyncImage(model = absoluteUrl(img.url), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f))
                         StatusPill(optionLabel(img.status.ifBlank { "PENDING" }), photoStatusColor(img.status), Modifier.align(Alignment.TopStart).padding(6.sdp).background(AuthColors.Card, RoundedCornerShape(50)))
                     }
                     Text(optionLabel(img.category) + (img.slot?.let { " $it" } ?: ""), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
@@ -736,14 +737,14 @@ fun FlatSheet(state: PropertyDetailState, unit: com.saferenttechnologies.android
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.sdp).navigationBarsPadding()) {
             Row(Modifier.padding(horizontal = 20.sdp), verticalAlignment = Alignment.CenterVertically) {
                 Text("$word ${unit.unitNumber}".trim(), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 22.ssp, modifier = Modifier.weight(1f))
-                AvailabilityChip(status)
+                UnitAvailabilityChip(unit.values)
             }
             Spacer(Modifier.height(12.sdp))
 
-            // Photos: swipeable 16:9 strip.
+            // Photos: swipeable 4:3 strip.
             if (photos.isEmpty()) {
                 Box(
-                    Modifier.padding(horizontal = 20.sdp).fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(16.sdp)).background(AuthColors.Surface),
+                    Modifier.padding(horizontal = 20.sdp).fillMaxWidth().aspectRatio(4f / 3f).clip(RoundedCornerShape(16.sdp)).background(AuthColors.Surface),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -764,7 +765,7 @@ fun FlatSheet(state: PropertyDetailState, unit: com.saferenttechnologies.android
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .width(if (photos.size == 1) 320.sdp else 260.sdp)
-                                .aspectRatio(16f / 9f)
+                                .aspectRatio(4f / 3f)
                                 .clip(RoundedCornerShape(16.sdp))
                                 .background(AuthColors.Surface),
                         )
@@ -899,5 +900,28 @@ private fun TenantBlock(state: PropertyDetailState, lease: com.saferenttechnolog
             onIntent(PropertyDetailIntent.CloseUnit)
             onIntent(PropertyDetailIntent.OpenLease(lease))
         }
+    }
+}
+
+/** Occupied flat (read-only): "Occupied by Ravi since 01 Jun 2026" + "Moving out on …" / "Lease until …". */
+@Composable
+fun OccupancyLines(values: Map<String, String>) {
+    val name = values["occupancy.tenantName"].orEmpty()
+    val since = values["occupancy.since"].orEmpty()
+    val movingOut = values["occupancy.movingOutOn"].orEmpty()
+    val leaseEnds = values["occupancy.leaseEnds"].orEmpty()
+    if (name.isBlank() && movingOut.isBlank() && leaseEnds.isBlank()) return
+    Spacer(Modifier.height(8.sdp))
+    if (name.isNotBlank()) {
+        Text(
+            if (since.isNotBlank()) stringResource(R.string.unit_occupied_by_since, name, calendarDate(since)) else stringResource(R.string.unit_occupied_by, name),
+            color = AuthColors.Body,
+            fontFamily = Inter,
+            fontSize = 12.ssp,
+        )
+    }
+    when {
+        movingOut.isNotBlank() -> Text(stringResource(R.string.unit_moving_out_on, calendarDate(movingOut)), color = AuthColors.OrangeText, fontFamily = Inter, fontSize = 12.ssp)
+        leaseEnds.isNotBlank() -> Text(stringResource(R.string.unit_lease_until, calendarDate(leaseEnds)), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
     }
 }

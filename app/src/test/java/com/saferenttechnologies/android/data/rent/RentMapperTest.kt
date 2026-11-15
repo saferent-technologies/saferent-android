@@ -58,3 +58,68 @@ class TransactionsMapperTest {
         assertNull(outT.receipt)
     }
 }
+
+class TenantPaymentsMapperTest {
+    @Test fun `deposit, pending on top, paid below`() {
+        val p = RentMapper.tenantPayments(
+            Json.parseToJsonElement(
+                """{"deposit":{"amount":"36000","paid":true,"paidAt":"2026-06-01T00:00:00Z","receipt":{"id":"rd","number":"DEP-1"}},
+                    "dues":[
+                      {"id":"a","period":"Sep 2026","amount":"18000","status":"PAID","paidAt":"2026-09-04T00:00:00Z","receipt":{"id":"r9"}},
+                      {"id":"b","period":"Nov 2026","amount":"18000","status":"DUE","dueDate":"2026-11-05T00:00:00Z"},
+                      {"id":"c","period":"Oct 2026","amount":"18000","status":"OVERDUE","dueDate":"2026-10-05T00:00:00Z","daysOverdue":41},
+                      {"id":"d","period":"Aug 2026","amount":"18000","status":"PAID","paidAt":"2026-08-03T00:00:00Z"}
+                    ]}""",
+            ),
+        )
+        assertTrue(p.deposit!!.paid)
+        assertEquals("DEP-1", p.deposit!!.receipt?.number)
+        assertEquals(listOf("c", "b"), p.pending.map { it.id })
+        assertEquals(listOf("a", "d"), p.paid.map { it.id })
+        assertEquals(1, p.overdueCount)
+        assertEquals("Sep 2026", p.paid.first().receipt?.period)
+    }
+}
+
+
+class PaymentProofTest {
+    @Test fun `request mapper and form rules`() {
+        val r = RentMapper.request(
+            Json.parseToJsonElement(
+                """{"id":"q1","due":{"id":"d1","period":"Nov 2026","amount":"18000"},"tenant":{"fullName":"Ravi"},"property":{"title":"Green Heights"},
+                   "place":"Flat 302","amount":"18000","transactionId":"432198765012","proofUrl":"/api/v1/files/payment-proofs/q1","status":"pending"}""",
+            ) as kotlinx.serialization.json.JsonObject,
+        )
+        assertEquals("d1", r.dueId)
+        assertEquals("Nov 2026", r.period)
+        assertEquals("PENDING", r.status)
+        assertEquals("432198765012", r.transactionId)
+        val rules = com.saferenttechnologies.android.domain.model.PaymentProofRules
+        assertTrue(rules.canSubmit("18000", "4321", hasProof = true))
+        assertEquals(false, rules.canSubmit("0", "432198", hasProof = true))
+        assertEquals(false, rules.canSubmit("18000", "12", hasProof = true))
+        assertEquals(false, rules.canSubmit("18000", "432198", hasProof = false))
+        val due = RentMapper.due(Json.parseToJsonElement("""{"id":"d1","status":"DUE","paymentRequest":{"status":"pending"}}""") as kotlinx.serialization.json.JsonObject)
+        assertTrue(due.requestPending)
+    }
+}
+
+class RentPlusMaintenanceTest {
+    private fun due(s: String) = RentMapper.due(Json.parseToJsonElement(s) as kotlinx.serialization.json.JsonObject)
+
+    @Test fun `rent plus maintenance is the amount to pay`() {
+        val d = due("""{"id":"d1","rentAmount":"15000","maintenanceAmount":"2000","amount":"15000"}""")
+        assertEquals("17000", d.amount)
+        assertTrue(d.hasMaintenance)
+    }
+
+    @Test fun `server total wins`() {
+        assertEquals("17500", due("""{"id":"d1","totalAmount":"17500","rentAmount":"15000","maintenanceAmount":"2000"}""").amount)
+    }
+
+    @Test fun `no breakup falls back to amount`() {
+        val d = due("""{"id":"d1","amount":"15000"}""")
+        assertEquals("15000", d.amount)
+        assertTrue(!d.hasMaintenance)
+    }
+}

@@ -1,5 +1,8 @@
 package com.saferenttechnologies.android.presentation.property
 
+import com.saferenttechnologies.android.domain.model.SimpleDate
+import com.saferenttechnologies.android.domain.model.UnitAvailability
+import com.saferenttechnologies.android.domain.model.FormVisibility
 import com.saferenttechnologies.android.domain.model.isFullyOccupied
 import com.saferenttechnologies.android.domain.model.isOccupied
 import com.saferenttechnologies.android.domain.model.FlatAmenityCycle
@@ -85,7 +88,8 @@ class AddPropertyViewModel @Inject constructor(
                 continueDraft(intent.propertyId)
                 // Load failed → the error is already shown; stay on whatever the wizard shows.
                 if (currentState.property?.id == intent.propertyId) {
-                    setState { copy(step = intent.step.coerceIn(WizardStep.CATEGORY, WizardStep.LAST)) }
+                    val start = intent.step.coerceIn(WizardStep.CATEGORY, WizardStep.LAST)
+                    setState { copy(step = start, editFromStep = start) }
                     onEnterStep()
                     if (intent.newUnit) handleIntent(AddPropertyIntent.NewUnit)
                 }
@@ -136,11 +140,11 @@ class AddPropertyViewModel @Inject constructor(
                 if (!BuildingLimits.canAddUnit(currentState.building, currentState.property?.units?.size ?: 0)) {
                     return banner(AddPropertyMessage.UNITS_LIMIT)
                 }
-                setState { copy(unitEditor = FormEditor(), roomEditor = null) }
+                setState { copy(unitEditor = FormEditor(values = UnitAvailability.prefill(emptyMap(), SimpleDate.today())), roomEditor = null) }
             }
             is AddPropertyIntent.EditUnit -> currentState.property?.units?.firstOrNull { it.id == intent.id }?.let { u ->
                 if (u.isOccupied) return banner(AddPropertyMessage.UNIT_OCCUPIED)
-                setState { copy(unitEditor = FormEditor(u.id, u.version, u.values + ("unitNumber" to u.unitNumber))) }
+                setState { copy(unitEditor = FormEditor(u.id, u.version, UnitAvailability.prefill(u.values + ("unitNumber" to u.unitNumber), SimpleDate.today()))) }
             }
             AddPropertyIntent.SaveUnit -> saveUnit()
             is AddPropertyIntent.OpenFlatPanel ->
@@ -339,6 +343,8 @@ class AddPropertyViewModel @Inject constructor(
             state.camera != null -> setState { copy(camera = null) }
             state.unitEditor != null || state.roomEditor != null || state.floorsUnitId != null ->
                 setState { copy(unitEditor = null, roomEditor = null, floorsUnitId = null, bedDraft = null) }
+            // Opened on this section from "Edit" → close, don't walk back to step 1.
+            state.editFromStep != null && state.step <= state.editFromStep -> reset()
             state.step > WizardStep.CATEGORY -> setState { copy(step = step - 1, fieldErrors = emptyMap()) }
             else -> reset()
         }
@@ -363,8 +369,18 @@ class AddPropertyViewModel @Inject constructor(
         val state = currentState
         val id = state.property?.id ?: return
         when (state.step) {
-            WizardStep.OPTIONAL -> if (state.amenityGroups.isEmpty()) {
-                (repository.amenities() as? AppResult.Success)?.let { r -> setState { copy(amenityGroups = r.data) } }
+            WizardStep.OPTIONAL -> {
+                if (state.amenityGroups.isEmpty()) {
+                    (repository.amenities() as? AppResult.Success)?.let { r -> setState { copy(amenityGroups = r.data) } }
+                }
+                // Edit / resumed draft: pre-fill what was saved before (the user's unsaved answers win).
+                if (state.optionalLoadedFor != id) {
+                    (repository.utilities(id) as? AppResult.Success)?.let { r -> setState { copy(utilities = r.data + utilities) } }
+                    (repository.policies(id) as? AppResult.Success)?.let { r ->
+                        setState { copy(policies = r.data.first + policies, rules = rules.ifEmpty { r.data.second }) }
+                    }
+                    setState { copy(optionalLoadedFor = id) }
+                }
             }
             WizardStep.DOCUMENTS -> {
                 (repository.documents(id) as? AppResult.Success)?.let { r -> setState { copy(documents = r.data) } }
@@ -492,7 +508,8 @@ class AddPropertyViewModel @Inject constructor(
         val chargeErrors = ChargeRules.validate(state.charges)
         if (chargeErrors.isNotEmpty()) setState { copy(chargeErrors = chargeErrors) }
         if (!validate(fields, state.pricing) || chargeErrors.isNotEmpty()) return false
-        val values = state.pricing.filterKeys { k -> fields.any { it.key == k } }
+        // Only shown fields (e.g. no "paid by" without agreement charges; no old rent due day).
+        val values = FormVisibility.clean(fields, state.pricing)
         return mutate { repository.savePricing(id, PricingInput(TypedValues(fields, values), state.charges)) } && patch(next) { it }
     }
 
@@ -500,11 +517,18 @@ class AddPropertyViewModel @Inject constructor(
     private suspend fun saveOptional(next: Int): Boolean {
         val state = currentState
         val id = state.property?.id ?: return false
-        if (state.utilities.values.any { it.isNotBlank() } &&
-            !mutate { repository.saveUtilities(id, TypedValues(PropertyForms.utilities(state.types), state.utilities)) }
+        // Hidden follow-ups are dropped (meter number without a separate meter, water amount when included …).
+        val utilFields = PropertyForms.utilities(state.types)
+        val policyFields = PropertyForms.policies(state.types, pg = state.structure.usesRooms)
+        val utilities = FormVisibility.clean(utilFields, state.utilities).filterValues { it.isNotBlank() }
+        val policies = FormVisibility.clean(policyFields, state.policies).filterValues { it.isNotBlank() }
+        if (!validate(utilFields + policyFields, utilities + policies)) return false
+        if (utilities.isNotEmpty() &&
+            !mutate { repository.saveUtilities(id, TypedValues(utilFields, utilities + PropertyForms.utilityExtras(utilities))) }
         ) return false
-        if ((state.policies.values.any { it.isNotBlank() } || state.rules.any { it.first.isNotBlank() }) &&
-            !mutate { repository.savePolicies(id, TypedValues(PropertyForms.policies(state.types), state.policies), state.rules) }
+        val rules = state.rules.map { (t, d) -> t.trim() to d.trim() }.filter { it.first.length >= 2 }.take(PropertyForms.RULES_MAX)
+        if ((policies.isNotEmpty() || rules.isNotEmpty()) &&
+            !mutate { repository.savePolicies(id, TypedValues(policyFields, policies), rules) }
         ) return false
         if ((state.amenities.isNotEmpty() || state.customAmenities.isNotEmpty()) &&
             !mutate { repository.saveAmenities(id, state.amenities, state.customAmenities) }
@@ -570,12 +594,20 @@ class AddPropertyViewModel @Inject constructor(
         val state = currentState
         val editor = state.unitEditor ?: return
         val id = state.property?.id ?: return
-        val fields = state.type?.unitFields?.ifEmpty { null } ?: PropertyForms.defaultUnit()
+        // "Availability" isn't a form field any more: availableFrom + (optional) status are added below.
+        val fields = UnitAvailability.formFields(state.type?.unitFields?.ifEmpty { null } ?: PropertyForms.defaultUnit())
         // Apartment: each flat has its own rent + deposit (SALE: price), saved with the flat.
         val priceFields = if (state.isUnitPriced) PropertyForms.flatPricing(state.listingType) else emptyList()
-        val errors = FieldValidator.validate(fields + priceFields, editor.values)
+        val today = SimpleDate.today()
+        val errors = FieldValidator.validate(fields + priceFields, editor.values) +
+            UnitAvailability.validate(editor.values, today).mapValues { FieldError.Server(it.value) }
         if (errors.isNotEmpty()) return setState { copy(unitEditor = editor.copy(errors = errors)) }
-        val values = TypedValues(fields, editor.values.filterKeys { k -> fields.any { it.key == k } })
+        // Never OCCUPIED; status only when "not ready" (or AVAILABLE on edit).
+        val availability = UnitAvailability.body(editor.values, isNew = editor.id == null, today = today)
+        val values = TypedValues(
+            fields + UnitAvailability.sentFields,
+            editor.values.filterKeys { k -> fields.any { it.key == k } } + availability,
+        )
         val pricing = if (state.isUnitPriced) ApartmentRules.flatPricingBody(editor.values, state.listingType) else emptyMap()
         val ok = mutate(onIssues = { issues -> setState { copy(unitEditor = unitEditor?.copy(errors = issues)) } }) {
             if (editor.id == null) repository.addUnit(id, values, pricing) else repository.updateUnit(id, editor.id, editor.version, values, pricing)

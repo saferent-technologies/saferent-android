@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.listing
 
+import com.saferenttechnologies.android.presentation.manage.calendarDate
+import com.saferenttechnologies.android.presentation.manage.UnitAvailabilityChip
 import com.saferenttechnologies.android.presentation.common.DetailSkeleton
 import com.saferenttechnologies.android.domain.model.UnitOption
 import androidx.compose.runtime.key
@@ -186,7 +188,7 @@ fun ListingDetailScreen(
 
 @Composable
 private fun PhotoHeader(d: ListingDetail, photos: List<com.saferenttechnologies.android.domain.model.ListingPhoto>, onIntent: (ListingDetailIntent) -> Unit) {
-    Box(Modifier.fillMaxWidth().aspectRatio(16f / 11f)) {
+    Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f)) {
         if (photos.isEmpty()) {
             ListingCover(null, Modifier.fillMaxSize())
         } else {
@@ -643,11 +645,8 @@ private fun FlatChooserRow(state: ListingDetailState, d: ListingDetail, onIntent
                     fontSize = 13.ssp,
                 )
                 Spacer(Modifier.height(6.sdp))
-                Badge(
-                    optionLabel(u.availabilityStatus.ifBlank { "AVAILABLE" }),
-                    background = if (u.available) AuthColors.GreenBg else AuthColors.Surface,
-                    content = if (u.available) AuthColors.GreenText else AuthColors.Body,
-                )
+                // "Available now" green · "Available from 30 Nov 2026" orange · others muted.
+                UnitAvailabilityChip(u.availabilityStatus.ifBlank { "AVAILABLE" }, u.availabilityLabel, u.availableFrom, u.availableNow)
             }
         }
     }
@@ -673,7 +672,8 @@ private fun FlatDetailsPanel(u: UnitOption, d: ListingDetail) {
                 u.builtUpArea.ifBlank { null }?.let { "${it.substringBefore('.')} sq ft" },
                 u.furnishing.ifBlank { null }?.let { furnishingLabel(it) },
                 u.floorNumber?.let { stringResource(R.string.add_property_floor_n, it.toString()) },
-                u.availableFrom.ifBlank { null }?.let { stringResource(R.string.apartment_available_from, prettyDate(it)) },
+                u.availableFrom.ifBlank { null }?.takeUnless { u.availabilityStatus.equals("OCCUPIED", true) }
+                    ?.let { stringResource(R.string.apartment_available_from, calendarDate(it)) },
             ).joinToString(" · "),
             color = AuthColors.Body,
             fontFamily = Inter,
@@ -781,7 +781,7 @@ private fun RoomCard(room: com.saferenttechnologies.android.domain.model.RoomOpt
                         model = com.saferenttechnologies.android.presentation.explore.propertyImageUrl(id),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.width(112.sdp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.sdp)).background(AuthColors.Surface),
+                        modifier = Modifier.width(112.sdp).aspectRatio(4f / 3f).clip(RoundedCornerShape(8.sdp)).background(AuthColors.Surface),
                     )
                 }
             }

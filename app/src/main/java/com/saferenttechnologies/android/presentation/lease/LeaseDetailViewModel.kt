@@ -1,5 +1,8 @@
 package com.saferenttechnologies.android.presentation.lease
 
+import com.saferenttechnologies.android.domain.model.PaymentProofRules
+import com.saferenttechnologies.android.domain.model.DepositInfo
+import com.saferenttechnologies.android.domain.repository.RentRepository
 import androidx.lifecycle.viewModelScope
 import com.saferenttechnologies.android.core.mvi.MviViewModel
 import com.saferenttechnologies.android.core.mvi.UiEffect
@@ -21,7 +24,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class LeaseSheet { REQUEST, ACCEPT, DECLINE, REVIEW }
+enum class LeaseSheet { REQUEST, ACCEPT, DECLINE, REVIEW, DEPOSIT }
 enum class LeaseConfirm { SEND, CANCEL }
 
 data class LeaseDetailState(
@@ -49,7 +52,12 @@ data class LeaseDetailState(
     val showHistory: Boolean = false,
     /** Review sent with a request / accept → "it will be posted when the lease closes". */
     val reviewSaved: Boolean = false,
+    /** Security deposit (GET leases/{id}/payments); landlord marks it received. */
+    val deposit: DepositInfo? = null,
+    val depositAmount: String = "",
+    val depositDate: SimpleDate? = null,
 ) : UiState {
+    val isLandlord: Boolean get() = exit?.side.equals("LANDLORD", true)
     val isTenant: Boolean get() = exit?.isTenant == true
     val isShortNotice: Boolean
         get() = moveOut?.let { LeaseExitRules.isShortNotice(it, SimpleDate.today(), exit?.noticePeriodDays) } == true
@@ -58,7 +66,8 @@ data class LeaseDetailState(
 }
 
 sealed interface LeaseDetailIntent : UiIntent {
-    data class Open(val leaseId: String, val preview: LeaseSummary? = null) : LeaseDetailIntent
+    /** [startReview] = closed lease → open "Write your review" right away (landlord banner / tenant). */
+    data class Open(val leaseId: String, val preview: LeaseSummary? = null, val startReview: Boolean = false) : LeaseDetailIntent
     data object Close : LeaseDetailIntent
     data object Refresh : LeaseDetailIntent
     data object ToggleHistory : LeaseDetailIntent
@@ -88,6 +97,11 @@ sealed interface LeaseDetailIntent : UiIntent {
     data object StartReview : LeaseDetailIntent
     data object SubmitReview : LeaseDetailIntent
     data object DismissSheet : LeaseDetailIntent
+
+    data object StartDeposit : LeaseDetailIntent
+    data class DepositAmount(val text: String) : LeaseDetailIntent
+    data class DepositDate(val date: SimpleDate) : LeaseDetailIntent
+    data object SaveDeposit : LeaseDetailIntent
 }
 
 sealed interface LeaseDetailEffect : UiEffect {
@@ -102,6 +116,7 @@ sealed interface LeaseDetailEffect : UiEffect {
 @HiltViewModel
 class LeaseDetailViewModel @Inject constructor(
     private val repository: LeaseRepository,
+    private val rent: RentRepository,
     sessionEvents: SessionEvents,
 ) : MviViewModel<LeaseDetailState, LeaseDetailIntent, LeaseDetailEffect>(LeaseDetailState()) {
 
@@ -114,11 +129,13 @@ class LeaseDetailViewModel @Inject constructor(
             is LeaseDetailIntent.Open -> {
                 setState { LeaseDetailState(isOpen = true, leaseId = intent.leaseId, summary = intent.preview, loading = true) }
                 load(refreshing = false)
+                if (intent.startReview && currentState.canWriteReview) handleIntent(LeaseDetailIntent.StartReview)
             }
             LeaseDetailIntent.Close -> setState { LeaseDetailState() }
             LeaseDetailIntent.Refresh -> load(refreshing = true)
             LeaseDetailIntent.ToggleHistory -> setState { copy(showHistory = !showHistory) }
 
+            // No review here: it's asked once the lease has closed (tenant: before using the app; landlord: before the next invite).
             LeaseDetailIntent.StartRequest -> if (currentState.exit?.canRequest == true) setState {
                 copy(
                     sheet = LeaseSheet.REQUEST,
@@ -139,7 +156,7 @@ class LeaseDetailViewModel @Inject constructor(
             LeaseDetailIntent.SendRequest -> {
                 val s = currentState
                 val reasonBad = !LeaseExitRules.reasonOk(s.reason)
-                val reviewBad = s.addReview && !s.review.isComplete
+                val reviewBad = false
                 if (reasonBad || reviewBad || s.moveOut == null) setState { copy(reasonError = reasonBad, reviewError = reviewBad) }
                 else setState { copy(confirm = LeaseConfirm.SEND) }
             }
@@ -153,17 +170,13 @@ class LeaseDetailViewModel @Inject constructor(
             }
             LeaseDetailIntent.DismissConfirm -> setState { copy(confirm = null) }
 
-            LeaseDetailIntent.StartAccept -> {
-                setState { copy(sheet = LeaseSheet.ACCEPT, note = "", noteError = false, addReview = false, review = ReviewDraft(), reviewError = false) }
-            }
+            LeaseDetailIntent.StartAccept -> setState { copy(sheet = LeaseSheet.ACCEPT, note = "", noteError = false, addReview = false, reviewError = false) }
             LeaseDetailIntent.StartDecline -> setState { copy(sheet = LeaseSheet.DECLINE, note = "", noteError = false) }
             is LeaseDetailIntent.NoteChanged -> setState { copy(note = intent.text.take(LeaseExitRules.NOTE_MAX), noteError = false) }
             LeaseDetailIntent.SubmitAccept -> {
                 val s = currentState
                 val id = s.leaseId ?: return
-                if (s.addReview && !s.review.isComplete) return setState { copy(reviewError = true) }
-                val review = s.review.takeIf { s.addReview }
-                act(closeSheet = true, reviewSent = review != null) { repository.acceptExit(id, s.note, review) }
+                act(closeSheet = true) { repository.acceptExit(id, s.note, null) }
             }
             LeaseDetailIntent.SubmitDecline -> {
                 val s = currentState
@@ -183,6 +196,24 @@ class LeaseDetailViewModel @Inject constructor(
                 act(closeSheet = true) { repository.postReview(id, s.review) }
             }
             LeaseDetailIntent.DismissSheet -> if (!currentState.busy) setState { copy(sheet = null, confirm = null) }
+
+            LeaseDetailIntent.StartDeposit -> if (currentState.isLandlord) setState {
+                copy(
+                    sheet = LeaseSheet.DEPOSIT,
+                    depositAmount = (deposit?.amount?.ifBlank { null } ?: summary?.securityDeposit.orEmpty())
+                        .toBigDecimalOrNull()?.stripTrailingZeros()?.toPlainString().orEmpty(),
+                    depositDate = SimpleDate.today(),
+                )
+            }
+            is LeaseDetailIntent.DepositAmount -> setState { copy(depositAmount = intent.text.filter { it.isDigit() || it == '.' }.take(10)) }
+            is LeaseDetailIntent.DepositDate -> setState { copy(depositDate = intent.date) }
+            LeaseDetailIntent.SaveDeposit -> {
+                val s = currentState
+                val id = s.leaseId ?: return
+                val date = s.depositDate ?: return
+                if (!PaymentProofRules.amountOk(s.depositAmount)) return
+                act(closeSheet = true) { rent.recordDeposit(id, s.depositAmount, date).let { r -> if (r is AppResult.Success) AppResult.Success(LeaseActionResult(r.data)) else r as AppResult.Failure } }
+            }
         }
     }
 
@@ -191,8 +222,7 @@ class LeaseDetailViewModel @Inject constructor(
         val id = s.leaseId ?: return
         val date = s.moveOut ?: return
         setState { copy(confirm = null) }
-        val review = s.review.takeIf { s.addReview && it.isComplete }
-        act(closeSheet = true, reviewSent = review != null) { repository.requestExit(id, s.reason, date, review) }
+        act(closeSheet = true) { repository.requestExit(id, s.reason, date, null) }
     }
 
     /**
@@ -234,6 +264,9 @@ class LeaseDetailViewModel @Inject constructor(
         viewModelScope.launch {
             (repository.lease(id) as? AppResult.Success)?.let { r -> setState { copy(summary = r.data) } }
         }
+        viewModelScope.launch {
+            (rent.tenantPayments(id) as? AppResult.Success)?.let { r -> setState { copy(deposit = r.data.deposit) } }
+        }
         when (val r = repository.exitState(id)) {
             is AppResult.Success -> {
                 setState { copy(exit = r.data, loading = false, refreshing = false) }
@@ -255,7 +288,9 @@ class LeaseDetailViewModel @Inject constructor(
         (repository.reviewInfo(id) as? AppResult.Success)?.let { r -> setState { copy(reviewInfo = r.data) } }
     }
 
+    /** The review is required → never leave the form spinning: no form from the server = just "Overall". */
     private suspend fun loadReviewForm() {
         if (currentState.reviewInfo == null) loadReviewInfo()
+        if (currentState.reviewInfo == null) setState { copy(reviewInfo = LeaseReviewInfo()) }
     }
 }

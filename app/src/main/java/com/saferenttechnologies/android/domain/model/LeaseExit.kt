@@ -119,3 +119,22 @@ fun TenantLease.toSummary() = LeaseSummary(
     endDate = endDate,
     otherName = landlordName,
 )
+
+/** A closed lease I still have to review (GET reviews/pending). */
+data class PendingReview(
+    val leaseId: String,
+    val propertyId: String = "",
+    val propertyTitle: String = "",
+    val place: String = "",
+    /** Landlord sees the tenant, tenant sees the landlord. */
+    val otherName: String = "",
+    val endedAt: String = "",
+    /** Tenant only: deposit amount of that lease (the refund question). */
+    val depositAmount: String = "",
+) {
+    /** Ask "was the deposit refunded?" only when there was a deposit (> ₹0). */
+    val asksDeposit: Boolean get() = depositAmount.toBigDecimalOrNull()?.let { it.signum() > 0 } == true
+}
+
+/** Tenant's answer to "Did your landlord refund your deposit?" */
+enum class DepositRefund { YES, PARTIAL, NO }

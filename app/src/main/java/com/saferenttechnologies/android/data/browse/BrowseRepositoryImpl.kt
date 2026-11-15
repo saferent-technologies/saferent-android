@@ -238,6 +238,8 @@ object BrowseMapper {
                 salePrice = pricing?.text("salePrice").orEmpty(),
                 breakdown = breakdown(pricing?.obj("breakdown")),
                 availableFrom = o.text("availableFrom"),
+                availabilityLabel = o.text("availabilityLabel"),
+                availableNow = o.text("availableNow").takeIf { it.isNotBlank() }?.equals("true", true),
                 amenities = disclosures(o["amenities"]),
                 imageIds = o.arrayAt("imageIds").mapNotNull { it.asText() },
             )

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Files other apps may open through FileProvider (rent receipts for View / Share only). -->
+<!-- Files other apps may open through FileProvider: rent receipts (View / Share) and request photos (camera output). -->
 <paths>
     <cache-path name="receipts" path="receipts/" />
+    <cache-path name="request_photos" path="request-photos/" />
 </paths>

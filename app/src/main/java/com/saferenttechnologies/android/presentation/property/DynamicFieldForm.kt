@@ -77,10 +77,12 @@ fun DynamicFieldForm(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    // Follow-up questions appear only when their parent answer needs them (ShownWhen).
+    val shown = com.saferenttechnologies.android.domain.model.FormVisibility.visible(fields, values)
     // Keyboard "Next" moves to the next text field; only the last one shows "Done" and closes it.
-    val lastTextKey = fields.lastOrNull { it.type.isTyped() }?.key
+    val lastTextKey = shown.lastOrNull { it.type.isTyped() }?.key
     Column(modifier, verticalArrangement = Arrangement.spacedBy(14.sdp)) {
-        fields.forEach { field ->
+        shown.forEach { field ->
             val label = fieldLabel(field) + if (FieldValidator.isRequired(field, values)) " *" else ""
             val value = values[field.key].orEmpty()
             val error = errors[field.key]?.let { fieldErrorText(it) }
@@ -281,19 +283,35 @@ fun SelectField(label: String, options: List<String>, value: String, error: Stri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateField(label: String, value: String, error: String?, enabled: Boolean, onChange: (String) -> Unit) {
+internal fun DateField(
+    label: String,
+    value: String,
+    error: String?,
+    enabled: Boolean,
+    /** Earliest pickable day (null = any). */
+    notBefore: SimpleDate? = null,
+    /** Shown under the box when there's no error. */
+    helper: String? = null,
+    /** Box text (null = the raw "YYYY-MM-DD"). */
+    display: String? = null,
+    onChange: (String) -> Unit,
+) {
     var open by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     Box {
         OutlinedTextField(
-            value = value,
+            value = display ?: value,
             onValueChange = {},
             readOnly = true,
             enabled = false,
             label = { Text(label, fontFamily = Inter) },
             placeholder = { Text("YYYY-MM-DD", fontFamily = Inter) },
             isError = error != null,
-            supportingText = if (error != null) { { Text(error, fontFamily = Inter, color = AuthColors.Error) } } else null,
+            supportingText = when {
+                error != null -> { { Text(error, fontFamily = Inter, color = AuthColors.Error) } }
+                helper != null -> { { Text(helper, fontFamily = Inter, color = AuthColors.Body) } }
+                else -> null
+            },
             shape = RoundedCornerShape(12.sdp),
             colors = propertyFieldColors(),
             modifier = Modifier.fillMaxWidth(),
@@ -311,7 +329,14 @@ private fun DateField(label: String, value: String, error: String?, enabled: Boo
         val initial = SimpleDate.parse(value)?.let { d ->
             Calendar.getInstance(utc).run { clear(); set(d.year, d.month - 1, d.day); timeInMillis }
         }
-        val state = rememberDatePickerState(initialSelectedDateMillis = initial)
+        val minMillis = notBefore?.let { d -> Calendar.getInstance(utc).run { clear(); set(d.year, d.month - 1, d.day); timeInMillis } }
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = initial,
+            selectableDates = object : androidx.compose.material3.SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) = minMillis == null || utcTimeMillis >= minMillis
+                override fun isSelectableYear(year: Int) = notBefore == null || year >= notBefore.year
+            },
+        )
         DatePickerDialog(
             onDismissRequest = { open = false },
             confirmButton = {
@@ -394,6 +419,34 @@ private fun localFieldLabel(key: String): Int? = when (key) {
     "waterChargesType" -> R.string.prop_field_water_charges
     "powerBackup" -> R.string.prop_field_power_backup
     "internetAvailable" -> R.string.prop_field_internet
+    "meterNumber" -> R.string.prop_field_meter_number
+    "electricityRatePerUnit" -> R.string.prop_field_rate_per_unit
+    "separateWaterMeter" -> R.string.prop_field_separate_water_meter
+    "waterChargesAmount" -> R.string.prop_field_water_amount
+    "waterAvailability" -> R.string.prop_field_water_availability
+    "gasConnectionType" -> R.string.prop_field_gas
+    "internetCharges" -> R.string.prop_field_internet_charges
+    "generatorAvailable" -> R.string.prop_field_generator
+    "sewageFacilities" -> R.string.prop_field_sewage
+    "wasteCollection" -> R.string.prop_field_waste
+    "notes" -> R.string.prop_field_utility_notes
+    "maximumGuestStayDays" -> R.string.prop_field_max_guest_days
+    "guestRegistrationRequired" -> R.string.prop_field_guest_registration
+    "visitorTimingRestrictions" -> R.string.prop_field_visitor_timings
+    "landlordApprovalRequired" -> R.string.prop_field_landlord_approval
+    "guestParkingAvailable" -> R.string.prop_field_guest_parking
+    "guestChargesApplicable" -> R.string.prop_field_guest_charges
+    "guestChargeAmount" -> R.string.prop_field_guest_charge_amount
+    "partiesAllowed" -> R.string.prop_field_parties
+    "cookingAllowed" -> R.string.prop_field_cooking
+    "sublettingAllowed" -> R.string.prop_field_subletting
+    "workFromHomeAllowed" -> R.string.prop_field_wfh
+    "loudMusicPolicy" -> R.string.prop_field_loud_music
+    "lateFeePolicy" -> R.string.prop_field_late_fee
+    "rentIncreasePolicy" -> R.string.prop_field_rent_increase
+    "refundPolicy" -> R.string.prop_field_refund_policy
+    "depositUsableAsRent" -> R.string.prop_field_deposit_as_rent
+    "otherTerms" -> R.string.prop_field_other_terms
     "guestsAllowed" -> R.string.prop_field_guests
     "overnightGuestsAllowed" -> R.string.prop_field_overnight_guests
     "petsAllowed" -> R.string.prop_field_pets

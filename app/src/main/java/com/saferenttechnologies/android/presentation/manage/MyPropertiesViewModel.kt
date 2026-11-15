@@ -28,8 +28,13 @@ data class MyPropertiesState(
     val loading: Boolean = false,
     val refreshing: Boolean = false,
     val error: String? = null,
+    /** Counts per tab (GET properties/summary) → tabs with 0 are hidden. */
+    val summary: com.saferenttechnologies.android.domain.model.PropertySummary? = null,
 ) : UiState {
     val hasMore: Boolean get() = page < totalPages
+    /** Until the counts arrive: just All + the selected tab (no flash of empty tabs). */
+    val filters: List<PropertyFilter>
+        get() = summary?.visibleFilters(filter) ?: listOf(PropertyFilter.ALL, filter).distinct()
 }
 
 sealed interface MyPropertiesIntent : UiIntent {
@@ -65,6 +70,7 @@ class MyPropertiesViewModel @Inject constructor(
         when (intent) {
             is MyPropertiesIntent.Open -> {
                 setState { MyPropertiesState(isOpen = true, filter = intent.filter) }
+                loadCounts()
                 reload()
             }
             MyPropertiesIntent.Close -> setState { copy(isOpen = false) }
@@ -82,10 +88,20 @@ class MyPropertiesViewModel @Inject constructor(
             }
             MyPropertiesIntent.Refresh -> {
                 setState { copy(refreshing = true) }
+                loadCounts()
                 reload()
             }
             MyPropertiesIntent.LoadMore -> if (currentState.hasMore && !currentState.loading) load(currentState.page + 1)
-            MyPropertiesIntent.Invalidate -> if (currentState.isOpen) reload()
+            MyPropertiesIntent.Invalidate -> if (currentState.isOpen) {
+                loadCounts()
+                reload()
+            }
+        }
+    }
+
+    private fun loadCounts() {
+        viewModelScope.launch {
+            (repository.summary() as? com.saferenttechnologies.android.domain.model.AppResult.Success)?.let { r -> setState { copy(summary = r.data) } }
         }
     }
 

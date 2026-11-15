@@ -19,4 +19,6 @@ interface LeaseRepository {
     suspend fun cancelExit(leaseId: String): AppResult<LeaseActionResult>
     suspend fun reviewInfo(leaseId: String): AppResult<LeaseReviewInfo>
     suspend fun postReview(leaseId: String, review: ReviewDraft): AppResult<LeaseActionResult>
+    suspend fun pendingReviews(): AppResult<List<com.saferenttechnologies.android.domain.model.PendingReview>>
+    suspend fun depositRefund(leaseId: String, answer: com.saferenttechnologies.android.domain.model.DepositRefund, amount: String): AppResult<LeaseActionResult>
 }

@@ -93,6 +93,8 @@ data class PropertyDetailState(
     /** Current tenants (any tab) → who lives in which flat. */
     val activeLeases: List<Lease> = emptyList(),
     val activeLeasesLoading: Boolean = false,
+    /** Past tenants of this property still to review → no new invites until done. */
+    val reviewsDue: List<com.saferenttechnologies.android.domain.model.PendingReview> = emptyList(),
     val inviteForm: InviteForm? = null,
     val applications: List<RentalApplication> = emptyList(),
     val decision: DecisionForm? = null,
@@ -163,6 +165,8 @@ sealed interface PropertyDetailIntent : UiIntent {
     data object CloseUnit : PropertyDetailIntent
     /** "Add flat" → wizard on the Units step with a new flat. */
     data object AddUnit : PropertyDetailIntent
+    /** Banner "Review Ravi" → lease screen with the review sheet open. */
+    data class ReviewTenant(val leaseId: String) : PropertyDetailIntent
 
     data class StartDecision(val application: RentalApplication, val approve: Boolean) : PropertyDetailIntent
     data class DecisionChanged(val form: DecisionForm) : PropertyDetailIntent
@@ -197,4 +201,8 @@ sealed interface PropertyDetailEffect : UiEffect {
 
     /** Tenant card tapped → lease screen (close requests). */
     data class OpenLease(val leaseId: String, val preview: LeaseSummary) : PropertyDetailEffect
+    /** Open the lease with "Write your review" straight away. */
+    data class ReviewLease(val leaseId: String) : PropertyDetailEffect
+    /** Invite tapped while a past tenant still needs a review. */
+    data class ReviewFirst(val name: String) : PropertyDetailEffect
 }

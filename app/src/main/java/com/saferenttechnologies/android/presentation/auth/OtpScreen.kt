@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.auth
 
+import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
+import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import com.saferenttechnologies.android.core.ui.sdp
 import com.saferenttechnologies.android.core.ui.ssp
 import android.content.res.Configuration
@@ -81,13 +83,13 @@ internal fun OtpScreen(state: AuthState, onIntent: (AuthIntent) -> Unit) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.CenterStart)
-                            .size(44.sdp)
+                            .size(TOP_ICON)
                             .clip(CircleShape)
                             .background(AuthColors.Surface)
                             .clickable(role = Role.Button) { onIntent(AuthIntent.EditNumber) },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(painterResource(R.drawable.ic_chevron_left), "Back", tint = AuthColors.Ink, modifier = Modifier.size(22.sdp))
+                        Icon(painterResource(R.drawable.ic_chevron_left), "Back", tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH))
                     }
                     Text(
                         "VERIFICATION",

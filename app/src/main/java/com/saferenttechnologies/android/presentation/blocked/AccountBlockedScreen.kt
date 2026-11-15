@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.blocked
 
+import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
+import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -244,13 +246,13 @@ private fun ContactSupportContent(state: AccountBlockedState, onIntent: (Account
         ) {
             Box(
                 modifier = Modifier
-                    .size(44.sdp)
+                    .size(TOP_ICON)
                     .clip(CircleShape)
                     .background(AuthColors.Surface)
                     .clickable(role = Role.Button) { onIntent(AccountBlockedIntent.CloseContactSupport) },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(painterResource(R.drawable.ic_chevron_left), "Back", tint = AuthColors.Ink, modifier = Modifier.size(22.sdp))
+                Icon(painterResource(R.drawable.ic_chevron_left), "Back", tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH))
             }
             Spacer(Modifier.width(12.sdp))
             Text(

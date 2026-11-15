@@ -72,3 +72,16 @@ class LeaseExitTest {
         assertEquals(8, (1..10).fold(ReviewDraft()) { d, i -> d.toggleTag("t$i") }.tags.size)
     }
 }
+
+class PendingReviewTest {
+    @Test fun `pending review mapper`() {
+        val p = LeaseExitMapper.pending(obj("""{"lease":{"id":"le1","place":"Flat 302","securityDeposit":"36000"},"property":{"id":"p1","title":"Green Heights"},"landlord":{"fullName":"Suresh"},"endedAt":"2026-11-01T00:00:00Z"}"""))!!
+        assertEquals("le1", p.leaseId)
+        assertEquals("p1", p.propertyId)
+        assertEquals("Suresh", p.otherName)
+        assertEquals("36000", p.depositAmount)
+        assertNull(LeaseExitMapper.pending(obj("""{"property":{"id":"p1"}}""")))
+    }
+
+    private fun obj(s: String): JsonObject = Json.parseToJsonElement(s).jsonObject
+}

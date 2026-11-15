@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.lease
 
+import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
+import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import com.saferenttechnologies.android.presentation.common.DetailSkeleton
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -103,9 +105,9 @@ fun LeaseDetailScreen(
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.sdp, vertical = 6.sdp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(44.sdp).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(LeaseDetailIntent.Close) },
+                    Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(LeaseDetailIntent.Close) },
                     contentAlignment = Alignment.Center,
-                ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(22.sdp)) }
+                ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
                 Spacer(Modifier.width(12.sdp))
                 Text(stringResource(R.string.lease_title), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 20.ssp)
             }
@@ -120,6 +122,7 @@ fun LeaseDetailScreen(
                         // The other side asked → their request goes first (needs my answer).
                         exit?.open?.takeIf { it.canRespond && it.isPending }?.let { RespondCard(it, state, onIntent); Spacer(Modifier.height(12.sdp)) }
                         LeaseHeader(state.summary, exit)
+                        DepositSection(state, onIntent)
                         if (exit == null && state.error != null) {
                             Spacer(Modifier.height(12.sdp))
                             Text(state.error, color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
@@ -137,6 +140,7 @@ fun LeaseDetailScreen(
         LeaseSheet.ACCEPT -> Sheet(onIntent) { AcceptSheet(state, onIntent) }
         LeaseSheet.DECLINE -> Sheet(onIntent) { DeclineSheet(state, onIntent) }
         LeaseSheet.REVIEW -> Sheet(onIntent) { WriteReviewSheet(state, onIntent) }
+        LeaseSheet.DEPOSIT -> Sheet(onIntent) { DepositSheet(state, onIntent) }
         null -> Unit
     }
     state.confirm?.let { ConfirmDialog(it, state, onIntent) }
@@ -196,6 +200,75 @@ private fun InfoRow(label: String, value: String) {
         Text(label, color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp, modifier = Modifier.weight(1f))
         Text(value, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.ssp, textAlign = TextAlign.End, modifier = Modifier.weight(1.4f))
     }
+}
+
+// ---------------- security deposit ----------------
+
+/** Deposit received (green, date) or not yet (amber). Landlord: "Mark as received" with the amount. */
+@Composable
+private fun DepositSection(state: LeaseDetailState, onIntent: (LeaseDetailIntent) -> Unit) {
+    val d = state.deposit
+    val expected = d?.amount?.ifBlank { null } ?: state.summary?.securityDeposit?.ifBlank { null }
+    if (d == null && expected == null) return
+    val paid = d?.paid == true
+    val color = if (paid) AuthColors.Green else Amber
+    Spacer(Modifier.height(12.sdp))
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp)).background(color.copy(alpha = 0.08f))
+            .border(1.sdp, color.copy(alpha = 0.35f), RoundedCornerShape(14.sdp)).padding(14.sdp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.pay_deposit), color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp)
+                Text(Money.inr(d?.paidAmount?.ifBlank { null } ?: expected), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 18.ssp)
+            }
+            StatusPill(stringResource(if (paid) R.string.lease_deposit_received else R.string.lease_deposit_not_received), color)
+        }
+        if (paid && !d?.paidAt.isNullOrBlank()) {
+            Text(stringResource(R.string.lease_deposit_received_on, day(d?.paidAt)), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, modifier = Modifier.padding(top = 6.sdp))
+        }
+        if (!paid && state.isLandlord && state.exit?.isClosed != true) {
+            Spacer(Modifier.height(10.sdp))
+            AuthPrimaryButton(
+                text = stringResource(R.string.lease_mark_deposit),
+                enabled = !state.busy,
+                loading = false,
+                onClick = { onIntent(LeaseDetailIntent.StartDeposit) },
+                fontSize = 14.ssp,
+                shadow = false,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DepositSheet(state: LeaseDetailState, onIntent: (LeaseDetailIntent) -> Unit) {
+    SheetTitle(stringResource(R.string.lease_mark_deposit))
+    Text(stringResource(R.string.lease_deposit_info), color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
+    Spacer(Modifier.height(14.sdp))
+    OutlinedTextField(
+        value = state.depositAmount,
+        onValueChange = { onIntent(LeaseDetailIntent.DepositAmount(it)) },
+        label = { Text(stringResource(R.string.rent_amount_received), fontFamily = Inter) },
+        prefix = { Text("₹ ", fontFamily = Inter) },
+        singleLine = true,
+        enabled = !state.busy,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+        colors = propertyFieldColors(),
+        shape = RoundedCornerShape(12.sdp),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(10.sdp))
+    // Received any day up to today.
+    DateInput(stringResource(R.string.lease_deposit_date), state.depositDate?.iso().orEmpty(), min = SimpleDate(2000, 1, 1)) { onIntent(LeaseDetailIntent.DepositDate(it)) }
+    Spacer(Modifier.height(16.sdp))
+    AuthPrimaryButton(
+        text = stringResource(R.string.lease_deposit_save),
+        enabled = !state.busy && com.saferenttechnologies.android.domain.model.PaymentProofRules.amountOk(state.depositAmount) && state.depositDate != null,
+        loading = state.busy,
+        onClick = { onIntent(LeaseDetailIntent.SaveDeposit) },
+        fontSize = 15.ssp,
+    )
 }
 
 // ---------------- close request states ----------------
@@ -462,7 +535,6 @@ private fun RequestSheet(state: LeaseDetailState, onIntent: (LeaseDetailIntent) 
         shape = RoundedCornerShape(12.sdp),
         modifier = Modifier.fillMaxWidth(),
     )
-    ReviewToggle(state, onIntent)
     Spacer(Modifier.height(16.sdp))
     AuthPrimaryButton(
         text = stringResource(R.string.lease_send_request),
@@ -490,7 +562,6 @@ private fun AcceptSheet(state: LeaseDetailState, onIntent: (LeaseDetailIntent) -
         shape = RoundedCornerShape(12.sdp),
         modifier = Modifier.fillMaxWidth(),
     )
-    ReviewToggle(state, onIntent)
     Spacer(Modifier.height(16.sdp))
     AuthPrimaryButton(
         text = stringResource(R.string.lease_accept),
@@ -553,36 +624,22 @@ private fun WriteReviewSheet(state: LeaseDetailState, onIntent: (LeaseDetailInte
     )
 }
 
-/** "Add a review now" switch → the review form inline. */
+/** Required review (leave / close / accept): stars per category + text + tags, right in the sheet. */
 @Composable
 private fun ReviewToggle(state: LeaseDetailState, onIntent: (LeaseDetailIntent) -> Unit) {
+    Spacer(Modifier.height(14.sdp))
+    Text(stringResource(R.string.lease_review_required_title), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 16.ssp)
+    Text(stringResource(R.string.lease_review_hidden_hint), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
     Spacer(Modifier.height(8.sdp))
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.sdp)).clickable(enabled = !state.busy, role = Role.Switch) { onIntent(LeaseDetailIntent.ToggleReview(!state.addReview)) }.padding(vertical = 6.sdp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.lease_add_review), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 14.ssp)
-            Text(stringResource(R.string.lease_review_hidden_hint), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
-        }
-        Switch(
-            checked = state.addReview,
-            onCheckedChange = null,
-            colors = SwitchDefaults.colors(checkedTrackColor = AuthColors.Orange, checkedThumbColor = Color.White),
-        )
-    }
-    if (state.addReview) {
-        Spacer(Modifier.height(8.sdp))
-        ReviewFormSection(
-            form = state.reviewInfo?.form,
-            draft = state.review,
-            showError = state.reviewError,
-            enabled = !state.busy,
-            onRate = { k, n -> onIntent(LeaseDetailIntent.Rate(k, n)) },
-            onText = { onIntent(LeaseDetailIntent.ReviewText(it)) },
-            onTag = { onIntent(LeaseDetailIntent.ToggleTag(it)) },
-        )
-    }
+    ReviewFormSection(
+        form = state.reviewInfo?.form,
+        draft = state.review,
+        showError = state.reviewError,
+        enabled = !state.busy,
+        onRate = { k, n -> onIntent(LeaseDetailIntent.Rate(k, n)) },
+        onText = { onIntent(LeaseDetailIntent.ReviewText(it)) },
+        onTag = { onIntent(LeaseDetailIntent.ToggleTag(it)) },
+    )
 }
 
 @Composable

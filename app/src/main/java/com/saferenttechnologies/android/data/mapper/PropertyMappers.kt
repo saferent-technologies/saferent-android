@@ -142,7 +142,9 @@ fun PropertyDto.toDomain(): Property {
         units = units.map { u ->
             // attributes { bhkType } and pricing { monthlyRent } are flattened into the values.
             val nested = (u["attributes"] as? JsonObject)?.primitives().orEmpty() +
-                (u["pricing"] as? JsonObject)?.primitives().orEmpty()
+                (u["pricing"] as? JsonObject)?.primitives().orEmpty() +
+                // occupancy { tenantName, since, leaseEnds, movingOutOn } → "occupancy.tenantName" …
+                (u["occupancy"] as? JsonObject)?.primitives().orEmpty().mapKeys { "occupancy.${it.key}" }
             PropertyUnit(
                 id = u.text("id"),
                 code = u.text("code"),

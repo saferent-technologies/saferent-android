@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.data.property
 
+import com.saferenttechnologies.android.data.mapper.text
+import com.saferenttechnologies.android.data.mapper.primitives
 import com.saferenttechnologies.android.data.mapper.arrayAt
 import com.saferenttechnologies.android.data.mapper.toAmenityGroups
 import com.saferenttechnologies.android.data.mapper.toDomain
@@ -15,6 +17,7 @@ import com.saferenttechnologies.android.domain.model.AmenityGroup
 import com.saferenttechnologies.android.domain.model.AppError
 import com.saferenttechnologies.android.domain.model.AppResult
 import com.saferenttechnologies.android.domain.model.Completeness
+import com.saferenttechnologies.android.domain.model.Occupancy
 import com.saferenttechnologies.android.domain.model.Property
 import com.saferenttechnologies.android.domain.model.PropertyDocument
 import com.saferenttechnologies.android.domain.model.PropertyTypes
@@ -70,10 +73,17 @@ class PropertyRepositoryImpl @Inject constructor(
             }.filter { it.id.isNotBlank() }
         }
 
-    override suspend fun property(id: String): AppResult<Property> =
+    override suspend fun property(id: String): AppResult<Property> {
         // The wizard always edits the draft view: for a live listing that's its change request
         // (own unit / room / bed / photo ids + version); for drafts it's simply the property.
-        call("GET property (draft view)", { api.property(id, DRAFT_VIEW) }) { it.property?.toDomain() }
+        val draft = call("GET property (draft view)", { api.property(id, DRAFT_VIEW) }) { it.property?.toDomain() }
+        if (draft !is AppResult.Success || draft.data.publicationStatus == "DRAFT") return draft
+        // A change request copies the flats when it's opened, so "OCCUPIED" can stay on it after the
+        // lease closed. Occupancy comes from leases → take it from the live listing. Live call failed →
+        // keep the draft copy (safer: stays locked).
+        val live = call("GET property (live)", { api.property(id, null) }) { it.property?.toDomain() }
+        return if (live is AppResult.Success) AppResult.Success(Occupancy.fromLive(draft.data, live.data)) else draft
+    }
 
     override suspend fun create(typeKey: String, listingType: String, title: String?): AppResult<Property> {
         val body = buildJsonObject {
@@ -176,6 +186,20 @@ class PropertyRepositoryImpl @Inject constructor(
 
     override suspend fun saveUtilities(id: String, values: TypedValues) =
         unitCall("PUT utilities") { api.saveUtilities(id, JsonObject(values.toJsonMap())) }
+
+    override suspend fun utilities(id: String): AppResult<Map<String, String>> =
+        when (val r = safeApiCall("GET utilities") { api.utilities(id) }) {
+            is ApiResult.Success -> AppResult.Success(OptionalAnswers.utilities(r.data))
+            is ApiResult.NotModified -> AppResult.Success(emptyMap())
+            is ApiResult.Failure -> AppResult.Failure(r.error.toPropertyError(json))
+        }
+
+    override suspend fun policies(id: String): AppResult<Pair<Map<String, String>, List<Pair<String, String>>>> =
+        when (val r = safeApiCall("GET policies") { api.policies(id) }) {
+            is ApiResult.Success -> AppResult.Success(OptionalAnswers.policies(r.data))
+            is ApiResult.NotModified -> AppResult.Success(emptyMap<String, String>() to emptyList())
+            is ApiResult.Failure -> AppResult.Failure(r.error.toPropertyError(json))
+        }
 
     override suspend fun savePolicies(id: String, values: TypedValues, rules: List<Pair<String, String>>) = unitCall("PUT policies") {
         val rulesJson = buildJsonArray {
@@ -280,5 +304,28 @@ class PropertyRepositoryImpl @Inject constructor(
             MultipartBody.Part.createFormData(field, file.name, file.asRequestBody(JPEG))
 
         fun textPart(value: String): RequestBody = value.toRequestBody(TEXT)
+    }
+}
+
+/** GET utilities / policies → the wizard's form strings (pure, unit-tested). "8.00" → "8", nulls dropped. */
+object OptionalAnswers {
+    private val SKIP = setOf("id", "propertyId", "unitId", "scopeKey", "updatedAt", "createdAt", "electricityIncludedInRent", "waterIncludedInRent")
+
+    private fun tidy(map: Map<String, String>) = map.mapValues { (_, v) ->
+        v.toBigDecimalOrNull()?.takeIf { v.contains('.') }?.stripTrailingZeros()?.toPlainString() ?: v
+    }
+
+    fun utilities(data: kotlinx.serialization.json.JsonElement?): Map<String, String> {
+        val o = (data as? JsonObject)?.let { (it["utilities"] as? JsonObject) ?: it } ?: return emptyMap()
+        return tidy(o.primitives(SKIP))
+    }
+
+    fun policies(data: kotlinx.serialization.json.JsonElement?): Pair<Map<String, String>, List<Pair<String, String>>> {
+        val o = (data as? JsonObject)?.let { (it["policy"] as? JsonObject) ?: (it["policies"] as? JsonObject) ?: it } ?: return emptyMap<String, String>() to emptyList()
+        val rules = (o["additionalRules"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { e ->
+            val r = e as? JsonObject ?: return@mapNotNull null
+            r.text("title").ifBlank { null }?.let { it to r.text("description") }
+        }.orEmpty()
+        return tidy(o.primitives(SKIP + "additionalRules")) to rules
     }
 }

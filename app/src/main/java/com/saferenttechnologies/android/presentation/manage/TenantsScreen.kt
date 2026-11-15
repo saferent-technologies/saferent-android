@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.manage
 
+import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
+import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import com.saferenttechnologies.android.presentation.property.propertyFieldColors
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
@@ -69,15 +71,23 @@ private fun initials(name: String): String =
 /** Landlord → all tenants (Current / Past). Card → tenant sheet → lease screen. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TenantsScreen(state: TenantsState, onIntent: (TenantsIntent) -> Unit, onOpenLease: (Lease) -> Unit) {
+fun TenantsScreen(
+    state: TenantsState,
+    onIntent: (TenantsIntent) -> Unit,
+    onOpenLease: (Lease) -> Unit,
+    effects: kotlinx.coroutines.flow.Flow<TenantsEffect>? = null,
+) {
     BackHandler { onIntent(TenantsIntent.Close) }
+    androidx.compose.runtime.LaunchedEffect(effects) {
+        effects?.collect { e -> if (e is TenantsEffect.OpenLease) onOpenLease(e.lease) }
+    }
     val focus = LocalFocusManager.current
     Column(Modifier.fillMaxSize().background(AuthColors.Background).statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.sdp, vertical = 6.sdp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(44.sdp).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(TenantsIntent.Close) },
+                Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(TenantsIntent.Close) },
                 contentAlignment = Alignment.Center,
-            ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(22.sdp)) }
+            ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
             Spacer(Modifier.width(12.sdp))
             Text(stringResource(R.string.home_tenants), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 20.ssp)
         }
@@ -108,6 +118,25 @@ fun TenantsScreen(state: TenantsState, onIntent: (TenantsIntent) -> Unit, onOpen
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.sdp, vertical = 4.sdp), horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
             Chip(stringResource(R.string.manage_current_tenants), selected = !state.past, modifier = Modifier.weight(1f)) { onIntent(TenantsIntent.ShowPast(false)) }
             Chip(stringResource(R.string.manage_past_tenants), selected = state.past, modifier = Modifier.weight(1f)) { onIntent(TenantsIntent.ShowPast(true)) }
+        }
+        // Property type tabs (All · Apartment · PG …): only types that have tenants; none when there's just one type.
+        val tabs = state.types
+        if (tabs.size > 1) {
+            androidx.compose.foundation.lazy.LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.sdp, vertical = 4.sdp),
+                horizontalArrangement = Arrangement.spacedBy(8.sdp),
+            ) {
+                item(key = "all") {
+                    Chip("${stringResource(R.string.filter_all)} (${state.items.size})", selected = state.type == null, maxLines = 1) { onIntent(TenantsIntent.SelectType(null)) }
+                }
+                items(tabs, key = { it.type }) { t ->
+                    Chip(
+                        "${t.label.ifBlank { com.saferenttechnologies.android.presentation.property.optionLabel(t.type) }} (${t.count})",
+                        selected = state.type == t.type,
+                        maxLines = 1,
+                    ) { onIntent(TenantsIntent.SelectType(t.type)) }
+                }
+            }
         }
         PullToRefreshBox(
             isRefreshing = state.refreshing,
@@ -186,9 +215,10 @@ private fun TenantCard(lease: Lease, closeRequested: Boolean, onClick: () -> Uni
                 fontSize = 12.ssp,
             )
         }
+        // Status chips sit in the card's top-right corner.
         when {
-            closeRequested -> StatusPill(stringResource(R.string.lease_close_requested), Amber)
-            lease.exitDate != null -> StatusPill(stringResource(R.string.tenants_moving_out), AuthColors.OrangeText)
+            closeRequested -> StatusPill(stringResource(R.string.lease_close_requested), Amber, Modifier.align(Alignment.Top))
+            lease.exitDate != null -> StatusPill(stringResource(R.string.tenants_moving_out), AuthColors.OrangeText, Modifier.align(Alignment.Top))
         }
     }
 }

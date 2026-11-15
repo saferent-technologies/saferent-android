@@ -59,21 +59,31 @@ object PropertyForms {
         if (listingType == "SALE") {
             listOf(f("salePrice", FieldType.MONEY, required = true, min = 0.0))
         } else {
+            // Rent is due every month on the tenant's joining date → no "rent due day" any more.
             listOf(
                 f("monthlyRent", FieldType.MONEY, required = true, min = 0.0),
                 f("securityDeposit", FieldType.MONEY, min = 0.0),
                 f("advanceRentMonths", FieldType.INTEGER, min = 0.0, max = 24.0),
-                f("rentDueDay", FieldType.INTEGER, min = 1.0, max = 31.0),
                 f("lockInPeriodMonths", FieldType.INTEGER, min = 0.0, max = 120.0),
                 f("noticePeriodDays", FieldType.INTEGER, min = 0.0, max = 365.0),
                 f("rentNegotiable", FieldType.DISCLOSURE, options = disclosure(types)),
+                f("lateFeePolicy", FieldType.TEXTAREA, maxLength = 500),
+                f("rentIncreasePolicy", FieldType.TEXTAREA, maxLength = 500),
                 f("agreementCharges", FieldType.MONEY, min = 0.0),
-                f("agreementChargesPaidBy", FieldType.SELECT, options = listOf("TENANT", "LANDLORD", "SHARED")),
+                f(
+                    "agreementChargesPaidBy", FieldType.SELECT,
+                    options = listOf("LANDLORD", "TENANT", "SHARED", "NOT_DISCLOSED"),
+                    requiredWhen = RequiredWhen("agreementCharges", "*"),
+                ).copy(shownWhen = ShownWhen("agreementCharges")),
+                f("refundPolicy", FieldType.TEXTAREA, maxLength = 5000),
+                // Ticked → tenants may pay a month from the deposit (landlord approves); off → no such option.
+                f("depositUsableAsRent", FieldType.BOOLEAN),
+                f("otherTerms", FieldType.TEXTAREA, maxLength = 5000),
             )
         }
 
     /** Rent / deposit / sale price keys — on each flat for an apartment, never on the building. */
-    val FLAT_PRICE_KEYS = setOf("monthlyRent", "securityDeposit", "salePrice", "advanceRentMonths")
+    val FLAT_PRICE_KEYS = setOf("monthlyRent", "securityDeposit", "salePrice")
 
     /** Apartment "Common charges": the pricing step without the flat's own price fields. */
     fun commonPricing(listingType: String, types: PropertyTypes?): List<FieldDef> =
@@ -94,22 +104,86 @@ object PropertyForms {
             )
         }
 
-    fun utilities(types: PropertyTypes?): List<FieldDef> = listOf(
+    // ---------------- Utilities (PUT properties/{id}/utilities) ----------------
+
+    private fun showIf(field: String, vararg values: String) = ShownWhen(field, anyOf = values.toSet())
+
+    fun utilElectricity(types: PropertyTypes?): List<FieldDef> = listOf(
         f("separateElectricityMeter", FieldType.DISCLOSURE, options = disclosure(types)),
-        f("electricityBillingType", FieldType.SELECT, options = types?.enum("electricityBillingTypes", listOf("ACTUAL_BILL", "FIXED", "INCLUDED_IN_RENT")) ?: listOf("ACTUAL_BILL", "FIXED", "INCLUDED_IN_RENT")),
-        f("meterPaymentType", FieldType.SELECT, options = types?.enum("meterPaymentTypes", listOf("PREPAID", "POSTPAID")) ?: listOf("PREPAID", "POSTPAID")),
-        f("waterSupplyType", FieldType.SELECT, options = types?.enum("waterSupplyTypes", listOf("MUNICIPAL", "BOREWELL", "TANKER", "MIXED")) ?: listOf("MUNICIPAL", "BOREWELL", "TANKER", "MIXED")),
-        f("waterChargesType", FieldType.SELECT, options = chargeBilling(types)),
-        f("powerBackup", FieldType.DISCLOSURE, options = disclosure(types)),
-        f("internetAvailable", FieldType.DISCLOSURE, options = disclosure(types)),
+        f("meterNumber", FieldType.TEXT, maxLength = 40).copy(shownWhen = showIf("separateElectricityMeter", "YES")),
+        f("meterPaymentType", FieldType.SELECT, options = listOf("PREPAID", "POSTPAID", "NOT_DISCLOSED"))
+            .copy(shownWhen = showIf("separateElectricityMeter", "YES")),
+        f("electricityBillingType", FieldType.SELECT, options = listOf("ACTUAL_BILL", "FIXED", "INCLUDED_IN_RENT", "NOT_APPLICABLE", "NOT_DISCLOSED")),
+        f("electricityRatePerUnit", FieldType.DECIMAL, min = 0.0, max = 100.0).copy(shownWhen = showIf("electricityBillingType", "ACTUAL_BILL", "FIXED")),
     )
 
-    fun policies(types: PropertyTypes?): List<FieldDef> = listOf(
+    fun utilWater(types: PropertyTypes?): List<FieldDef> = listOf(
+        f("separateWaterMeter", FieldType.DISCLOSURE, options = disclosure(types)),
+        f("waterSupplyType", FieldType.SELECT, options = listOf("MUNICIPAL", "BOREWELL", "TANKER", "MIXED", "NOT_APPLICABLE", "NOT_DISCLOSED")),
+        f("waterChargesType", FieldType.SELECT, options = chargeBilling(types)),
+        f(
+            "waterChargesAmount", FieldType.MONEY, min = 0.0,
+            requiredWhen = RequiredWhen("waterChargesType", "FIXED_MONTHLY", setOf("ONE_TIME")),
+        ).copy(shownWhen = showIf("waterChargesType", "FIXED_MONTHLY", "ONE_TIME", "USAGE_BASED")),
+        f("waterAvailability", FieldType.TEXT, maxLength = 120),
+    )
+
+    fun utilGasInternet(types: PropertyTypes?): List<FieldDef> = listOf(
+        f("gasConnectionType", FieldType.SELECT, options = listOf("PIPED", "CYLINDER", "NONE", "NOT_DISCLOSED")),
+        f("internetAvailable", FieldType.DISCLOSURE, options = disclosure(types)),
+        f("internetCharges", FieldType.MONEY, min = 0.0).copy(shownWhen = showIf("internetAvailable", "YES")),
+        f("powerBackup", FieldType.DISCLOSURE, options = disclosure(types)),
+        f("generatorAvailable", FieldType.DISCLOSURE, options = disclosure(types)),
+    )
+
+    fun utilBuilding(types: PropertyTypes?): List<FieldDef> = listOf(
+        f("sewageFacilities", FieldType.DISCLOSURE, options = disclosure(types)),
+        f("wasteCollection", FieldType.DISCLOSURE, options = disclosure(types)),
+        f("notes", FieldType.TEXTAREA, maxLength = 1000),
+    )
+
+    fun utilities(types: PropertyTypes?): List<FieldDef> =
+        utilElectricity(types) + utilWater(types) + utilGasInternet(types) + utilBuilding(types)
+
+    /** Body extras the server wants with "included in rent" (never an amount then). */
+    fun utilityExtras(values: Map<String, String>): Map<String, String> = buildMap {
+        if (values["electricityBillingType"] == "INCLUDED_IN_RENT") put("electricityIncludedInRent", "YES")
+        if (values["waterChargesType"] == "INCLUDED_IN_RENT") put("waterIncludedInRent", "YES")
+    }
+
+    // ---------------- Guests & house rules (PUT properties/{id}/policies) ----------------
+
+    fun policyGuests(types: PropertyTypes?): List<FieldDef> = listOf(
         f("guestsAllowed", FieldType.DISCLOSURE, options = disclosure(types)),
-        f("overnightGuestsAllowed", FieldType.DISCLOSURE, options = disclosure(types)),
+        // No guests → no overnight guests (and no max stay).
+        f("overnightGuestsAllowed", FieldType.DISCLOSURE, options = disclosure(types)).copy(shownWhen = ShownWhen("guestsAllowed", noneOf = setOf("NO"))),
+        f("maximumGuestStayDays", FieldType.INTEGER, min = 1.0, max = 365.0).copy(shownWhen = showIf("overnightGuestsAllowed", "YES")),
+        f("guestRegistrationRequired", FieldType.DISCLOSURE, options = disclosure(types)),
+        // Visitors register → ask the visiting hours.
+        f("visitorTimingRestrictions", FieldType.TEXT, maxLength = 255).copy(shownWhen = showIf("guestRegistrationRequired", "YES")),
+        f("landlordApprovalRequired", FieldType.DISCLOSURE, options = disclosure(types)),
+        f("guestParkingAvailable", FieldType.DISCLOSURE, options = disclosure(types)),
+        f("guestChargesApplicable", FieldType.DISCLOSURE, options = disclosure(types)),
+        f("guestChargeAmount", FieldType.MONEY, min = 0.0, requiredWhen = RequiredWhen("guestChargesApplicable", "YES"))
+            .copy(shownWhen = showIf("guestChargesApplicable", "YES")),
+    )
+
+    /** "Cooking allowed?" only matters for a PG / hostel room. */
+    fun policyHouse(types: PropertyTypes?, pg: Boolean = false): List<FieldDef> = listOfNotNull(
         f("petsAllowed", FieldType.DISCLOSURE, options = disclosure(types)),
         f("smokingAllowed", FieldType.DISCLOSURE, options = disclosure(types)),
+        f("partiesAllowed", FieldType.DISCLOSURE, options = disclosure(types)),
+        f("cookingAllowed", FieldType.DISCLOSURE, options = disclosure(types)).takeIf { pg },
+        f("sublettingAllowed", FieldType.DISCLOSURE, options = disclosure(types)),
+        f("loudMusicPolicy", FieldType.TEXT, maxLength = 255),
     )
+
+    fun policies(types: PropertyTypes?, pg: Boolean = false): List<FieldDef> = policyGuests(types) + policyHouse(types, pg)
+
+    /** Extra house rule: title 2–80, description ≤ 500, at most 30. */
+    const val RULE_TITLE_MAX = 80
+    const val RULE_DESCRIPTION_MAX = 500
+    const val RULES_MAX = 30
 
     fun chargeKinds(types: PropertyTypes?) =
         types?.enum("chargeKinds", listOf("MAINTENANCE", "ELECTRICITY", "WATER", "GAS", "PARKING", "INTERNET", "OTHER"))

@@ -207,6 +207,8 @@ class ManagePropertyRepositoryImpl @Inject constructor(
                     exitDate = exit?.let { x -> x.text("moveOutDate").ifBlank { x.text("requestedAt").ifBlank { x.text("date") } } },
                     propertyId = o.text("propertyId").ifBlank { property?.text("id").orEmpty() },
                     propertyTitle = property?.text("title").orEmpty(),
+                    propertyType = property?.text("propertyType").orEmpty().ifBlank { o.text("propertyType") }.uppercase(),
+                    propertyTypeLabel = property?.text("propertyTypeLabel").orEmpty().ifBlank { o.text("propertyTypeLabel") },
                 )
             }
         }

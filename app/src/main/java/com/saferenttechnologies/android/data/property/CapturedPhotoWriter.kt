@@ -24,10 +24,10 @@ object CapturedPhotoWriter {
     const val START_QUALITY = 85
     const val MAX_BYTES = 2 * 1024 * 1024
 
-    /** Property photos are 16:9 (landscape), centre-cropped. Documents keep the full frame. */
-    const val PHOTO_ASPECT = 16f / 9f
+    /** Property photos are 4:3 (landscape), centre-cropped. Documents keep the full frame. */
+    const val PHOTO_ASPECT = 4f / 3f
 
-    /** Bottom-right mark on every property photo. */
+    /** Faint centre watermark on every property photo. */
     const val WATERMARK = "SafeRent"
 
     fun write(context: Context, source: Bitmap, rotationDegrees: Int, aspect: Float? = null, watermark: String? = null): File {
@@ -66,12 +66,12 @@ object CapturedPhotoWriter {
         return file
     }
 
-    /** Watermark opacity (0–255): see-through so the photo stays clear. */
-    private const val MARK_ALPHA = 165
+    /** Watermark opacity (0–255): faint, like a watermark, so the photo stays clear. */
+    private const val MARK_ALPHA = 70
 
     /**
-     * Bottom-right: SafeRent logo + "SafeRent", see-through, sized to the photo, with a soft
-     * shadow on the text so it reads on light and dark backgrounds.
+     * Centre of the photo: SafeRent logo + "SafeRent" side by side, faint and see-through (like a
+     * watermark), sized to the photo, with a very light shadow so it shows on bright walls too.
      */
     fun drawWatermark(context: Context, bitmap: Bitmap, text: String): Bitmap {
         val out = if (bitmap.isMutable) bitmap else bitmap.copy(Bitmap.Config.ARGB_8888, true)
@@ -79,27 +79,27 @@ object CapturedPhotoWriter {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             alpha = MARK_ALPHA
-            textSize = out.width * 0.035f
+            textSize = minOf(out.width, out.height) * 0.09f
             typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-            textAlign = Paint.Align.RIGHT
-            setShadowLayer(textSize * 0.12f, 0f, textSize * 0.06f, Color.argb(120, 0, 0, 0))
+            textAlign = Paint.Align.LEFT
+            setShadowLayer(textSize * 0.08f, 0f, textSize * 0.04f, Color.argb(45, 0, 0, 0))
         }
-        val margin = out.width * 0.025f
-        val textRight = out.width - margin
-        val baseline = out.height - margin
-        canvas.drawText(text, textRight, baseline, paint)
-
-        // Logo just left of the text, a bit taller than the letters (vector drawn crisp at any size).
-        ContextCompat.getDrawable(context, R.drawable.app_logo)?.mutate()?.let { logo ->
-            val size = (paint.textSize * 1.6f).toInt()
-            val gap = paint.textSize * 0.2f
-            val right = (textRight - paint.measureText(text) - gap).toInt()
-            val centerY = baseline - paint.textSize * 0.35f
-            val top = (centerY - size / 2f).toInt()
-            logo.setBounds(right - size, top, right, top + size)
-            logo.alpha = MARK_ALPHA
-            logo.draw(canvas)
+        val logo = ContextCompat.getDrawable(context, R.drawable.app_logo)?.mutate()
+        val logoSize = (paint.textSize * 1.4f).toInt()
+        val gap = paint.textSize * 0.25f
+        val textWidth = paint.measureText(text)
+        val groupWidth = textWidth + if (logo != null) logoSize + gap else 0f
+        val left = (out.width - groupWidth) / 2f
+        val centerY = out.height / 2f
+        // Baseline so the letters sit centred on the photo's middle line.
+        val baseline = centerY - (paint.descent() + paint.ascent()) / 2f
+        logo?.let {
+            val top = (centerY - logoSize / 2f).toInt()
+            it.setBounds(left.toInt(), top, left.toInt() + logoSize, top + logoSize)
+            it.alpha = MARK_ALPHA
+            it.draw(canvas)
         }
+        canvas.drawText(text, left + if (logo != null) logoSize + gap else 0f, baseline, paint)
         return out
     }
 

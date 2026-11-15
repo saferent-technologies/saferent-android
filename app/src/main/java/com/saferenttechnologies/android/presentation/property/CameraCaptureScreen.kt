@@ -111,11 +111,11 @@ fun CameraCaptureScreen(
             val previewView = remember {
                 PreviewView(context).apply {
                     scaleType = PreviewView.ScaleType.FILL_CENTER
-                    // TextureView: the preview is cut to the 16:9 frame (a SurfaceView would draw past it).
+                    // TextureView: the preview is cut to the 4:3 frame (a SurfaceView would draw past it).
                     implementationMode = PreviewView.ImplementationMode.COMPATIBLE
                 }
             }
-            // Property photos: 16:9 frame (exactly what will be saved); documents use the full screen.
+            // Property photos: 4:3 frame (exactly what will be saved); documents use the full screen.
             AndroidView(
                 factory = { previewView },
                 modifier = if (mode == CameraMode.PHOTO) {
@@ -215,7 +215,7 @@ fun CameraCaptureScreen(
                 bitmap = shot.second.asImageBitmap(),
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                // Property photo → shown in the same 16:9 frame it was taken in.
+                // Property photo → shown in the same 4:3 frame it was taken in.
                 modifier = if (mode == CameraMode.PHOTO) {
                     Modifier.fillMaxWidth().aspectRatio(CapturedPhotoWriter.PHOTO_ASPECT).align(Alignment.Center)
                 } else {

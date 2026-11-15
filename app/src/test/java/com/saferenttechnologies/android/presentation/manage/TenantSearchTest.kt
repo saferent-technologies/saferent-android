@@ -19,3 +19,20 @@ class TenantSearchTest {
         assertEquals(2, TenantSearch.filter(list, "  ").size)
     }
 }
+
+class TenantTypeTabsTest {
+    @Test fun `tabs only for types with tenants`() {
+        val leases = listOf(
+            Lease("1", "ACTIVE", propertyType = "APARTMENT", propertyTypeLabel = "Apartment"),
+            Lease("2", "ACTIVE", propertyType = "APARTMENT"),
+            Lease("3", "ACTIVE", propertyType = "PG", propertyTypeLabel = "PG / Hostel"),
+            Lease("4", "ACTIVE"),
+        )
+        val tabs = TenantSearch.typeTabs(leases)
+        assertEquals(listOf("APARTMENT" to 2, "PG" to 1), tabs.map { it.type to it.count })
+        assertEquals("Apartment", tabs.first().label)
+        assertEquals(emptyList<TenantTypeTab>(), TenantSearch.typeTabs(leases.filter { it.propertyType != "PG" && it.propertyType != "APARTMENT" }))
+        val pgOnly = TenantsState(items = leases, type = "PG").visible
+        assertEquals(listOf("3"), pgOnly.map { it.id })
+    }
+}

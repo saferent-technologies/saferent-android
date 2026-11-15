@@ -143,6 +143,10 @@ data class UnitOption(
     val salePrice: String = "",
     val breakdown: CostBreakdown? = null,
     val availableFrom: String = "",
+    /** Server text: "Available now" / "Available from 30 Nov 2026" / "Occupied". */
+    val availabilityLabel: String = "",
+    /** Null when the server didn't say (older API). */
+    val availableNow: Boolean? = null,
     /** Apartment: amenities inside this flat. */
     val amenities: List<Disclosure> = emptyList(),
     /** Apartment: this flat's own photos. */

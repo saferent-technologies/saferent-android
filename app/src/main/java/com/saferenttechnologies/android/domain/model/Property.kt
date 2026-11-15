@@ -27,7 +27,14 @@ enum class FieldType {
 }
 
 /** `requiredWhen: { field, equals }` → required only when that field has that value. */
-data class RequiredWhen(val field: String, val equals: String)
+/** Required when [field] equals [equals] (or any of [orEquals]); [equals] = "*" → when [field] is filled in. */
+data class RequiredWhen(val field: String, val equals: String, val orEquals: Set<String> = emptySet())
+
+/**
+ * Show a field only when its parent answer needs it: [anyOf] = parent is one of these; [noneOf] = parent is
+ * not one of these (blank counts as "not"); both empty = parent is filled in. Hidden fields are never sent.
+ */
+data class ShownWhen(val field: String, val anyOf: Set<String> = emptySet(), val noneOf: Set<String> = emptySet())
 
 data class FieldDef(
     val key: String,
@@ -41,6 +48,7 @@ data class FieldDef(
     val requiredWhen: RequiredWhen? = null,
     /** Text that may only hold digits (flat number) → number keyboard, digits only. */
     val digitsOnly: Boolean = false,
+    val shownWhen: ShownWhen? = null,
 )
 
 data class PropertyTypeDef(
@@ -184,6 +192,48 @@ data class AmenityItem(val key: String, val label: String)
 
 /** Only property type "APARTMENT" uses the building + flats rules. */
 fun isApartmentType(propertyType: String?): Boolean = propertyType.equals("APARTMENT", ignoreCase = true)
+
+/**
+ * Occupancy is set by leases on the live listing. The wizard's change-request copy may still say
+ * OCCUPIED after a lease closed → copy the live statuses on (match flats by code / number, beds by
+ * room number + bed number). Once the lease is closed the flat / room is fully editable again.
+ */
+object Occupancy {
+    private fun unitKey(u: PropertyUnit) = u.code.ifBlank { u.unitNumber }.trim().lowercase()
+    private fun roomKey(r: PropertyRoom) = r.roomNumber.trim().lowercase()
+
+    fun fromLive(draft: Property, live: Property): Property {
+        val unitStatus = live.units.filter { unitKey(it).isNotBlank() }.associate { unitKey(it) to it.values["availabilityStatus"].orEmpty() }
+        val bedStatus = live.rooms.associate { r -> roomKey(r) to r.beds.associate { it.bedNumber.trim().lowercase() to it.availabilityStatus } }
+        return draft.copy(
+            units = draft.units.map { u ->
+                val liveStatus = unitStatus[unitKey(u)] ?: return@map u
+                val mine = u.values["availabilityStatus"].orEmpty()
+                when {
+                    // Lease closed → not occupied any more; use the live status (AVAILABLE …).
+                    mine.equals("OCCUPIED", true) && !liveStatus.equals("OCCUPIED", true) ->
+                        u.copy(values = u.values + ("availabilityStatus" to liveStatus.ifBlank { "AVAILABLE" }))
+                    // New lease since the copy → lock it.
+                    liveStatus.equals("OCCUPIED", true) -> u.copy(values = u.values + ("availabilityStatus" to "OCCUPIED"))
+                    else -> u
+                }
+            },
+            rooms = draft.rooms.map { r ->
+                val beds = bedStatus[roomKey(r)] ?: return@map r
+                r.copy(
+                    beds = r.beds.map { b ->
+                        val liveStatus = beds[b.bedNumber.trim().lowercase()] ?: return@map b
+                        when {
+                            b.availabilityStatus.equals("OCCUPIED", true) && !liveStatus.equals("OCCUPIED", true) -> b.copy(availabilityStatus = liveStatus.ifBlank { "AVAILABLE" })
+                            liveStatus.equals("OCCUPIED", true) -> b.copy(availabilityStatus = "OCCUPIED")
+                            else -> b
+                        }
+                    },
+                )
+            },
+        )
+    }
+}
 
 /** A tenant lives here (lease) → the flat can't be edited, re-priced or deleted in the wizard. */
 val PropertyUnit.isOccupied: Boolean get() = values["availabilityStatus"].equals("OCCUPIED", true)

@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.property
 
+import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
+import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import com.saferenttechnologies.android.presentation.common.FormSkeleton
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.TextButton
@@ -167,13 +169,13 @@ private fun TopBar(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Uni
     ) {
         Box(
             Modifier
-                .size(44.sdp)
+                .size(TOP_ICON)
                 .clip(CircleShape)
                 .background(AuthColors.Surface)
                 .clickable(role = Role.Button) { onIntent(AddPropertyIntent.Close) },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_close), stringResource(R.string.add_property_close), tint = AuthColors.Ink, modifier = Modifier.size(20.sdp))
+            Icon(painterResource(R.drawable.ic_close), stringResource(R.string.add_property_close), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH))
         }
         Spacer(Modifier.width(12.sdp))
         Column(Modifier.weight(1f)) {

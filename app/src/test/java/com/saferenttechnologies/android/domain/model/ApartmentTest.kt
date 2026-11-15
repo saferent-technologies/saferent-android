@@ -12,7 +12,7 @@ class ApartmentTest {
     @Test fun `apartment common charges never carry rent, deposit or sale price`() {
         val keys = PropertyForms.pricingFor(apartment = true, listingType = "RENT", types = null).map { it.key }
         assertTrue(keys.none { it in PropertyForms.FLAT_PRICE_KEYS })
-        assertTrue("rentDueDay" in keys && "noticePeriodDays" in keys && "agreementCharges" in keys)
+        assertTrue("lateFeePolicy" in keys && "noticePeriodDays" in keys && "agreementCharges" in keys && "rentDueDay" !in keys)
         assertTrue(PropertyForms.pricingFor(apartment = true, listingType = "SALE", types = null).isEmpty())
     }
 

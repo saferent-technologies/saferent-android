@@ -24,6 +24,10 @@ abstract class RentModule {
     @Singleton
     abstract fun bindReceiptFiles(impl: ReceiptFilesImpl): ReceiptFiles
 
+    @Binds
+    @Singleton
+    abstract fun bindProofImages(impl: com.saferenttechnologies.android.data.rent.ProofImagesImpl): com.saferenttechnologies.android.domain.repository.ProofImages
+
     companion object {
         @Provides
         @Singleton

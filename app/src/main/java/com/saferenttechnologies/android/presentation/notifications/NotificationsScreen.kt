@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.notifications
 
+import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
+import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
@@ -94,9 +96,9 @@ fun NotificationsScreen(state: NotificationsState, onIntent: (NotificationsInten
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.sdp, vertical = 6.sdp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(44.sdp).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(NotificationsIntent.Close) },
+                    Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(NotificationsIntent.Close) },
                     contentAlignment = Alignment.Center,
-                ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(22.sdp)) }
+                ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
                 Spacer(Modifier.width(12.sdp))
                 Text(
                     stringResource(R.string.notifications_title),
@@ -267,7 +269,7 @@ private fun EmptyState(modifier: Modifier) {
 }
 
 @Composable
-private fun relativeTimeText(t: RelativeTime): String = when (t) {
+internal fun relativeTimeText(t: RelativeTime): String = when (t) {
     RelativeTime.JustNow -> stringResource(R.string.notifications_just_now)
     is RelativeTime.Minutes -> stringResource(R.string.notifications_minutes_ago, t.n)
     is RelativeTime.Hours -> stringResource(R.string.notifications_hours_ago, t.n)
@@ -275,7 +277,7 @@ private fun relativeTimeText(t: RelativeTime): String = when (t) {
     is RelativeTime.Date -> SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(t.millis))
 }
 
-private fun startOfDay(now: Long): Long = Calendar.getInstance().apply {
+internal fun startOfDay(now: Long): Long = Calendar.getInstance().apply {
     timeInMillis = now
     set(Calendar.HOUR_OF_DAY, 0)
     set(Calendar.MINUTE, 0)
@@ -288,22 +290,22 @@ private fun startOfDay(now: Long): Long = Calendar.getInstance().apply {
 /** Bell with an unread badge (hidden at 0, "9+" above 9). */
 @Composable
 fun BellWithBadge(unread: Int, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier.size(44.sdp)) {
+    Box(modifier.size(TOP_ICON)) {
         Box(
-            Modifier.size(44.sdp).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button, onClick = onClick),
+            Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_notifications), stringResource(R.string.notifications_title), tint = AuthColors.Ink, modifier = Modifier.size(22.sdp))
+            Icon(painterResource(R.drawable.ic_notifications), stringResource(R.string.notifications_title), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH))
         }
         if (unread > 0) {
             val text = badgeText(unread)
-            // 1–9 → a true circle (fixed 20×20); "9+" → a pill of the same height.
+            // 1–9 → a true circle (fixed 18×18); "9+" → a pill of the same height.
             val shape = if (text.length == 1) CircleShape else RoundedCornerShape(50)
             Box(
                 Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = 3.sdp, y = (-3).sdp)
-                    .then(if (text.length == 1) Modifier.size(20.sdp) else Modifier.height(20.sdp).widthIn(min = 26.sdp))
+                    .then(if (text.length == 1) Modifier.size(18.sdp) else Modifier.height(18.sdp).widthIn(min = 24.sdp))
                     .clip(shape)
                     .background(AuthColors.Error)
                     .border(1.5.sdp, AuthColors.Background, shape)

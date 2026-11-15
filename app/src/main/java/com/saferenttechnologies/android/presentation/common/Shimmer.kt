@@ -117,14 +117,14 @@ fun ListSkeleton(
     }
 }
 
-/** Detail page: 16:9 hero, title, a few info cards (listing, invitation, property, lease). */
+/** Detail page: 4:3 hero, title, a few info cards (listing, invitation, property, lease). */
 @Composable
 fun DetailSkeleton(modifier: Modifier = Modifier, hero: Boolean = true, heroInset: Boolean = true) {
     ShimmerHost {
         Column(modifier.fillMaxWidth()) {
             if (hero) {
                 Bone(
-                    Modifier.fillMaxWidth().then(if (heroInset) Modifier.padding(horizontal = 16.sdp) else Modifier).aspectRatio(16f / 9f),
+                    Modifier.fillMaxWidth().then(if (heroInset) Modifier.padding(horizontal = 16.sdp) else Modifier).aspectRatio(4f / 3f),
                     RoundedCornerShape(if (heroInset) 18.sdp else 0.sdp),
                 )
                 Spacer(Modifier.height(16.sdp))

@@ -253,9 +253,9 @@ fun PhotosStep(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
 
 @Composable
 private fun PhotoTile(image: PropertyImage, isCover: Boolean, modifier: Modifier, onIntent: (AddPropertyIntent) -> Unit) {
-    // Photos are 16:9 (landscape) → thumbnails too, so nothing is cut off.
-    Box(modifier.aspectRatio(16f / 9f).clip(RoundedCornerShape(10.sdp)).background(AuthColors.Surface)) {
-        AsyncImage(model = absoluteUrl(image.url), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+    // Photos are 4:3 (landscape) → thumbnails too, so nothing is cut off.
+    Box(modifier.aspectRatio(4f / 3f).clip(RoundedCornerShape(10.sdp)).background(AuthColors.Surface)) {
+        AsyncImage(model = absoluteUrl(image.url), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f))
         Row(Modifier.align(Alignment.TopEnd).padding(4.sdp)) {
             TileIcon(R.drawable.ic_star, stringResource(R.string.add_property_set_cover), tint = if (isCover) AuthColors.Orange else Color.White) {
                 onIntent(AddPropertyIntent.SetCover(image.id))

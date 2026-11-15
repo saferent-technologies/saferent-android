@@ -1,5 +1,18 @@
 package com.saferenttechnologies.android.data.rent
 
+import java.io.ByteArrayOutputStream
+import android.net.Uri
+import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import kotlinx.serialization.json.put
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.MultipartBody
+import okhttp3.MediaType.Companion.toMediaType
+import com.saferenttechnologies.android.domain.repository.ProofImages
+import com.saferenttechnologies.android.domain.model.SimpleDate
+import com.saferenttechnologies.android.domain.model.PaymentRequest
+import com.saferenttechnologies.android.domain.model.DepositInfo
+import com.saferenttechnologies.android.domain.model.TenantPayments
 import com.saferenttechnologies.android.domain.model.TransactionPage
 import com.saferenttechnologies.android.domain.model.RentTransaction
 import android.content.ContentValues
@@ -66,6 +79,60 @@ class RentRepositoryImpl @Inject constructor(
             is ApiResult.Failure -> AppResult.Failure(r.error)
         }
 
+    override suspend fun tenantPayments(leaseId: String): AppResult<TenantPayments> =
+        when (val r = safeApiCall("GET lease payments") { api.leasePayments(leaseId) }) {
+            is ApiResult.Success -> AppResult.Success(RentMapper.tenantPayments(r.data ?: JsonNull))
+            is ApiResult.NotModified -> AppResult.Failure(AppError.Parse())
+            is ApiResult.Failure -> AppResult.Failure(r.error)
+        }
+
+    override suspend fun requestPaymentUpdate(dueId: String, amount: String, transactionId: String, proofJpeg: ByteArray): AppResult<String> {
+        // The transaction id is the tenant's payment reference → not logged.
+        logger.d(TAG, "send payment proof (${proofJpeg.size / 1024} KB)")
+        val text = "text/plain".toMediaType()
+        return message("POST payment-request") {
+            api.requestPaymentUpdate(
+                dueId,
+                amount.trim().toRequestBody(text),
+                transactionId.trim().toRequestBody(text),
+                MultipartBody.Part.createFormData("proof", "proof.jpg", proofJpeg.toRequestBody("image/jpeg".toMediaType())),
+            )
+        }
+    }
+
+    override suspend fun useDeposit(dueId: String): AppResult<String> {
+        logger.d(TAG, "ask to pay rent from the deposit")
+        return message("POST use-deposit") { api.useDeposit(dueId, buildJsonObject { }) }
+    }
+
+    override suspend fun paymentRequests(): AppResult<List<PaymentRequest>> =
+        when (val r = safeApiCall("GET payment-requests") { api.paymentRequests("PENDING") }) {
+            is ApiResult.Success -> AppResult.Success((r.data ?: JsonNull).arrayAt("items", "requests").mapNotNull { (it as? JsonObject)?.let(RentMapper::request) })
+            is ApiResult.NotModified -> AppResult.Failure(AppError.Parse())
+            is ApiResult.Failure -> AppResult.Failure(r.error)
+        }
+
+    override suspend fun approveRequest(id: String, amount: String): AppResult<String> =
+        message("POST payment-request/approve") { api.approveRequest(id, buildJsonObject { amount.toBigDecimalOrNull()?.let { put("amount", it.toDouble()) } }) }
+
+    override suspend fun rejectRequest(id: String, reason: String): AppResult<String> =
+        message("POST payment-request/reject") { api.rejectRequest(id, buildJsonObject { put("reason", reason.trim()) }) }
+
+    override suspend fun recordDeposit(leaseId: String, amount: String, receivedOn: SimpleDate): AppResult<String> =
+        message("POST lease deposit") {
+            api.recordDeposit(leaseId, buildJsonObject {
+                amount.toBigDecimalOrNull()?.let { put("amount", it.toDouble()) }
+                put("paidAt", receivedOn.iso())
+            })
+        }
+
+    private suspend fun message(name: String, request: suspend () -> retrofit2.Response<com.saferenttechnologies.android.data.remote.dto.ApiEnvelope<JsonElement>>): AppResult<String> =
+        when (val r = safeApiCall(name, request)) {
+            is ApiResult.Success -> AppResult.Success(r.message)
+            is ApiResult.NotModified -> AppResult.Success("")
+            is ApiResult.Failure -> AppResult.Failure(r.error)
+        }
+
     override suspend fun receiptPdf(receiptId: String): AppResult<ByteArray> = withContext(Dispatchers.IO) {
         try {
             val res = api.receiptPdf(receiptId)
@@ -124,6 +191,69 @@ object RentMapper {
         )
     }
 
+    fun request(o: JsonObject): PaymentRequest {
+        val due = o["due"] as? JsonObject
+        val tenant = o["tenant"] as? JsonObject
+        val prop = o["property"] as? JsonObject
+        return PaymentRequest(
+            id = o.text("id"),
+            dueId = due?.text("id").orEmpty().ifBlank { o.text("dueId") },
+            period = due?.text("period").orEmpty().ifBlank { o.text("period") },
+            dueAmount = due?.text("amount").orEmpty(),
+            amount = o.text("amount"),
+            transactionId = o.text("transactionId"),
+            proofUrl = o.text("proofUrl"),
+            tenantName = tenant?.text("fullName").orEmpty(),
+            propertyTitle = prop?.text("title").orEmpty(),
+            place = o.text("place"),
+            createdAt = o.text("createdAt"),
+            status = o.text("status").ifBlank { "PENDING" }.uppercase(),
+            kind = o.text("type").ifBlank { "PROOF" }.uppercase(),
+        )
+    }
+
+    fun tenantPayments(data: JsonElement): TenantPayments {
+        val o = data as? JsonObject
+        val d = o?.get("deposit") as? JsonObject
+        return TenantPayments(
+            deposit = d?.let {
+                DepositInfo(
+                    amount = it.text("amount"),
+                    paid = (it["paid"] as? JsonPrimitive)?.let { p -> p.booleanOrNull ?: p.content.equals("true", true) }
+                        ?: it.text("status").equals("PAID", true),
+                    paidAmount = it.text("paidAmount"),
+                    paidAt = it.text("paidAt"),
+                    receipt = (it["receipt"] as? JsonObject)?.let { r -> receipt(r, it) },
+                    available = it.text("available").ifBlank { null },
+                    usableAsRent = listOf("usableAsRent", "depositUsableAsRent").any { k ->
+                        (it[k] as? JsonPrimitive)?.let { p -> p.booleanOrNull ?: p.content.equals("true", true) } == true
+                    },
+                )
+            }?.takeIf { it.amount.isNotBlank() || it.paid },
+            dues = data.arrayAt("dues", "items").mapNotNull { (it as? JsonObject)?.let(::due) },
+        )
+    }
+
+    private fun receipt(r: JsonObject, parent: JsonObject) = RentReceipt(
+        id = r.text("id"),
+        number = r.text("number"),
+        amount = r.text("amount").ifBlank { parent.text("paidAmount").ifBlank { parent.text("amount") } },
+        paidAt = r.text("paidAt").ifBlank { parent.text("paidAt") },
+        mode = r.text("mode"),
+        period = r.text("period").ifBlank { parent.text("period") },
+    )
+
+    /**
+     * What the tenant pays this month = rent + maintenance.
+     * Prefers the server's "totalAmount"; else adds "rentAmount" + "maintenanceAmount"; else "amount".
+     */
+    fun totalOf(o: JsonObject): String {
+        o.text("totalAmount").takeIf { it.isNotBlank() }?.let { return it }
+        val rent = o.text("rentAmount").toBigDecimalOrNull() ?: return o.text("amount")
+        val maint = o.text("maintenanceAmount").toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
+        return rent.add(maint).stripTrailingZeros().toPlainString()
+    }
+
     fun due(o: JsonObject): RentDue {
         val tenant = o["tenant"] as? JsonObject
         val prop = o["property"] as? JsonObject
@@ -135,7 +265,9 @@ object RentMapper {
             propertyId = prop?.text("id").orEmpty().ifBlank { o.text("propertyId") },
             propertyTitle = prop?.text("title").orEmpty(),
             place = o.text("place"),
-            amount = o.text("amount"),
+            amount = totalOf(o),
+            rentAmount = o.text("rentAmount"),
+            maintenanceAmount = o.text("maintenanceAmount"),
             dueDate = o.text("dueDate"),
             status = o.text("status").uppercase(),
             paidAmount = o.text("paidAmount"),
@@ -143,16 +275,10 @@ object RentMapper {
             daysOverdue = (o["daysOverdue"] as? JsonPrimitive)?.let { it.doubleOrNull ?: it.content.toDoubleOrNull() }?.toInt(),
             lastReminderAt = o.text("lastReminderAt").ifBlank { null },
             canRemind = (o["canRemind"] as? JsonPrimitive)?.let { it.booleanOrNull ?: it.content.equals("true", true) } ?: false,
-            receipt = r?.let {
-                RentReceipt(
-                    id = it.text("id"),
-                    number = it.text("number"),
-                    amount = it.text("amount").ifBlank { o.text("paidAmount") },
-                    paidAt = it.text("paidAt").ifBlank { o.text("paidAt") },
-                    mode = it.text("mode"),
-                    period = it.text("period"),
-                )
-            },
+            receipt = r?.let { receipt(it, o) },
+            period = o.text("period"),
+            requestStatus = (o["paymentRequest"] as? JsonObject)?.text("status")?.uppercase()?.ifBlank { null },
+            requestNote = (o["paymentRequest"] as? JsonObject)?.text("rejectReason")?.ifBlank { null },
         )
     }
 }
@@ -182,5 +308,30 @@ class ReceiptFilesImpl @Inject constructor(@ApplicationContext private val conte
             resolver.delete(uri, null, null)
             false
         }
+    }
+}
+
+/** Screenshot → JPEG ≤ 1600 px on the long side, quality 80 (small upload, still readable). */
+@Singleton
+class ProofImagesImpl @Inject constructor(@ApplicationContext private val context: Context) : ProofImages {
+    override fun readJpeg(uri: String): ByteArray? = runCatching {
+        val u = Uri.parse(uri)
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(u)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MAX_SIDE) sample *= 2
+        val bitmap = context.contentResolver.openInputStream(u)?.use {
+            BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
+        } ?: return null
+        val scale = MAX_SIDE.toFloat() / maxOf(bitmap.width, bitmap.height)
+        val out = if (scale < 1f) Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true) else bitmap
+        ByteArrayOutputStream().use { bos ->
+            out.compress(Bitmap.CompressFormat.JPEG, 80, bos)
+            bos.toByteArray()
+        }
+    }.getOrNull()
+
+    private companion object {
+        const val MAX_SIDE = 1600
     }
 }

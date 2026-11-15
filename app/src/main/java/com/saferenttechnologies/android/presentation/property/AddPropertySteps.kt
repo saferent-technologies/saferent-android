@@ -1,5 +1,9 @@
 package com.saferenttechnologies.android.presentation.property
 
+import com.saferenttechnologies.android.domain.model.FieldError
+import com.saferenttechnologies.android.domain.model.SimpleDate
+import com.saferenttechnologies.android.domain.model.UnitAvailability
+import com.saferenttechnologies.android.domain.model.FormVisibility
 import com.saferenttechnologies.android.domain.model.isFullyOccupied
 import com.saferenttechnologies.android.domain.model.isOccupied
 import com.saferenttechnologies.android.domain.model.ApartmentRules
@@ -47,6 +51,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
@@ -496,10 +501,13 @@ fun UnitsStep(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
 @Composable
 private fun UnitEditor(state: AddPropertyState, unitLabel: String, onIntent: (AddPropertyIntent) -> Unit) {
     val editor = state.unitEditor ?: return
-    val fields = state.type?.unitFields?.ifEmpty { null } ?: PropertyForms.defaultUnit()
+    // "Availability" isn't asked: "Available from" + "Not ready to rent yet" below replace it.
+    val fields = UnitAvailability.formFields(state.type?.unitFields?.ifEmpty { null } ?: PropertyForms.defaultUnit())
     SectionTitle(unitLabel)
     Spacer(Modifier.height(12.sdp))
     DynamicFieldForm(fields, editor.values, editor.errors, { k, v -> onIntent(AddPropertyIntent.FieldChanged(FormScope.UNIT, k, v)) })
+    Spacer(Modifier.height(12.sdp))
+    UnitAvailabilitySection(editor.values, editor.errors, enabled = !state.busy) { k, v -> onIntent(AddPropertyIntent.FieldChanged(FormScope.UNIT, k, v)) }
     if (state.isUnitPriced) {
         // The flat's own price (tenants pay this + the building's common charges).
         Spacer(Modifier.height(18.sdp))
@@ -726,46 +734,7 @@ private fun chargeErrorText(error: ChargeError): String = stringResource(
 fun OptionalStep(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
     Hint(stringResource(R.string.add_property_optional_hint))
     Spacer(Modifier.height(16.sdp))
-    SectionTitle(stringResource(R.string.add_property_utilities))
-    Spacer(Modifier.height(10.sdp))
-    DynamicFieldForm(PropertyForms.utilities(state.types), state.utilities, emptyMap(), { k, v -> onIntent(AddPropertyIntent.FieldChanged(FormScope.UTILITIES, k, v)) })
-
-    Spacer(Modifier.height(22.sdp))
-    SectionTitle(stringResource(R.string.add_property_rules))
-    Spacer(Modifier.height(10.sdp))
-    DynamicFieldForm(PropertyForms.policies(state.types), state.policies, emptyMap(), { k, v -> onIntent(AddPropertyIntent.FieldChanged(FormScope.POLICIES, k, v)) })
-    Spacer(Modifier.height(12.sdp))
-    state.rules.forEachIndexed { index, (title, description) ->
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { onIntent(AddPropertyIntent.RuleChanged(index, it.take(120), description)) },
-                    label = { Text(stringResource(R.string.add_property_rule_title), fontFamily = Inter) },
-                    singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                keyboardActions = nextFieldActions(),
-                    shape = RoundedCornerShape(12.sdp),
-                    colors = propertyFieldColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(6.sdp))
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { onIntent(AddPropertyIntent.RuleChanged(index, title, it.take(500))) },
-                    label = { Text(stringResource(R.string.add_property_rule_description), fontFamily = Inter) },
-                    shape = RoundedCornerShape(12.sdp),
-                    colors = propertyFieldColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            IconButtonSmall(R.drawable.ic_delete, stringResource(R.string.add_property_delete)) { onIntent(AddPropertyIntent.RemoveRule(index)) }
-        }
-        Spacer(Modifier.height(10.sdp))
-    }
-    OutlineAction(stringResource(R.string.add_property_add_rule), R.drawable.ic_add, modifier = Modifier.fillMaxWidth()) { onIntent(AddPropertyIntent.AddRule) }
-
-    Spacer(Modifier.height(22.sdp))
+    // 1. Amenities
     val buildingWide = state.isUnitPriced || state.isRoomPriced
     SectionTitle(stringResource(if (buildingWide) R.string.apartment_common_amenities else R.string.add_property_amenities))
     if (buildingWide) {
@@ -807,6 +776,92 @@ fun OptionalStep(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit)
             custom = ""
         }
     }
+
+    // 2. Utilities (grouped; follow-up questions appear only when needed)
+    val types = state.types
+    val utilityChange: (String, String) -> Unit = { k, v -> onIntent(AddPropertyIntent.FieldChanged(FormScope.UTILITIES, k, v)) }
+    val policyChange: (String, String) -> Unit = { k, v -> onIntent(AddPropertyIntent.FieldChanged(FormScope.POLICIES, k, v)) }
+    Spacer(Modifier.height(24.sdp))
+    SectionTitle(stringResource(R.string.add_property_utilities))
+    listOf(
+        R.string.add_property_util_electricity to PropertyForms.utilElectricity(types),
+        R.string.add_property_util_water to PropertyForms.utilWater(types),
+        R.string.add_property_util_gas_internet to PropertyForms.utilGasInternet(types),
+        R.string.add_property_util_building to PropertyForms.utilBuilding(types),
+    ).forEach { (title, fields) ->
+        Spacer(Modifier.height(12.sdp))
+        GroupCard(stringResource(title)) { DynamicFieldForm(fields, state.utilities, state.fieldErrors, utilityChange) }
+    }
+
+    // 3. Guests & house rules
+    Spacer(Modifier.height(24.sdp))
+    SectionTitle(stringResource(R.string.add_property_rules))
+    Spacer(Modifier.height(12.sdp))
+    GroupCard(stringResource(R.string.add_property_rules_guests)) { DynamicFieldForm(PropertyForms.policyGuests(types), state.policies, state.fieldErrors, policyChange) }
+    Spacer(Modifier.height(12.sdp))
+    GroupCard(stringResource(R.string.add_property_rules_house)) { DynamicFieldForm(PropertyForms.policyHouse(types, pg = state.structure.usesRooms), state.policies, state.fieldErrors, policyChange) }
+    Spacer(Modifier.height(12.sdp))
+    GroupCard(stringResource(R.string.add_property_rules_extra)) {
+    state.rules.forEachIndexed { index, (title, description) ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { onIntent(AddPropertyIntent.RuleChanged(index, it.take(PropertyForms.RULE_TITLE_MAX), description)) },
+                    label = { Text(stringResource(R.string.add_property_rule_title), fontFamily = Inter) },
+                    singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = nextFieldActions(),
+                    shape = RoundedCornerShape(12.sdp),
+                    colors = propertyFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(6.sdp))
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { onIntent(AddPropertyIntent.RuleChanged(index, title, it.take(PropertyForms.RULE_DESCRIPTION_MAX))) },
+                    label = { Text(stringResource(R.string.add_property_rule_description), fontFamily = Inter) },
+                    shape = RoundedCornerShape(12.sdp),
+                    colors = propertyFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            IconButtonSmall(R.drawable.ic_delete, stringResource(R.string.add_property_delete)) { onIntent(AddPropertyIntent.RemoveRule(index)) }
+        }
+        Spacer(Modifier.height(10.sdp))
+    }
+        if (state.rules.size < PropertyForms.RULES_MAX) {
+            OutlineAction(stringResource(R.string.add_property_add_rule), R.drawable.ic_add, modifier = Modifier.fillMaxWidth()) { onIntent(AddPropertyIntent.AddRule) }
+        }
+    }
+
+    // Unanswered → tenants see "Not disclosed" (all optional; just a nudge).
+    val missing = FormVisibility.unanswered(PropertyForms.utilities(types), state.utilities) + FormVisibility.unanswered(PropertyForms.policies(types, pg = state.structure.usesRooms), state.policies)
+    if (missing > 0) {
+        Spacer(Modifier.height(14.sdp))
+        Text(
+            stringResource(R.string.add_property_missing_answers, missing),
+            color = com.saferenttechnologies.android.presentation.explore.Amber,
+            fontFamily = Inter,
+            fontSize = 12.ssp,
+        )
+    }
+}
+
+/** A titled card around one group of questions (Electricity, Water, Guests …). */
+@Composable
+private fun GroupCard(title: String, content: @Composable () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.sdp))
+            .border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp))
+            .padding(14.sdp),
+    ) {
+        Text(title, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
+        Spacer(Modifier.height(10.sdp))
+        content()
+    }
 }
 
 /** Keyboard "Next": go to the next field; nothing after it → close the keyboard. */
@@ -828,7 +883,7 @@ private fun flatSubtitle(unit: com.saferenttechnologies.android.domain.model.Pro
         unit.values["floorNumber"]?.ifBlank { null }?.let { stringResource(R.string.add_property_floor_n, it) },
         if (noPrice) stringResource(R.string.apartment_rent_missing)
         else com.saferenttechnologies.android.domain.model.Money.inr(price).let { if (listingType == "SALE") it else stringResource(R.string.apartment_per_month, it) },
-        unit.values["availabilityStatus"]?.ifBlank { null }?.let { optionLabel(it) },
+        unit.values["availabilityLabel"]?.ifBlank { null } ?: unit.values["availabilityStatus"]?.ifBlank { null }?.let { optionLabel(it) },
     ).joinToString(" · ")
 }
 
@@ -940,6 +995,81 @@ private fun FlatPanelSection(state: AddPropertyState, unitLabel: String, onInten
                 fontFamily = Inter,
                 fontSize = 12.ssp,
             )
+        }
+    }
+}
+
+/**
+ * "Available from" (default + earliest = today) + "Not ready to rent yet" switch → Under maintenance /
+ * Reserved / Not available. Occupied flat → read-only "Occupied by … since …" (status comes from the lease).
+ */
+@Composable
+private fun UnitAvailabilitySection(
+    values: Map<String, String>,
+    errors: Map<String, FieldError>,
+    enabled: Boolean,
+    onChange: (String, String) -> Unit,
+) {
+    if (UnitAvailability.isOccupied(values)) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.sdp)).background(AuthColors.Surface).padding(12.sdp)) {
+            Text(stringResource(R.string.unit_occupied), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.ssp)
+            com.saferenttechnologies.android.presentation.manage.OccupancyLines(values)
+        }
+        return
+    }
+    val today = SimpleDate.today()
+    val from = values[UnitAvailability.FROM].orEmpty()
+    fun errorText(key: String): @Composable () -> String? = {
+        when (val e = errors[key]) {
+            null -> null
+            is FieldError.Server -> when (e.message) {
+                UnitAvailability.ERR_DATE -> stringResource(R.string.unit_err_date)
+                UnitAvailability.ERR_REASON -> stringResource(R.string.unit_err_reason)
+                else -> e.message
+            }
+            else -> fieldErrorText(e)
+        }
+    }
+    DateField(
+        label = stringResource(R.string.unit_available_from_label),
+        value = from,
+        error = errorText(UnitAvailability.FROM)(),
+        enabled = enabled,
+        notBefore = today,
+        helper = stringResource(R.string.unit_available_from_help),
+        display = from.takeIf { it.isNotBlank() }?.let { com.saferenttechnologies.android.presentation.manage.calendarDate(it) },
+    ) { onChange(UnitAvailability.FROM, it) }
+    Spacer(Modifier.height(8.sdp))
+    val notReady = UnitAvailability.notReady(values)
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.sdp)).background(AuthColors.Field)
+            .border(1.sdp, AuthColors.Border, RoundedCornerShape(12.sdp))
+            .clickable(enabled = enabled, role = Role.Switch) { onChange(UnitAvailability.NOT_READY, if (notReady) "" else "true") }
+            .padding(horizontal = 14.sdp, vertical = 8.sdp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(stringResource(R.string.unit_not_ready), color = AuthColors.Ink, fontFamily = Inter, fontSize = 15.ssp, modifier = Modifier.weight(1f))
+        androidx.compose.material3.Switch(
+            checked = notReady,
+            onCheckedChange = { onChange(UnitAvailability.NOT_READY, if (it) "true" else "") },
+            enabled = enabled,
+            colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = AuthColors.Orange, checkedThumbColor = Color.White),
+        )
+    }
+    if (notReady) {
+        Spacer(Modifier.height(8.sdp))
+        val selected = values[UnitAvailability.STATUS].orEmpty().uppercase()
+        Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+            listOf(
+                "UNDER_MAINTENANCE" to R.string.unit_st_maintenance,
+                "RESERVED" to R.string.unit_st_reserved,
+                "NOT_AVAILABLE" to R.string.unit_st_not_available,
+            ).forEach { (key, label) ->
+                Chip(stringResource(label), selected = selected == key, enabled = enabled, modifier = Modifier.weight(1f), maxLines = 2) { onChange(UnitAvailability.STATUS, key) }
+            }
+        }
+        errorText(UnitAvailability.STATUS)()?.let {
+            Text(it, color = AuthColors.Error, fontFamily = Inter, fontSize = 12.ssp, modifier = Modifier.padding(top = 6.sdp))
         }
     }
 }

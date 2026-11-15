@@ -79,3 +79,45 @@ fun rentRange(from: String, to: String): String {
 }
 
 fun money(v: String): String = rentRange(v, "")
+
+/** "2026-11-30" / "2026-11-30T00:00:00Z" → "30 Nov 2026" — read as a calendar date (no time-zone shift). */
+fun calendarDate(iso: String): String {
+    val d = com.saferenttechnologies.android.domain.model.SimpleDate.parse(iso.take(10)) ?: return iso
+    val c = java.util.Calendar.getInstance().apply { clear(); set(d.year, d.month - 1, d.day) }
+    return java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault()).format(c.time)
+}
+
+/**
+ * Flat / unit chip: the server's availabilityLabel ("Available now", "Available from 30 Nov 2026",
+ * "Occupied") — or the same text built here for older responses. Green now, orange later, grey occupied.
+ */
+@Composable
+fun UnitAvailabilityChip(status: String, label: String, availableFrom: String, availableNow: Boolean?, modifier: Modifier = Modifier) {
+    val tone = com.saferenttechnologies.android.domain.model.UnitAvailability.tone(
+        status, availableNow, availableFrom, com.saferenttechnologies.android.domain.model.SimpleDate.today(),
+    )
+    val text = label.ifBlank {
+        when (tone) {
+            com.saferenttechnologies.android.domain.model.UnitAvailability.Tone.NOW -> stringResource(R.string.unit_available_now)
+            com.saferenttechnologies.android.domain.model.UnitAvailability.Tone.LATER -> stringResource(R.string.unit_available_from, calendarDate(availableFrom))
+            else -> humanize(status.ifBlank { "UNKNOWN" })
+        }
+    }
+    val color = when (tone) {
+        com.saferenttechnologies.android.domain.model.UnitAvailability.Tone.NOW -> AuthColors.Green
+        com.saferenttechnologies.android.domain.model.UnitAvailability.Tone.LATER -> AuthColors.OrangeText
+        com.saferenttechnologies.android.domain.model.UnitAvailability.Tone.OCCUPIED -> Grey
+        com.saferenttechnologies.android.domain.model.UnitAvailability.Tone.OTHER -> AuthColors.Muted
+    }
+    StatusPill(text, color, modifier)
+}
+
+/** Same, from a unit's values map (landlord screens). */
+@Composable
+fun UnitAvailabilityChip(values: Map<String, String>, modifier: Modifier = Modifier) = UnitAvailabilityChip(
+    status = values["availabilityStatus"].orEmpty(),
+    label = values["availabilityLabel"].orEmpty(),
+    availableFrom = values["availableFrom"].orEmpty(),
+    availableNow = values["availableNow"]?.takeIf { it.isNotBlank() }?.equals("true", true),
+    modifier = modifier,
+)

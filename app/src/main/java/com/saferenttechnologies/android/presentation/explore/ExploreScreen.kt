@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.explore
 
+import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
+import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material3.DropdownMenuItem
@@ -256,29 +258,21 @@ private fun Header(
         Row(verticalAlignment = Alignment.CenterVertically) {
             onBack?.let {
                 Box(
-                    Modifier.size(44.sdp).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button, onClick = it),
+                    Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button, onClick = it),
                     contentAlignment = Alignment.Center,
-                ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(22.sdp)) }
+                ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
                 Spacer(Modifier.width(12.sdp))
             }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    if (firstName.isBlank()) stringResource(R.string.explore_hi_there) else stringResource(R.string.explore_hi, firstName),
-                    color = AuthColors.Ink,
-                    fontFamily = PlusJakartaSans,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 26.ssp,
-                )
-                Text(stringResource(R.string.explore_subtitle), color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
-            }
+            com.saferenttechnologies.android.presentation.common.Greeting(firstName, Modifier.weight(1f), subtitle = stringResource(R.string.explore_subtitle))
+            Spacer(Modifier.width(8.sdp))
             BellWithBadge(unread, onOpenNotifications)
             if (menu.isNotEmpty()) {
                 var open by remember { mutableStateOf(false) }
                 Box {
                     Box(
-                        Modifier.padding(start = 6.sdp).size(44.sdp).clip(CircleShape).clickable(role = Role.Button) { open = true },
+                        Modifier.padding(start = 6.sdp).size(TOP_ICON).clip(CircleShape).clickable(role = Role.Button) { open = true },
                         contentAlignment = Alignment.Center,
-                    ) { Icon(painterResource(R.drawable.ic_more_vert), stringResource(R.string.explore_menu), tint = AuthColors.Ink, modifier = Modifier.size(22.sdp)) }
+                    ) { Icon(painterResource(R.drawable.ic_more_vert), stringResource(R.string.explore_menu), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
                     DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = AuthColors.Card) {
                         menu.forEach { (label, action) ->
                             DropdownMenuItem(text = { Text(label, fontFamily = Inter, color = AuthColors.Ink) }, onClick = { open = false; action() })

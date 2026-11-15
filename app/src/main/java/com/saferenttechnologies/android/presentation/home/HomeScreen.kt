@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.home
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.offset
 import com.saferenttechnologies.android.presentation.common.AutoSizeText
 import androidx.compose.foundation.border
 import com.saferenttechnologies.android.domain.model.RentBucket
@@ -75,26 +77,28 @@ fun HomeScreen(
     onOpenTenants: () -> Unit = {},
     onOpenRent: (RentBucket, String) -> Unit = { _, _ -> },
     onOpenTransactions: () -> Unit = {},
+    tenantPayments: com.saferenttechnologies.android.domain.model.TenantPayments? = null,
+    onOpenPayments: (TenantLease) -> Unit = {},
+    /** Landlord: requests needing action; tenant: my open requests. */
+    requestsBadge: Int = 0,
+    onOpenRequests: () -> Unit = {},
+    onRaiseRequest: (TenantLease) -> Unit = {},
+    /** Landlord: sent announcements; tenant: received ones. */
+    onOpenAnnouncements: () -> Unit = {},
 ) {
+    Box(Modifier.fillMaxSize().background(AuthColors.Background)) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(AuthColors.Background)
             .statusBarsPadding()
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(24.sdp),
     ) {
-        val name = state.user?.fullName?.trim()?.substringBefore(' ').orEmpty()
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (name.isEmpty()) "Welcome to SafeRent" else "Hi, $name",
-                color = AuthColors.Ink,
-                fontFamily = PlusJakartaSans,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 26.ssp,
-                modifier = Modifier.weight(1f),
-            )
+            // Small "Good morning" + full name (not a big "Hi, Ravi").
+            com.saferenttechnologies.android.presentation.common.Greeting(state.user?.fullName.orEmpty(), Modifier.weight(1f))
+            Spacer(Modifier.width(8.sdp))
             BellWithBadge(unreadNotifications, onOpenNotifications)
         }
         if (state.showRoleSwitcher) {
@@ -114,9 +118,21 @@ fun HomeScreen(
                 onAddProperty = onAddProperty,
                 onOpenTenants = onOpenTenants,
                 onOpenTransactions = onOpenTransactions,
+                requestsNeedAction = requestsBadge,
+                onOpenRequests = onOpenRequests,
+                onOpenAnnouncements = onOpenAnnouncements,
             )
         } else if (tenantLease != null) {
             TenantLeaseCard(tenantLease, leaseCloseRequested, onExploreHomes, onOpenLease)
+            Spacer(Modifier.height(12.sdp))
+            TenantActions(
+                tenantPayments,
+                onOpenPayments = { onOpenPayments(tenantLease) },
+                myOpenRequests = requestsBadge,
+                onRaiseRequest = { onRaiseRequest(tenantLease) },
+                onOpenRequests = onOpenRequests,
+                onOpenAnnouncements = onOpenAnnouncements,
+            )
         } else Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -146,6 +162,7 @@ fun HomeScreen(
                 .clickable(enabled = !state.isSigningOut, role = Role.Button) { onIntent(HomeIntent.SignOut) }
                 .padding(vertical = 14.sdp),
         )
+    }
     }
 }
 
@@ -193,12 +210,8 @@ private fun TenantLeaseCard(lease: TenantLease, closeRequested: Boolean, onExplo
 private fun LandlordDashboardSkeleton() {
     ShimmerHost {
         Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {
-            repeat(2) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.sdp)) {
-                    // Same size as a number card (value + label, 14dp padding).
-                    repeat(2) { Bone(Modifier.weight(1f).height(68.sdp), RoundedCornerShape(14.sdp)) }
-                }
-            }
+            // Properties card (3 rows of boxes), like the real card.
+            Bone(Modifier.fillMaxWidth().height(200.sdp), RoundedCornerShape(14.sdp))
             Bone(Modifier.fillMaxWidth().height(78.sdp), RoundedCornerShape(14.sdp))
             Spacer(Modifier.height(6.sdp))
             // Shortcut boxes: 3 rows of 2 (the first two + four more below).
@@ -211,6 +224,49 @@ private fun LandlordDashboardSkeleton() {
     }
 }
 
+/**
+ * Tenant shortcuts (same boxes as the landlord's): Payments = deposit paid or not + pending dues.
+ * A lone box fills the row.
+ */
+@Composable
+private fun TenantActions(
+    payments: com.saferenttechnologies.android.domain.model.TenantPayments?,
+    onOpenPayments: () -> Unit,
+    myOpenRequests: Int = 0,
+    onRaiseRequest: () -> Unit = {},
+    onOpenRequests: () -> Unit = {},
+    onOpenAnnouncements: () -> Unit = {},
+) {
+    val pending = payments?.pending.orEmpty()
+    val body = when {
+        payments == null -> stringResource(R.string.pay_box_default)
+        payments.overdueCount > 0 -> pluralStringResource(R.plurals.pay_box_overdue, payments.overdueCount, payments.overdueCount)
+        pending.isNotEmpty() -> stringResource(R.string.pay_box_next, money(pending.first().amount))
+        payments.deposit?.paid == false -> stringResource(R.string.pay_box_deposit_due)
+        else -> stringResource(R.string.pay_box_all_paid)
+    }
+    val actions = listOf(
+        DashboardAction(R.drawable.ic_document, stringResource(R.string.pay_title), body, primary = (payments?.overdueCount ?: 0) > 0, onClick = onOpenPayments),
+        DashboardAction(R.drawable.ic_edit, stringResource(R.string.req_box_raise), stringResource(R.string.req_box_raise_body), primary = false, onClick = onRaiseRequest),
+        DashboardAction(
+            R.drawable.ic_help,
+            stringResource(R.string.req_box_mine),
+            if (myOpenRequests > 0) pluralStringResource(R.plurals.req_box_open, myOpenRequests, myOpenRequests) else stringResource(R.string.req_box_none_open),
+            primary = false,
+            onClick = onOpenRequests,
+            badge = myOpenRequests,
+        ),
+        DashboardAction(R.drawable.ic_campaign, stringResource(R.string.ann_title), stringResource(R.string.ann_box_tenant), primary = false, onClick = onOpenAnnouncements),
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {
+        actions.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.sdp)) {
+                row.forEach { ActionBox(it, Modifier.weight(1f).fillMaxHeight()) }
+            }
+        }
+    }
+}
+
 /** One dashboard box: icon tile, title, one line. */
 private data class DashboardAction(
     val icon: Int,
@@ -218,6 +274,8 @@ private data class DashboardAction(
     val body: String,
     val primary: Boolean,
     val onClick: () -> Unit,
+    /** Red count on the icon (requests waiting). */
+    val badge: Int = 0,
 )
 
 /**
@@ -232,45 +290,50 @@ private fun LandlordActions(
     onAddProperty: () -> Unit,
     onOpenTenants: () -> Unit,
     onOpenTransactions: () -> Unit,
+    requestsNeedAction: Int = 0,
+    onOpenRequests: () -> Unit = {},
+    onOpenAnnouncements: () -> Unit = {},
 ) {
-    val actions = buildList {
-        if (propertyCount > 0) {
-            add(
-                DashboardAction(
-                    R.drawable.ic_building,
-                    stringResource(R.string.home_manage_properties),
-                    pluralStringResource(R.plurals.home_manage_count, propertyCount, propertyCount),
-                    primary = false,
-                    onClick = onOpenProperties,
-                ),
-            )
-        }
-        add(DashboardAction(R.drawable.ic_add, stringResource(R.string.home_add_property), stringResource(R.string.home_add_property_short), primary = true, onClick = onAddProperty))
-        // Only when someone lives in one of the properties (occupied flats / beds).
-        if (tenantCount > 0) {
-            add(
-                DashboardAction(
-                    R.drawable.ic_home_outline,
-                    stringResource(R.string.home_tenants),
-                    pluralStringResource(R.plurals.home_tenants_count, tenantCount, tenantCount),
-                    primary = false,
-                    onClick = onOpenTenants,
-                ),
-            )
-        }
-        // Payments start once a property exists.
-        if (propertyCount > 0) {
-            add(
-                DashboardAction(
-                    R.drawable.ic_document,
-                    stringResource(R.string.transactions_title),
-                    stringResource(R.string.transactions_box),
-                    primary = false,
-                    onClick = onOpenTransactions,
-                ),
-            )
-        }
-    }
+    // Always shown. Properties open from the "Your properties" numbers, so the first box is "Add property".
+    val actions = listOf(
+        DashboardAction(
+            R.drawable.ic_add,
+            stringResource(R.string.home_add_property),
+            stringResource(R.string.home_add_property_short),
+            primary = true,
+            onClick = onAddProperty,
+        ),
+        DashboardAction(
+            R.drawable.ic_home_outline,
+            stringResource(R.string.home_tenants),
+            pluralStringResource(R.plurals.home_tenants_count, tenantCount, tenantCount),
+            primary = false,
+            onClick = onOpenTenants,
+        ),
+        DashboardAction(
+            R.drawable.ic_edit,
+            stringResource(R.string.req_title_landlord),
+            if (requestsNeedAction > 0) pluralStringResource(R.plurals.req_box_needs_action, requestsNeedAction, requestsNeedAction)
+            else stringResource(R.string.req_box_landlord_body),
+            primary = false,
+            onClick = onOpenRequests,
+            badge = requestsNeedAction,
+        ),
+        DashboardAction(
+            R.drawable.ic_document,
+            stringResource(R.string.transactions_title),
+            stringResource(R.string.transactions_box),
+            primary = false,
+            onClick = onOpenTransactions,
+        ),
+        DashboardAction(
+            R.drawable.ic_campaign,
+            stringResource(R.string.ann_title),
+            stringResource(R.string.ann_box_landlord),
+            primary = false,
+            onClick = onOpenAnnouncements,
+        ),
+    )
     Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {
         actions.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.sdp)) {
@@ -290,11 +353,29 @@ private fun ActionBox(action: DashboardAction, modifier: Modifier) {
             .clickable(role = Role.Button, onClick = action.onClick)
             .padding(14.sdp),
     ) {
-        Box(
-            Modifier.size(42.sdp).clip(RoundedCornerShape(12.sdp)).background(if (action.primary) AuthColors.Orange else AuthColors.Card),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(action.icon), null, tint = if (action.primary) Color.White else AuthColors.OrangeText, modifier = Modifier.size(22.sdp))
+        Box {
+            Box(
+                Modifier.size(42.sdp).clip(RoundedCornerShape(12.sdp)).background(if (action.primary) AuthColors.Orange else AuthColors.Card),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(action.icon), null, tint = if (action.primary) Color.White else AuthColors.OrangeText, modifier = Modifier.size(22.sdp))
+            }
+            if (action.badge > 0) {
+                Box(
+                    Modifier.align(Alignment.TopEnd).offset(x = 6.sdp, y = (-6).sdp).size(20.sdp).clip(CircleShape).background(AuthColors.Error)
+                        .border(1.5.sdp, if (action.primary) AuthColors.OrangeSoft else AuthColors.Surface, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (action.badge > 9) "9+" else action.badge.toString(),
+                        color = Color.White,
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.ssp,
+                        style = androidx.compose.ui.text.TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false)),
+                    )
+                }
+            }
         }
         Spacer(Modifier.height(12.sdp))
         Text(action.title, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 15.ssp, maxLines = 2)
@@ -312,36 +393,21 @@ private fun LandlordSummary(
     onOpenTenants: () -> Unit,
 ) {
     val s = summary ?: PropertySummary()
-    // Only the numbers that aren't 0 (no "Drafts 0" / "Needs changes 0" boxes). Each opens its own list:
+    // Every number, 0 included. Each opens its own list:
     // status → My properties with that filter, available → properties with a free flat / bed, occupied → Tenants.
-    val cards = listOfNotNull(
-        Triple(stringResource(R.string.home_card_total), s.total.toString(), { onOpen(PropertyFilter.ALL) }).takeIf { s.total > 0 },
-        Triple(stringResource(R.string.filter_live), s.count("PUBLISHED").toString(), { onOpen(PropertyFilter.LIVE) }).takeIf { s.count("PUBLISHED") > 0 },
-        Triple(stringResource(R.string.filter_under_verification), s.count("PENDING_VERIFICATION").toString(), { onOpen(PropertyFilter.UNDER_VERIFICATION) })
-            .takeIf { s.count("PENDING_VERIFICATION") > 0 },
-        Triple(stringResource(R.string.filter_needs_changes), s.count("REJECTED").toString(), { onOpen(PropertyFilter.NEEDS_CHANGES) }).takeIf { s.count("REJECTED") > 0 },
-        Triple(stringResource(R.string.filter_drafts), s.count("DRAFT").toString(), { onOpen(PropertyFilter.DRAFTS) }).takeIf { s.count("DRAFT") > 0 },
-        Triple(stringResource(R.string.home_card_available), s.unitsAvailable.toString(), { onOpen(PropertyFilter.AVAILABLE_UNITS) }).takeIf { s.unitsAvailable > 0 },
-        Triple(stringResource(R.string.home_card_occupied), s.unitsOccupied.toString(), onOpenTenants).takeIf { s.unitsOccupied > 0 },
+    val properties = listOf(
+        Triple(stringResource(R.string.home_card_total), s.total.toString(), { onOpen(PropertyFilter.ALL) }),
+        Triple(stringResource(R.string.filter_live), s.count("PUBLISHED").toString(), { onOpen(PropertyFilter.LIVE) }),
+        Triple(stringResource(R.string.filter_under_verification), s.count("PENDING_VERIFICATION").toString(), { onOpen(PropertyFilter.UNDER_VERIFICATION) }),
+        Triple(stringResource(R.string.filter_needs_changes), s.count("REJECTED").toString(), { onOpen(PropertyFilter.NEEDS_CHANGES) }),
+        Triple(stringResource(R.string.filter_drafts), s.count("DRAFT").toString(), { onOpen(PropertyFilter.DRAFTS) }),
+        Triple(stringResource(R.string.home_card_available), s.unitsAvailable.toString(), { onOpen(PropertyFilter.AVAILABLE_UNITS) }),
+        Triple(stringResource(R.string.home_card_occupied), s.unitsOccupied.toString(), onOpenTenants),
     )
     Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {
-        cards.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.sdp)) {
-                row.forEach { (label, value, open) ->
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(14.sdp))
-                            .background(AuthColors.Surface)
-                            .clickable(role = Role.Button, onClick = open)
-                            .padding(14.sdp),
-                    ) {
-                        Text(value, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 22.ssp)
-                        Text(label, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
-                    }
-                }
-            }
-        }
+        // Same look as the rent card: one card, small bordered boxes, three per row.
+        // Properties + available / occupied flats & beds, all in one card.
+        FigureCard(stringResource(R.string.home_card_properties), properties)
         // Live listings whose changes aren't sent yet / were rejected → My properties.
         if (s.changesDraftOrRejected > 0) {
             Text(
@@ -383,6 +449,31 @@ private fun LandlordSummary(
     }
 }
 
+/** A card of small number boxes (3 per row, same size as the rent boxes; a short last row keeps the size). */
+@Composable
+private fun FigureCard(title: String, items: List<Triple<String, String, () -> Unit>>) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.sdp))
+            .background(AuthColors.Surface)
+            .padding(12.sdp),
+    ) {
+        Text(title, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, modifier = Modifier.padding(start = 2.sdp))
+        Spacer(Modifier.height(8.sdp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.sdp)) {
+            items.chunked(3).forEach { row ->
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+                    row.forEach { (label, value, open) ->
+                        RentFigure(label, value, AuthColors.Ink, Modifier.weight(1f).fillMaxHeight(), open)
+                    }
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
 /** One rent box: own border, tap → that list. */
 @Composable
 private fun RentFigure(label: String, value: String, color: Color, modifier: Modifier, onClick: () -> Unit) {
@@ -397,7 +488,7 @@ private fun RentFigure(label: String, value: String, color: Color, modifier: Mod
         // Big amounts ("₹12,45,000") shrink to fit the box instead of wrapping.
         AutoSizeText(value, color = color, fontSize = 15.ssp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold)
         Spacer(Modifier.height(2.sdp))
-        Text(label, color = AuthColors.Body, fontFamily = Inter, fontSize = 11.ssp, maxLines = 1)
+        Text(label, color = AuthColors.Body, fontFamily = Inter, fontSize = 11.ssp, maxLines = 2, lineHeight = 13.ssp)
     }
 }
 

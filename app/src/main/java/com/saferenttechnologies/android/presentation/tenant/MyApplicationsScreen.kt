@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.tenant
 
+import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
+import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import com.saferenttechnologies.android.presentation.common.ListSkeleton
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -62,9 +64,9 @@ fun MyApplicationsScreen(state: MyApplicationsState, onIntent: (MyApplicationsIn
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(12.sdp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(44.sdp).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(MyApplicationsIntent.Close) },
+                    Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(MyApplicationsIntent.Close) },
                     contentAlignment = Alignment.Center,
-                ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(22.sdp)) }
+                ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
                 Spacer(Modifier.width(12.sdp))
                 Text(stringResource(R.string.explore_my_applications), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 20.ssp)
             }

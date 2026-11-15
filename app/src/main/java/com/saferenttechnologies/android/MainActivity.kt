@@ -1,5 +1,18 @@
 package com.saferenttechnologies.android
 
+import com.saferenttechnologies.android.presentation.announcements.AnnouncementsViewModel
+import com.saferenttechnologies.android.presentation.announcements.AnnouncementsScreen
+import com.saferenttechnologies.android.presentation.announcements.AnnouncementsIntent
+import com.saferenttechnologies.android.presentation.requests.RequestsViewModel
+import com.saferenttechnologies.android.presentation.requests.RequestsScreen
+import com.saferenttechnologies.android.presentation.requests.RequestsIntent
+import com.saferenttechnologies.android.presentation.tenant.TenantReviewGateScreen
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import com.saferenttechnologies.android.domain.model.RentBucket
+import com.saferenttechnologies.android.presentation.rent.TenantPaymentsViewModel
+import com.saferenttechnologies.android.presentation.rent.TenantPaymentsScreen
+import com.saferenttechnologies.android.presentation.rent.TenantPaymentsIntent
 import com.saferenttechnologies.android.presentation.rent.TransactionsViewModel
 import com.saferenttechnologies.android.presentation.rent.TransactionsScreen
 import com.saferenttechnologies.android.presentation.rent.TransactionsIntent
@@ -132,6 +145,9 @@ class MainActivity : ComponentActivity() {
     private val tenantsViewModel: TenantsViewModel by viewModels()
     private val rentViewModel: RentViewModel by viewModels()
     private val transactionsViewModel: TransactionsViewModel by viewModels()
+    private val tenantPaymentsViewModel: TenantPaymentsViewModel by viewModels()
+    private val requestsViewModel: RequestsViewModel by viewModels()
+    private val announcementsViewModel: AnnouncementsViewModel by viewModels()
 
     @Inject
     lateinit var permissionManager: PermissionManager
@@ -176,6 +192,9 @@ class MainActivity : ComponentActivity() {
                     val tenantsState by tenantsViewModel.state.collectAsState()
                     val rentState by rentViewModel.state.collectAsState()
                     val transactionsState by transactionsViewModel.state.collectAsState()
+                    val tenantPaymentsState by tenantPaymentsViewModel.state.collectAsState()
+                    val requestsState by requestsViewModel.state.collectAsState()
+                    val announcementsState by announcementsViewModel.state.collectAsState()
                     // Notification links → screens (only property detail exists today).
                     LaunchedEffect(Unit) {
                         notificationsViewModel.effect.collect { effect ->
@@ -196,12 +215,39 @@ class MainActivity : ComponentActivity() {
                                     is NavRoute.Invitation -> invitationViewModel.onIntent(InvitationIntent.Open(route.token))
                                     is NavRoute.LeaseDetail -> leaseDetailViewModel.onIntent(LeaseDetailIntent.Open(route.leaseId))
                                     // "/leases" (close-request pushes): tenant → their lease; landlord → properties (leases live per property).
-                                    NavRoute.Leases -> if (homeViewModel.state.value.activeRole == UserRole.TENANT) {
-                                        (tenantHomeViewModel.state.value.home as? TenantHomeState.Linked)?.lease?.let {
-                                            leaseDetailViewModel.onIntent(LeaseDetailIntent.Open(it.id, it.toSummary()))
-                                        } ?: tenantHomeViewModel.onIntent(TenantHomeIntent.Refresh)
+                                    // Rent pushes: landlord → Rent (proofs to check first); tenant → their payments.
+                                    NavRoute.Rent, NavRoute.RentRequests -> if (homeViewModel.state.value.activeRole == UserRole.TENANT) {
+                                        (tenantHomeViewModel.state.value.home as? TenantHomeState.Linked)?.lease?.let { l ->
+                                            tenantPaymentsViewModel.onIntent(
+                                                TenantPaymentsIntent.Open(l.id, listOf(l.propertyTitle, l.place).filter { it.isNotBlank() }.joinToString(" · ")),
+                                            )
+                                        }
                                     } else {
-                                        myPropertiesViewModel.onIntent(MyPropertiesIntent.Open(PropertyFilter.ALL))
+                                        rentViewModel.onIntent(RentIntent.Open(RentBucket.EXPECTED, null, requests = route == NavRoute.RentRequests))
+                                    }
+                                    // "/maintenance/{id}" → that request; "/maintenance" → the list (role decides tenant / landlord).
+                                    is NavRoute.RequestDetail -> requestsViewModel.onIntent(
+                                        RequestsIntent.OpenDetail(route.id, landlord = homeViewModel.state.value.activeRole != UserRole.TENANT),
+                                    )
+                                    is NavRoute.Announcements -> {
+                                        val landlord = homeViewModel.state.value.activeRole != UserRole.TENANT
+                                        announcementsViewModel.onIntent(
+                                            route.id?.let { AnnouncementsIntent.OpenDetail(it, landlord) } ?: AnnouncementsIntent.Open(landlord),
+                                        )
+                                    }
+                                    NavRoute.Maintenance -> requestsViewModel.onIntent(RequestsIntent.Open(landlord = homeViewModel.state.value.activeRole != UserRole.TENANT))
+                                    NavRoute.Leases -> if (homeViewModel.state.value.activeRole == UserRole.TENANT) {
+                                        // Tenant has one active lease: open it (wait for the dashboard's lease if still loading).
+                                        launch {
+                                            if (tenantHomeViewModel.state.value.home == null) tenantHomeViewModel.onIntent(TenantHomeIntent.Start)
+                                            val home = tenantHomeViewModel.state.first { it.home != null && !it.loading }.home
+                                            (home as? TenantHomeState.Linked)?.lease?.let {
+                                                leaseDetailViewModel.onIntent(LeaseDetailIntent.Open(it.id, it.toSummary()))
+                                            }
+                                        }
+                                    } else {
+                                        // Landlord: no lease id in the link → the tenant who asked to close.
+                                        tenantsViewModel.onIntent(TenantsIntent.OpenCloseRequest)
                                     }
                                     NavRoute.MyProperties -> myPropertiesViewModel.onIntent(MyPropertiesIntent.Open(PropertyFilter.ALL))
                                     // Tenant → my applications; landlord → their properties (applications live per property).
@@ -348,6 +394,23 @@ class MainActivity : ComponentActivity() {
                         // Landlord → this month's rent (Expected / Collected / Overdue).
                         rentState.isOpen -> RentScreen(state = rentState, effects = rentViewModel.effect, onIntent = rentViewModel::onIntent)
 
+                        // Requests (maintenance / service / complaint): tenant raises, landlord updates.
+                        // Announcements: landlord sends + sees who opened; tenant reads (view recorded on open).
+                        announcementsState.isOpen -> AnnouncementsScreen(
+                            state = announcementsState,
+                            effects = announcementsViewModel.effect,
+                            onIntent = announcementsViewModel::onIntent,
+                        )
+
+                        requestsState.isOpen -> RequestsScreen(state = requestsState, effects = requestsViewModel.effect, onIntent = requestsViewModel::onIntent)
+
+                        // Tenant → deposit + rent history.
+                        tenantPaymentsState.isOpen -> TenantPaymentsScreen(
+                            state = tenantPaymentsState,
+                            effects = tenantPaymentsViewModel.effect,
+                            onIntent = tenantPaymentsViewModel::onIntent,
+                        )
+
                         // Landlord → all payments / refunds.
                         transactionsState.isOpen -> TransactionsScreen(
                             state = transactionsState,
@@ -359,6 +422,7 @@ class MainActivity : ComponentActivity() {
                         tenantsState.isOpen -> TenantsScreen(
                             state = tenantsState,
                             onIntent = tenantsViewModel::onIntent,
+                            effects = tenantsViewModel.effect,
                             onOpenLease = { l ->
                                 leaseDetailViewModel.onIntent(
                                     LeaseDetailIntent.Open(
@@ -392,6 +456,7 @@ class MainActivity : ComponentActivity() {
                                 if (openedFromLink) toast(R.string.deep_link_not_for_account) else notificationsViewModel.onIntent(NotificationsIntent.ItemGone)
                             },
                             onOpenLease = { id, preview -> leaseDetailViewModel.onIntent(LeaseDetailIntent.Open(id, preview)) },
+                            onReviewLease = { id -> leaseDetailViewModel.onIntent(LeaseDetailIntent.Open(id, startReview = true)) },
                         )
 
                         myPropertiesState.isOpen -> MyPropertiesScreen(
@@ -437,6 +502,17 @@ class MainActivity : ComponentActivity() {
                             onIntent = notificationsViewModel::onIntent,
                         )
 
+                        // Tenant: an ended lease not reviewed yet → the review (+ deposit refund) screen first, no skip.
+                        homeState.activeRole == UserRole.TENANT && tenantHomeState.reviewQueue.isNotEmpty() -> {
+                            TenantReviewGateScreen(
+                                due = tenantHomeState.reviewQueue.first(),
+                                left = tenantHomeState.reviewQueue.size,
+                                state = tenantHomeState.gate,
+                                effects = tenantHomeViewModel.effect,
+                                onIntent = tenantHomeViewModel::onIntent,
+                            )
+                        }
+
                         // Tenant: active lease → dashboard placeholder; none (or lease check failed) → Explore.
                         homeState.activeRole == UserRole.TENANT && (tenantHomeState.showExplore || (tenantHomeState.home == null && tenantHomeState.error != null)) -> {
                             LaunchedEffect(Unit) { tenantHomeViewModel.onIntent(TenantHomeIntent.Start) }
@@ -445,7 +521,7 @@ class MainActivity : ComponentActivity() {
                                 state = exploreState,
                                 effects = exploreViewModel.effect,
                                 onIntent = exploreViewModel::onIntent,
-                                firstName = homeState.user?.fullName?.trim()?.substringBefore(' ').orEmpty(),
+                                firstName = homeState.user?.fullName?.trim().orEmpty(),
                                 unreadNotifications = notificationsState.unread,
                                 onOpenNotifications = { notificationsViewModel.onIntent(NotificationsIntent.Open) },
                                 onOpenListing = { listingDetailViewModel.onIntent(ListingDetailIntent.Open(it)) },
@@ -491,6 +567,18 @@ class MainActivity : ComponentActivity() {
                                 onOpenTenants = { tenantsViewModel.onIntent(TenantsIntent.Open) },
                                 onOpenRent = { bucket, period -> rentViewModel.onIntent(RentIntent.Open(bucket, period)) },
                                 onOpenTransactions = { transactionsViewModel.onIntent(TransactionsIntent.Open) },
+                                tenantPayments = tenantHomeState.payments,
+                                requestsBadge = if (homeState.activeRole == UserRole.TENANT) requestsState.summary.myOpen else requestsState.summary.needsAction,
+                                onOpenRequests = { requestsViewModel.onIntent(RequestsIntent.Open(landlord = homeState.activeRole != UserRole.TENANT)) },
+                                onOpenAnnouncements = { announcementsViewModel.onIntent(AnnouncementsIntent.Open(landlord = homeState.activeRole != UserRole.TENANT)) },
+                                onRaiseRequest = { l ->
+                                    requestsViewModel.onIntent(RequestsIntent.OpenRaise(listOf(l.propertyTitle, l.place).filter { it.isNotBlank() }.joinToString(" · ")))
+                                },
+                                onOpenPayments = { l ->
+                                    tenantPaymentsViewModel.onIntent(
+                                        TenantPaymentsIntent.Open(l.id, listOf(l.propertyTitle, l.place).filter { it.isNotBlank() }.joinToString(" · ")),
+                                    )
+                                },
                             )
                             // Signed in + active: our popups for location, then notifications (one at a time).
                             LaunchPermissionsHost(launchPermissionsViewModel)
@@ -498,6 +586,7 @@ class MainActivity : ComponentActivity() {
                             LifecycleResumeEffect(Unit) {
                                 homeViewModel.onIntent(HomeIntent.Visible)
                                 notificationsViewModel.onIntent(NotificationsIntent.RefreshBadge)
+                                requestsViewModel.onIntent(RequestsIntent.RefreshSummary(homeState.activeRole != UserRole.TENANT))
                                 onPauseOrDispose { }
                             }
                         }

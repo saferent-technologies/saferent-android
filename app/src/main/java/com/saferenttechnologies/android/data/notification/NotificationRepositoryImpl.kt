@@ -60,7 +60,10 @@ class NotificationRepositoryImpl @Inject constructor(
                     id = id,
                     title = o.text("title"),
                     body = o.text("body"),
-                    link = o.text("link"),
+                    link = com.saferenttechnologies.android.domain.model.LeaseLinks.withLeaseId(
+                        o.text("link"),
+                        o.text("leaseId").ifBlank { (o["data"] as? JsonObject)?.text("leaseId").orEmpty() },
+                    ),
                     readAt = o.text("readAt").ifBlank { null },
                     createdAtMillis = parseIsoMillis(o.text("createdAt")),
                 )

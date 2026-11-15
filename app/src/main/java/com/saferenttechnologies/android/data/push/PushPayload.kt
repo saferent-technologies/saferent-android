@@ -42,7 +42,10 @@ data class PushPayload(
                 notificationId = data[EXTRA_NOTIFICATION_ID].orEmpty(),
                 title = title.orEmpty(),
                 body = body.orEmpty(),
-                link = data[EXTRA_LINK].orEmpty(),
+                link = com.saferenttechnologies.android.domain.model.LeaseLinks.withLeaseId(
+                    data[EXTRA_LINK].orEmpty(),
+                    data["leaseId"] ?: data["lease_id"],
+                ),
                 type = data[EXTRA_TYPE].orEmpty().ifBlank { "GENERAL" },
             )
         }

@@ -71,6 +71,12 @@ interface PropertyApi {
     @PUT("api/v1/properties/{id}/pricing")
     suspend fun savePricing(@Path("id") id: String, @Body body: JsonObject): Response<ApiEnvelope<JsonElement>>
 
+    @GET("api/v1/properties/{id}/utilities")
+    suspend fun utilities(@Path("id") id: String): Response<ApiEnvelope<JsonElement>>
+
+    @GET("api/v1/properties/{id}/policies")
+    suspend fun policies(@Path("id") id: String): Response<ApiEnvelope<JsonElement>>
+
     @PUT("api/v1/properties/{id}/utilities")
     suspend fun saveUtilities(@Path("id") id: String, @Body body: JsonObject): Response<ApiEnvelope<JsonElement>>
 
