@@ -1,5 +1,8 @@
 package com.saferenttechnologies.android.presentation.requests
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
+import com.saferenttechnologies.android.presentation.common.rememberIdleHint
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import android.widget.Toast
@@ -176,7 +179,11 @@ private fun TopBar(title: String, onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ColumnScope.ListContent(state: RequestsState, onIntent: (RequestsIntent) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.sdp, vertical = 4.sdp), horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+    // Full labels ("Needs action (3)"), no "…": the row scrolls sideways when it doesn't fit.
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.sdp, vertical = 4.sdp),
+        horizontalArrangement = Arrangement.spacedBy(8.sdp),
+    ) {
         state.tabs.forEach { t ->
             val label = when (t) {
                 RequestTab.NEEDS_ACTION -> stringResource(R.string.req_tab_needs_action) + if (state.summary.needsAction > 0) " (${state.summary.needsAction})" else ""
@@ -184,7 +191,7 @@ private fun ColumnScope.ListContent(state: RequestsState, onIntent: (RequestsInt
                 RequestTab.RESOLVED -> stringResource(R.string.req_tab_resolved)
                 RequestTab.ALL -> stringResource(R.string.filter_all)
             }
-            Chip(label, selected = t == state.tab, modifier = Modifier.weight(1f), maxLines = 1) { onIntent(RequestsIntent.SelectTab(t)) }
+            Chip(label, selected = t == state.tab, modifier = Modifier.widthIn(min = 72.sdp), maxLines = 1) { onIntent(RequestsIntent.SelectTab(t)) }
         }
     }
     if (!state.landlord) {
@@ -305,10 +312,12 @@ private fun ColumnScope.RaiseContent(state: RequestsState, onIntent: (RequestsIn
 
         Spacer(Modifier.height(16.sdp))
         Heading(stringResource(R.string.req_q_describe))
+        val describeHint = rememberIdleHint()
         OutlinedTextField(
             value = f.description,
             onValueChange = { onIntent(RequestsIntent.RaiseDescription(it)) },
-            placeholder = { Text(stringResource(placeholderFor(f.type)), fontFamily = Inter) },
+            placeholder = describeHint.placeholder(stringResource(placeholderFor(f.type))),
+            interactionSource = describeHint.source,
             isError = f.showErrors && !RequestRules.descriptionOk(f.description),
             supportingText = {
                 Row(Modifier.fillMaxWidth()) {
@@ -506,11 +515,13 @@ private fun UpdatePanel(state: RequestsState, r: ServiceRequest, onIntent: (Requ
             }
         }
         Spacer(Modifier.height(10.sdp))
+        // No floating label: the "e.g." example shows in the empty box and goes away on tap.
+        val remarkHint = rememberIdleHint()
         OutlinedTextField(
             value = state.updRemark,
             onValueChange = { onIntent(RequestsIntent.UpdRemark(it)) },
-            label = { Text(stringResource(R.string.req_remark), fontFamily = Inter) },
-            placeholder = { Text(stringResource(R.string.req_remark_ph), fontFamily = Inter) },
+            placeholder = remarkHint.placeholder(stringResource(R.string.req_remark_ph)),
+            interactionSource = remarkHint.source,
             minLines = 2,
             maxLines = 5,
             enabled = !state.busy,

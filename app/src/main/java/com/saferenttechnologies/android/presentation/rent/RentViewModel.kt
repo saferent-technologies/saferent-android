@@ -113,6 +113,7 @@ class RentViewModel @Inject constructor(
                 load(refreshing = false)
             }
             RentIntent.Refresh -> if (currentState.isOpen) {
+                com.saferenttechnologies.android.data.remote.ApiCache.clear()
                 if (currentState.showRequests) loadRequests() else load(refreshing = true)
             }
             RentIntent.ShowRequests -> {

@@ -64,7 +64,7 @@ class BrowseFiltersTest {
         assertEquals("₹12,34,567", Money.inr("1234567"))
         assertEquals("₹999", Money.inr("999"))
         assertEquals("", Money.inr("abc"))
-        assertEquals("₹18,000 – ₹22,000", Money.range("18000.00", "22000.00"))
+        assertEquals("₹18,000 to ₹22,000", Money.range("18000.00", "22000.00"))
         assertEquals("₹18,000", Money.range("18000.00", "18000.00"))
         assertEquals("1.4 km", Money.distance(1.4))
         assertEquals("350 m", Money.distance(0.35))

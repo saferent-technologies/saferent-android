@@ -52,8 +52,10 @@ object AnnouncementRules {
     fun bodyOk(b: String) = b.trim().length in BODY_MIN..BODY_MAX
 
     /** Send is on only when the text is fine and the picked audience isn't empty. */
-    fun canSend(title: String, body: String, audience: AnnouncementAudience, propertyIds: Set<String>, leaseIds: Set<String>): Boolean =
+    /** [audience] null = "Send to" not picked yet (it's a must). */
+    fun canSend(title: String, body: String, audience: AnnouncementAudience?, propertyIds: Set<String>, leaseIds: Set<String>): Boolean =
         titleOk(title) && bodyOk(body) && when (audience) {
+            null -> false
             AnnouncementAudience.ALL -> true
             AnnouncementAudience.PROPERTIES -> propertyIds.isNotEmpty()
             AnnouncementAudience.TENANTS -> leaseIds.isNotEmpty()

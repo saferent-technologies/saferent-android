@@ -570,6 +570,14 @@ class MainActivity : ComponentActivity() {
                                 tenantPayments = tenantHomeState.payments,
                                 requestsBadge = if (homeState.activeRole == UserRole.TENANT) requestsState.summary.myOpen else requestsState.summary.needsAction,
                                 onOpenRequests = { requestsViewModel.onIntent(RequestsIntent.Open(landlord = homeState.activeRole != UserRole.TENANT)) },
+                                refreshing = homeState.summaryLoading || tenantHomeState.loading,
+                                onRefresh = {
+                                    com.saferenttechnologies.android.data.remote.ApiCache.clear()
+                                    homeViewModel.onIntent(HomeIntent.RefreshSummary)
+                                    notificationsViewModel.onIntent(NotificationsIntent.RefreshBadge)
+                                    requestsViewModel.onIntent(RequestsIntent.RefreshSummary(homeState.activeRole != UserRole.TENANT))
+                                    if (homeState.activeRole == UserRole.TENANT) tenantHomeViewModel.onIntent(TenantHomeIntent.Refresh)
+                                },
                                 onOpenAnnouncements = { announcementsViewModel.onIntent(AnnouncementsIntent.Open(landlord = homeState.activeRole != UserRole.TENANT)) },
                                 onRaiseRequest = { l ->
                                     requestsViewModel.onIntent(RequestsIntent.OpenRaise(listOf(l.propertyTitle, l.place).filter { it.isNotBlank() }.joinToString(" · ")))

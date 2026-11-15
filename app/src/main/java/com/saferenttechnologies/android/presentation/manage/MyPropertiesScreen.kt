@@ -124,6 +124,15 @@ fun MyPropertiesScreen(
         // Only tabs with properties in them (e.g. no "Under verification" when 0).
         // Few tabs → they share the full width; many → scroll, each at least TAB_MIN_WIDTH wide.
         BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 10.sdp)) {
+            // Counts not in yet → shimmer chips, then every tab at once.
+            if (!state.tabsReady) {
+                ShimmerHost {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.sdp), horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+                        repeat(3) { Bone(Modifier.weight(1f).height(38.sdp), RoundedCornerShape(50)) }
+                    }
+                }
+                return@BoxWithConstraints
+            }
             val tabs = state.filters
             val gap = 8.sdp
             val fits = TAB_MIN_WIDTH * tabs.size + gap * (tabs.size - 1) <= maxWidth - 32.sdp

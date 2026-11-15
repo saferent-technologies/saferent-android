@@ -136,7 +136,7 @@ class NotificationsViewModel @Inject constructor(
                 setState { copy(unreadOnly = intent.unreadOnly, items = emptyList(), page = 0, totalPages = 1, error = null) }
                 load(page = 1, refreshing = false)
             }
-            NotificationsIntent.Refresh -> load(page = 1, refreshing = true)
+            NotificationsIntent.Refresh -> { com.saferenttechnologies.android.data.remote.ApiCache.clear(); load(page = 1, refreshing = true) }
             NotificationsIntent.LoadMore -> if (currentState.hasMore && !currentState.loading) load(currentState.page + 1, refreshing = false)
             is NotificationsIntent.Tap -> tap(intent.notification)
             NotificationsIntent.MarkAllRead -> markAll()

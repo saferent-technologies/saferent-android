@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.listing
 
+import com.saferenttechnologies.android.presentation.common.rememberIdleHint
 import com.saferenttechnologies.android.domain.model.Money
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -101,7 +102,7 @@ fun BottomBar(state: ListingDetailState, onIntent: (ListingDetailIntent) -> Unit
                 val flat = state.selectedUnit
                 Column(Modifier.weight(0.42f)) {
                     val price = Money.inr(flat?.let { f -> f.monthlyRent.ifBlank { f.salePrice } })
-                    Text(price.ifBlank { "—" }, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 17.ssp)
+                    Text(price.ifBlank { stringResource(R.string.apartment_rent_not_disclosed) }, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 17.ssp)
                     if (flat?.monthlyRent?.isNotBlank() == true) Text(stringResource(R.string.explore_per_month).trim(), color = AuthColors.Body, fontFamily = Inter, fontSize = 11.ssp)
                     Text(
                         stringResource(R.string.listing_ask),
@@ -177,7 +178,6 @@ fun ApplySheet(state: ListingDetailState, form: ApplyForm, onIntent: (ListingDet
                 value = form.message,
                 onValueChange = { change(form.copy(message = it.take(ListingDetailViewModel.MAX_MESSAGE))) },
                 label = { Text(stringResource(R.string.listing_message_owner), fontFamily = Inter) },
-                placeholder = { Text(stringResource(R.string.listing_message_hint), fontFamily = Inter) },
                 minLines = 3,
                 shape = RoundedCornerShape(12.sdp),
                 colors = propertyFieldColors(),
@@ -276,10 +276,12 @@ fun EnquiryDialog(state: ListingDetailState, text: String, onIntent: (ListingDet
         onDismissRequest = { onIntent(ListingDetailIntent.CancelEnquiry) },
         title = { Text(stringResource(R.string.listing_ask), fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold) },
         text = {
+            val askHint = rememberIdleHint()
             OutlinedTextField(
                 value = text,
                 onValueChange = { onIntent(ListingDetailIntent.EnquiryChanged(it)) },
-                placeholder = { Text(stringResource(R.string.listing_ask_hint), fontFamily = Inter) },
+                placeholder = askHint.placeholder(stringResource(R.string.listing_ask_hint)),
+                interactionSource = askHint.source,
                 minLines = 3,
                 supportingText = { Text("${text.length} / ${ListingDetailViewModel.MAX_MESSAGE}", fontFamily = Inter) },
                 shape = RoundedCornerShape(12.sdp),
@@ -309,10 +311,12 @@ fun ReportDialog(state: ListingDetailState, form: ReportForm, onIntent: (Listing
                     Chip(optionLabel(r), selected = form.reason == r, modifier = mod, maxLines = 1) { change(form.copy(reason = r)) }
                 }
                 Spacer(Modifier.height(12.sdp))
+                val reportHint = rememberIdleHint()
                 OutlinedTextField(
                     value = form.details,
                     onValueChange = { change(form.copy(details = it.take(ListingDetailViewModel.MAX_MESSAGE))) },
-                    placeholder = { Text(stringResource(R.string.listing_report_hint), fontFamily = Inter) },
+                    placeholder = reportHint.placeholder(stringResource(R.string.listing_report_hint)),
+                    interactionSource = reportHint.source,
                     minLines = 3,
                     isError = form.tooShort,
                     supportingText = if (form.tooShort) {

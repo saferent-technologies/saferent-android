@@ -135,7 +135,7 @@ class RequestsViewModel @Inject constructor(
     override suspend fun handleIntent(intent: RequestsIntent) {
         when (intent) {
             is RequestsIntent.Open -> {
-                setState { fresh(landlord = intent.landlord).copy(tab = intent.tab ?: if (intent.landlord) RequestTab.NEEDS_ACTION else RequestTab.ACTIVE) }
+                setState { fresh(landlord = intent.landlord).copy(tab = intent.tab ?: RequestTab.ALL) }
                 loadOptions()
                 load(1, refreshing = false)
             }
@@ -154,7 +154,7 @@ class RequestsViewModel @Inject constructor(
                 setState { copy(tab = intent.tab, items = emptyList(), page = 0, totalPages = 1) }
                 load(1, refreshing = false)
             }
-            RequestsIntent.Refresh -> when (currentState.mode) {
+            RequestsIntent.Refresh -> when (currentState.mode.also { com.saferenttechnologies.android.data.remote.ApiCache.clear() }) {
                 RequestsMode.DETAIL -> currentState.detail?.id?.let { loadDetail(it) }
                 else -> load(1, refreshing = true)
             }

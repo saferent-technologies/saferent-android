@@ -93,7 +93,7 @@ class TenantHomeViewModel @Inject constructor(
     override suspend fun handleIntent(intent: TenantHomeIntent) {
         when (intent) {
             TenantHomeIntent.Start -> if (currentState.home == null && !currentState.loading) load()
-            TenantHomeIntent.Refresh -> load()
+            TenantHomeIntent.Refresh -> { com.saferenttechnologies.android.data.remote.ApiCache.clear(); load() }
             TenantHomeIntent.OpenExplore -> setState { copy(exploring = true) }
             TenantHomeIntent.CloseExplore -> setState { copy(exploring = false) }
             is TenantHomeIntent.GateRate -> setState { copy(gate = gate.copy(draft = gate.draft.copy(ratings = gate.draft.ratings + (intent.key to intent.stars.coerceIn(1, 5))))) }

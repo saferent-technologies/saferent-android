@@ -93,7 +93,7 @@ class TenantPaymentsViewModel @Inject constructor(
                 load(refreshing = false)
             }
             TenantPaymentsIntent.Close -> setState { TenantPaymentsState() }
-            TenantPaymentsIntent.Refresh -> if (currentState.isOpen) load(refreshing = true)
+            TenantPaymentsIntent.Refresh -> if (currentState.isOpen) { com.saferenttechnologies.android.data.remote.ApiCache.clear(); load(refreshing = true) }
             is TenantPaymentsIntent.ShowReceipt -> setState { copy(receipt = intent.receipt, receiptFor = intent.forWhat) }
             TenantPaymentsIntent.HideReceipt -> if (currentState.fileBusy == null) setState { copy(receipt = null) }
             is TenantPaymentsIntent.Receipt -> receipt(intent.action)

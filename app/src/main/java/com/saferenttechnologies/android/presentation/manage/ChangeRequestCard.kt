@@ -80,7 +80,7 @@ fun ChangeRequestCard(detail: PropertyDetail, busy: Boolean, onIntent: (Property
         RevisionStatus.PENDING_VERIFICATION -> Triple(
             InfoBlue,
             stringResource(R.string.changes_pending_title),
-            stringResource(R.string.changes_pending_body, revision.submittedAt?.let(::prettyDay) ?: "—"),
+            stringResource(R.string.changes_pending_body, revision.submittedAt?.let(::prettyDay) ?: stringResource(R.string.changes_recently)),
         )
         RevisionStatus.REJECTED -> Triple(AuthColors.Error, stringResource(R.string.changes_rejected_title), revision.moderationNote.orEmpty())
         else -> Triple(Amber, stringResource(R.string.changes_draft_title), stringResource(R.string.changes_draft_body))

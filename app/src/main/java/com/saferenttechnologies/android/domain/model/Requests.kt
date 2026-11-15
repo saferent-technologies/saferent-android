@@ -77,8 +77,9 @@ enum class RequestTab(val status: String?) {
     NEEDS_ACTION("NEEDS_ACTION"), ACTIVE("ACTIVE"), RESOLVED("RESOLVED"), ALL(null);
 
     companion object {
-        val TENANT = listOf(ACTIVE, RESOLVED, ALL)
-        val LANDLORD = listOf(NEEDS_ACTION, ACTIVE, RESOLVED, ALL)
+        // "All" first (and selected when the list opens).
+        val TENANT = listOf(ALL, ACTIVE, RESOLVED)
+        val LANDLORD = listOf(ALL, NEEDS_ACTION, ACTIVE, RESOLVED)
     }
 }
 

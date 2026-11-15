@@ -110,7 +110,7 @@ class TenantsViewModel @Inject constructor(
                 setState { copy(past = intent.past, items = emptyList(), openLeaseId = null, type = null) } // query stays
                 load(refreshing = false)
             }
-            TenantsIntent.Refresh -> if (currentState.isOpen) load(refreshing = true)
+            TenantsIntent.Refresh -> if (currentState.isOpen) { com.saferenttechnologies.android.data.remote.ApiCache.clear(); load(refreshing = true) }
             is TenantsIntent.OpenTenant -> setState { copy(openLeaseId = intent.leaseId) }
             TenantsIntent.CloseTenant -> setState { copy(openLeaseId = null) }
             is TenantsIntent.Search -> setState { copy(query = intent.query.take(60)) }

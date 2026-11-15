@@ -46,6 +46,8 @@ class AnnouncementsMapperTest {
 
     @Test fun `rules, pickers and routes`() {
         assertFalse(AnnouncementRules.canSend("Hi", "Tank cleaning Sunday", AnnouncementAudience.ALL, emptySet(), emptySet()))
+        // "Send to" not picked → can't send.
+        assertFalse(AnnouncementRules.canSend("Water off", "Tank cleaning Sunday", null, emptySet(), emptySet()))
         assertTrue(AnnouncementRules.canSend("Water off", "Tank cleaning Sunday", AnnouncementAudience.ALL, emptySet(), emptySet()))
         assertFalse(AnnouncementRules.canSend("Water off", "Tank cleaning Sunday", AnnouncementAudience.TENANTS, emptySet(), emptySet()))
         assertTrue(AnnouncementRules.canSend("Water off", "Tank cleaning Sunday", AnnouncementAudience.PROPERTIES, setOf("p1"), emptySet()))

@@ -242,15 +242,26 @@ fun ChoiceGrid(label: String, options: List<String>, value: String, error: Strin
 }
 
 @Composable
-fun SelectField(label: String, options: List<String>, value: String, error: String?, enabled: Boolean, onSelect: (String) -> Unit) {
+fun SelectField(
+    label: String,
+    options: List<String>,
+    value: String,
+    error: String?,
+    enabled: Boolean,
+    /** Own text per option (else optionLabel). */
+    labels: Map<String, String> = emptyMap(),
+    placeholder: String? = null,
+    onSelect: (String) -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         OutlinedTextField(
-            value = if (value.isBlank()) "" else optionLabel(value),
+            value = if (value.isBlank()) "" else labels[value] ?: optionLabel(value),
             onValueChange = {},
             readOnly = true,
             enabled = false,
             label = { Text(label, fontFamily = Inter) },
+            placeholder = placeholder?.let { { Text(it, fontFamily = Inter) } },
             trailingIcon = { Icon(painterResource(R.drawable.ic_chevron_down), null, tint = AuthColors.Body, modifier = Modifier.size(20.sdp)) },
             isError = error != null,
             supportingText = if (error != null) { { Text(error, fontFamily = Inter, color = AuthColors.Error) } } else null,
@@ -270,7 +281,7 @@ fun SelectField(label: String, options: List<String>, value: String, error: Stri
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, properties = PopupProperties(focusable = false)) {
             options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(optionLabel(option), fontFamily = Inter) },
+                    text = { Text(labels[option] ?: optionLabel(option), fontFamily = Inter) },
                     onClick = {
                         expanded = false
                         onSelect(option)

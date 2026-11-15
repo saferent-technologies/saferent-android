@@ -292,7 +292,7 @@ class ListingDetailViewModel @Inject constructor(
         private const val KEY_LISTING = "listing.id"
         private const val KEY_UNIT = "listing.unitId"
 
-        fun shareText(id: String, title: String) = "$title on SafeRent – https://dev.saferenttechnologies.com/homes/$id"
+        fun shareText(id: String, title: String) = "$title on SafeRent: https://dev.saferenttechnologies.com/homes/$id"
 
         /** Occupants stepper bounds (shared with the sheet). */
         val OCCUPANTS = ApplyRules.MIN_OCCUPANTS..ApplyRules.MAX_OCCUPANTS

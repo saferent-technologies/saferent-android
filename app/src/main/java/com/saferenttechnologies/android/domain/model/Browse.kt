@@ -357,14 +357,14 @@ object Money {
         return (if (negative) "-₹" else "₹") + grouped
     }
 
-    /** "₹18,000 – ₹22,000" or one price when equal / only one. */
+    /** "₹18,000 to ₹22,000" or one price when equal / only one. */
     fun range(from: String?, to: String?): String {
         val a = inr(from)
         val b = inr(to)
         return when {
             a.isEmpty() -> b
             b.isEmpty() || a == b -> a
-            else -> "$a – $b"
+            else -> "$a to $b"
         }
     }
 

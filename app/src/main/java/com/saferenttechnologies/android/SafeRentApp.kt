@@ -84,6 +84,10 @@ class SafeRentApp : Application(), SingletonImageLoader.Factory {
             sessionEvents.events.filterIsInstance<SessionEvent.AccountBlocked>()
                 .collect { handleAccountBlocked(it.info) }
         }
+        // Signed out → nothing of the old account stays in the API memory cache.
+        appScope.launch {
+            sessionEvents.events.collect { if (it == SessionEvent.SignedOut) com.saferenttechnologies.android.data.remote.ApiCache.clear() }
+        }
         if (BuildConfig.DEBUG) {
             Log.d(
                 TAG,

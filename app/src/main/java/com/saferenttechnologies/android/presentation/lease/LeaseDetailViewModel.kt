@@ -132,7 +132,7 @@ class LeaseDetailViewModel @Inject constructor(
                 if (intent.startReview && currentState.canWriteReview) handleIntent(LeaseDetailIntent.StartReview)
             }
             LeaseDetailIntent.Close -> setState { LeaseDetailState() }
-            LeaseDetailIntent.Refresh -> load(refreshing = true)
+            LeaseDetailIntent.Refresh -> { com.saferenttechnologies.android.data.remote.ApiCache.clear(); load(refreshing = true) }
             LeaseDetailIntent.ToggleHistory -> setState { copy(showHistory = !showHistory) }
 
             // No review here: it's asked once the lease has closed (tenant: before using the app; landlord: before the next invite).

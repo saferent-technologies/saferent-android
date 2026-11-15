@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.home
 
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.offset
 import com.saferenttechnologies.android.presentation.common.AutoSizeText
@@ -62,6 +63,7 @@ import com.saferenttechnologies.android.ui.theme.Inter
 import com.saferenttechnologies.android.ui.theme.PlusJakartaSans
 
 /** Placeholder Home: real Home comes later. Holds the WhatsApp consent setting + sign out. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     state: HomeState,
@@ -85,8 +87,11 @@ fun HomeScreen(
     onRaiseRequest: (TenantLease) -> Unit = {},
     /** Landlord: sent announcements; tenant: received ones. */
     onOpenAnnouncements: () -> Unit = {},
+    /** Pull down → load everything on the dashboard again (otherwise it's served from memory). */
+    refreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
 ) {
-    Box(Modifier.fillMaxSize().background(AuthColors.Background)) {
+    PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().background(AuthColors.Background)) {
     Column(
         modifier = Modifier
             .fillMaxSize()

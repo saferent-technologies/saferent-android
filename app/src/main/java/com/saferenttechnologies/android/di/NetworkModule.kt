@@ -40,6 +40,8 @@ object NetworkModule {
     ): OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
+        // First: loaded data is served from memory (no network) until refresh / a change / a push.
+        .addInterceptor(com.saferenttechnologies.android.data.remote.ApiCache.interceptor)
         .addInterceptor(authInterceptor) // Firebase ID token on every request when signed in
         .apply {
             if (BuildConfig.DEBUG) {

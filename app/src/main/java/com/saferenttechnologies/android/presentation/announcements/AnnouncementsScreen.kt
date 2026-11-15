@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.announcements
 
+import com.saferenttechnologies.android.presentation.common.rememberIdleHint
+import com.saferenttechnologies.android.presentation.property.SelectField
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import android.widget.Toast
@@ -244,18 +246,24 @@ private fun ColumnScope.ComposeContent(state: AnnouncementsState, onIntent: (Ann
     val f = state.form
     val picker = rememberPhotoPicker(1) { it.firstOrNull()?.let { uri -> onIntent(AnnouncementsIntent.Image(uri)) } }
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.sdp)) {
-        Heading(stringResource(R.string.ann_q_who))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
-            listOf(
-                AnnouncementAudience.ALL to R.string.ann_aud_all,
-                AnnouncementAudience.PROPERTIES to R.string.ann_aud_properties,
-                AnnouncementAudience.TENANTS to R.string.ann_aud_tenants,
-            ).forEach { (a, label) ->
-                Chip(stringResource(label), selected = f.audience == a, enabled = !state.sending, modifier = Modifier.weight(1f), maxLines = 2) { onIntent(AnnouncementsIntent.Audience(a)) }
-            }
-        }
+        // "Send to" dropdown — must be picked (no default).
+        val audienceLabels = mapOf(
+            AnnouncementAudience.ALL.name to stringResource(R.string.ann_aud_all),
+            AnnouncementAudience.PROPERTIES.name to stringResource(R.string.ann_aud_properties),
+            AnnouncementAudience.TENANTS.name to stringResource(R.string.ann_aud_tenants),
+        )
+        SelectField(
+            label = stringResource(R.string.ann_q_who) + " *",
+            options = AnnouncementAudience.entries.map { it.name },
+            value = f.audience?.name.orEmpty(),
+            error = if (f.showErrors && f.audience == null) stringResource(R.string.ann_err_audience) else null,
+            enabled = !state.sending,
+            labels = audienceLabels,
+            placeholder = stringResource(R.string.ann_pick_audience),
+        ) { onIntent(AnnouncementsIntent.Audience(AnnouncementAudience.valueOf(it))) }
         Spacer(Modifier.height(8.sdp))
         when {
+            f.audience == null -> Unit
             state.targetsLoading -> ListSkeleton(rows = 3, thumbnail = null)
             f.audience == AnnouncementAudience.ALL -> Hint(
                 if (state.tenants.isEmpty()) stringResource(R.string.ann_no_tenants)
@@ -263,16 +271,18 @@ private fun ColumnScope.ComposeContent(state: AnnouncementsState, onIntent: (Ann
             )
             else -> Picker(state, onIntent)
         }
-        if (f.showErrors && f.audience != AnnouncementAudience.ALL && (if (f.audience == AnnouncementAudience.PROPERTIES) f.propertyIds else f.leaseIds).isEmpty()) {
+        if (f.showErrors && f.audience != null && f.audience != AnnouncementAudience.ALL && (if (f.audience == AnnouncementAudience.PROPERTIES) f.propertyIds else f.leaseIds).isEmpty()) {
             FieldErr(stringResource(if (f.audience == AnnouncementAudience.PROPERTIES) R.string.ann_err_property else R.string.ann_err_tenant))
         }
 
         Spacer(Modifier.height(16.sdp))
         Heading(stringResource(R.string.ann_q_title))
+        val titleHint = rememberIdleHint()
         OutlinedTextField(
             value = f.title,
             onValueChange = { onIntent(AnnouncementsIntent.Title(it)) },
-            placeholder = { Text(stringResource(R.string.ann_title_ph), fontFamily = Inter) },
+            placeholder = titleHint.placeholder(stringResource(R.string.ann_title_ph)),
+            interactionSource = titleHint.source,
             isError = f.showErrors && !AnnouncementRules.titleOk(f.title),
             supportingText = { Counter(f.title.length, AnnouncementRules.TITLE_MAX, if (f.showErrors && !AnnouncementRules.titleOk(f.title)) stringResource(R.string.lease_reason_min, AnnouncementRules.TITLE_MIN) else "") },
             singleLine = true,
@@ -283,10 +293,12 @@ private fun ColumnScope.ComposeContent(state: AnnouncementsState, onIntent: (Ann
         )
         Spacer(Modifier.height(6.sdp))
         Heading(stringResource(R.string.ann_q_body))
+        val bodyHint = rememberIdleHint()
         OutlinedTextField(
             value = f.body,
             onValueChange = { onIntent(AnnouncementsIntent.Body(it)) },
-            placeholder = { Text(stringResource(R.string.ann_body_ph), fontFamily = Inter) },
+            placeholder = bodyHint.placeholder(stringResource(R.string.ann_body_ph)),
+            interactionSource = bodyHint.source,
             isError = f.showErrors && !AnnouncementRules.bodyOk(f.body),
             supportingText = { Counter(f.body.length, AnnouncementRules.BODY_MAX, if (f.showErrors && !AnnouncementRules.bodyOk(f.body)) stringResource(R.string.lease_reason_min, AnnouncementRules.BODY_MIN) else "") },
             minLines = 4,
@@ -508,7 +520,7 @@ private fun ViewerRow(v: AnnouncementViewer) {
         }
         Spacer(Modifier.width(10.sdp))
         Column(Modifier.weight(1f)) {
-            Text(v.name.ifBlank { "—" }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 14.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(v.name.ifBlank { stringResource(R.string.word_tenant) }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 14.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (v.place.isNotBlank()) Text(v.place, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (v.seen) Text(ago(v.viewedAt), color = AuthColors.Muted, fontFamily = Inter, fontSize = 11.ssp)

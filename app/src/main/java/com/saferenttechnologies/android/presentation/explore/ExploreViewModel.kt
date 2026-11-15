@@ -136,7 +136,7 @@ class ExploreViewModel @Inject constructor(
                 load(reset = true)
                 loadTypes()
             }
-            ExploreIntent.Refresh -> load(reset = true, refreshing = true)
+            ExploreIntent.Refresh -> { com.saferenttechnologies.android.data.remote.ApiCache.clear(); load(reset = true, refreshing = true) }
             ExploreIntent.Retry -> if (currentState.items.isEmpty()) load(reset = true) else loadMore()
             ExploreIntent.LoadMore -> loadMore()
             is ExploreIntent.ToggleChip -> toggle(intent.chip)

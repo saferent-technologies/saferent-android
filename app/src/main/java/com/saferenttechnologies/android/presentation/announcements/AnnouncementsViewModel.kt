@@ -26,7 +26,8 @@ import javax.inject.Inject
 enum class AnnouncementsMode { LIST, COMPOSE, DETAIL }
 
 data class ComposeForm(
-    val audience: AnnouncementAudience = AnnouncementAudience.ALL,
+    /** Must be picked from the "Send to" dropdown (no default). */
+    val audience: AnnouncementAudience? = null,
     val propertyIds: Set<String> = emptySet(),
     val leaseIds: Set<String> = emptySet(),
     val query: String = "",
@@ -122,7 +123,7 @@ class AnnouncementsViewModel @Inject constructor(
                 loadDetail(intent.id)
             }
             AnnouncementsIntent.Back -> back()
-            AnnouncementsIntent.Refresh -> when (currentState.mode) {
+            AnnouncementsIntent.Refresh -> when (currentState.mode.also { com.saferenttechnologies.android.data.remote.ApiCache.clear() }) {
                 AnnouncementsMode.DETAIL -> currentState.detail?.id?.let { loadDetail(it) }
                 AnnouncementsMode.LIST -> load(1, refreshing = true)
                 AnnouncementsMode.COMPOSE -> Unit
@@ -248,7 +249,8 @@ class AnnouncementsViewModel @Inject constructor(
                 return sendEffect(AnnouncementsEffect.Message(PHOTO_UNREADABLE))
             }
         }
-        when (val r = repository.send(f.title, f.body, f.audience, f.propertyIds, f.leaseIds, image)) {
+        val audience = f.audience ?: return setState { copy(sending = false) }
+        when (val r = repository.send(f.title, f.body, audience, f.propertyIds, f.leaseIds, image)) {
             is AppResult.Success -> {
                 setState { copy(sending = false, form = ComposeForm(), mode = AnnouncementsMode.DETAIL, detail = r.data, viewers = emptyList(), seenTab = true) }
                 sendEffect(AnnouncementsEffect.Sent)

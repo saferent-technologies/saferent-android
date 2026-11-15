@@ -395,7 +395,6 @@ private fun PaySheet(state: TenantPaymentsState, due: RentDue, onIntent: (Tenant
                     value = state.payTxn,
                     onValueChange = { onIntent(TenantPaymentsIntent.PayTxn(it)) },
                     label = { Text(stringResource(R.string.pay_txn_id), fontFamily = Inter) },
-                    placeholder = { Text(stringResource(R.string.pay_txn_hint), fontFamily = Inter) },
                     isError = bad && !PaymentProofRules.txnOk(state.payTxn),
                     supportingText = if (bad && !PaymentProofRules.txnOk(state.payTxn)) {
                         @Composable { Text(stringResource(R.string.pay_txn_error), fontFamily = Inter) }

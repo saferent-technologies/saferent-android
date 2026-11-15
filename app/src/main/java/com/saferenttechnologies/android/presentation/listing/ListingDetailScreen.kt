@@ -283,7 +283,7 @@ private fun PriceCard(state: ListingDetailState, d: ListingDetail) {
             else -> Money.range(d.rentFrom, d.rentTo)
         }
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(price.ifBlank { "—" }, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 24.ssp)
+            Text(price.ifBlank { stringResource(R.string.apartment_rent_not_disclosed) }, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 24.ssp)
             Text(stringResource(R.string.explore_per_month), color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp, modifier = Modifier.padding(bottom = 3.sdp))
         }
         unit?.securityDeposit?.takeIf { it.isNotBlank() }?.let {

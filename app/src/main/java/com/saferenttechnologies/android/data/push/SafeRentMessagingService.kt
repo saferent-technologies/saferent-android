@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.data.push
 
+import okhttp3.OkHttpClient
 import android.content.Context
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -25,6 +26,7 @@ class SafeRentMessagingService : FirebaseMessagingService() {
     @Inject lateinit var scheduler: FcmTokenScheduler
     @Inject lateinit var events: NotificationEvents
     @Inject lateinit var logger: AppLogger
+    @Inject lateinit var http: OkHttpClient
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -36,10 +38,21 @@ class SafeRentMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
         val data = message.data
-        val payload = PushPayload.from(message.notification?.title, message.notification?.body, data, propertyStatusText(this, data))
-        logger.d(TAG, "push received type=${payload?.type ?: data["type"].orEmpty()}")
+        val payload = PushPayload.from(
+            message.notification?.title,
+            message.notification?.body,
+            data,
+            propertyStatusText(this, data),
+            notificationImage = message.notification?.imageUrl?.toString(),
+        )
+        logger.d(TAG, "push received type=${payload?.type ?: data["type"].orEmpty()} image=${payload?.imageUrl?.isNotBlank() == true}")
         payload ?: return
-        NotificationBuilder.show(this, payload)
+        // We're on FCM's worker thread: fetch the picture (auth for our API) before showing.
+        val picture = if (payload.imageUrl.isNotBlank()) PushImages.load(payload.imageUrl, http) else null
+        if (payload.imageUrl.isNotBlank() && picture == null) logger.d(TAG, "push image not loaded")
+        NotificationBuilder.show(this, payload, picture)
+        // Someone changed something on the server → next screen load goes to the network.
+        com.saferenttechnologies.android.data.remote.ApiCache.clear()
         events.newNotification(IncomingPush(payload.notificationId, payload.title, payload.link, payload.type))
     }
 

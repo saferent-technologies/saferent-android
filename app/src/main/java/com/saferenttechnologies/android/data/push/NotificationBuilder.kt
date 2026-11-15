@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.data.push
 
+import android.graphics.Bitmap
 import android.Manifest
 import android.app.Notification
 import android.app.PendingIntent
@@ -21,7 +22,8 @@ object NotificationBuilder {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .apply { payload.extras.forEach { (k, v) -> putExtra(k, v) } }
 
-    fun build(context: Context, payload: PushPayload): Notification {
+    /** [picture] → big picture when expanded + thumbnail when collapsed; null → text only. */
+    fun build(context: Context, payload: PushPayload, picture: Bitmap? = null): Notification {
         val pending = PendingIntent.getActivity(
             context,
             payload.androidId, // unique request code → each notification keeps its own extras
@@ -33,7 +35,17 @@ object NotificationBuilder {
             .setColor(ContextCompat.getColor(context, R.color.splash_background))
             .setContentTitle(payload.title.ifBlank { context.getString(R.string.app_name) })
             .setContentText(payload.body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(payload.body))
+            .setStyle(
+                if (picture != null) {
+                    NotificationCompat.BigPictureStyle()
+                        .bigPicture(picture)
+                        .bigLargeIcon(null as Bitmap?) // expanded: the big picture only
+                        .setSummaryText(payload.body)
+                } else {
+                    NotificationCompat.BigTextStyle().bigText(payload.body)
+                },
+            )
+            .apply { if (picture != null) setLargeIcon(picture) }
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pending)
@@ -41,11 +53,11 @@ object NotificationBuilder {
     }
 
     /** false = notifications not allowed (Android 13+ permission) — nothing shown. */
-    fun show(context: Context, payload: PushPayload): Boolean {
+    fun show(context: Context, payload: PushPayload, picture: Bitmap? = null): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return false
         NotificationChannels.create(context)
-        return runCatching { NotificationManagerCompat.from(context).notify(payload.androidId, build(context, payload)) }.isSuccess
+        return runCatching { NotificationManagerCompat.from(context).notify(payload.androidId, build(context, payload, picture)) }.isSuccess
     }
 }

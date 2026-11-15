@@ -62,7 +62,7 @@ class TransactionsViewModel @Inject constructor(
                 load(1, refreshing = false)
             }
             TransactionsIntent.Close -> setState { TransactionsState() }
-            TransactionsIntent.Refresh -> if (currentState.isOpen) load(1, refreshing = true)
+            TransactionsIntent.Refresh -> if (currentState.isOpen) { com.saferenttechnologies.android.data.remote.ApiCache.clear(); load(1, refreshing = true) }
             TransactionsIntent.LoadMore -> if (currentState.hasMore && !currentState.loading) load(currentState.page + 1, refreshing = false)
             is TransactionsIntent.Select -> setState { copy(openId = intent.id) }
             TransactionsIntent.Dismiss -> if (currentState.fileBusy == null) setState { copy(openId = null) }

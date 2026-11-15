@@ -244,7 +244,7 @@ private fun RequestCard(r: com.saferenttechnologies.android.domain.model.Payment
             }
             Spacer(Modifier.width(12.sdp))
             Column(Modifier.weight(1f)) {
-                Text(r.tenantName.ifBlank { "—" }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(r.tenantName.ifBlank { stringResource(R.string.word_tenant) }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(listOf(r.propertyTitle, r.place).filter { it.isNotBlank() }.joinToString(" · "), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(listOf(r.period, if (r.createdAt.isBlank()) "" else stringResource(R.string.rent_sent_on, day(r.createdAt))).filter { it.isNotBlank() }.joinToString(" · "), color = AuthColors.Muted, fontFamily = Inter, fontSize = 12.ssp)
             }
@@ -427,7 +427,7 @@ private fun DueCard(due: RentDue, state: RentState, onIntent: (RentIntent) -> Un
             }
             Spacer(Modifier.width(12.sdp))
             Column(Modifier.weight(1f)) {
-                Text(due.tenantName.ifBlank { "—" }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(due.tenantName.ifBlank { stringResource(R.string.word_tenant) }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     listOf(due.propertyTitle, due.place).filter { it.isNotBlank() }.joinToString(" · "),
                     color = AuthColors.Body,

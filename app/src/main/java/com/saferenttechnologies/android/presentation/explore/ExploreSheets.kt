@@ -230,7 +230,7 @@ fun FilterSheet(state: ExploreState, draft: BrowseFilters, onIntent: (ExploreInt
                 val min = (draft.minRent ?: 0).toFloat()
                 val max = (draft.maxRent ?: BrowseFilters.BUDGET_MAX).toFloat()
                 Text(
-                    "${Money.inr((draft.minRent ?: 0).toString())} – ${if (draft.maxRent == null) Money.inr(BrowseFilters.BUDGET_MAX.toString()) + "+" else Money.inr(draft.maxRent.toString())}",
+                    "${Money.inr((draft.minRent ?: 0).toString())} to ${if (draft.maxRent == null) Money.inr(BrowseFilters.BUDGET_MAX.toString()) + "+" else Money.inr(draft.maxRent.toString())}",
                     color = AuthColors.Ink,
                     fontFamily = Inter,
                     fontWeight = FontWeight.Medium,

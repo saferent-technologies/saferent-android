@@ -73,6 +73,7 @@ class PropertyDetailViewModel @Inject constructor(
             }
             PropertyDetailIntent.Close -> close()
             PropertyDetailIntent.Refresh -> {
+                com.saferenttechnologies.android.data.remote.ApiCache.clear()
                 refresh()
                 loadTab(currentState.tab)
             }

@@ -10,6 +10,8 @@ data class PushPayload(
     val body: String,
     val link: String,
     val type: String,
+    /** Picture to show big in the notification (announcement image …); blank = none. */
+    val imageUrl: String = "",
 ) {
     /** Same id for the same server notification → a repeat replaces instead of stacking. */
     val androidId: Int get() = if (notificationId.isNotBlank()) notificationId.hashCode() else (title + body).hashCode()
@@ -33,6 +35,7 @@ data class PushPayload(
             notificationBody: String?,
             data: Map<String, String>,
             fallback: Pair<String, String>? = null,
+            notificationImage: String? = null,
         ): PushPayload? {
             val title = notificationTitle?.takeIf { it.isNotBlank() } ?: data["title"]?.takeIf { it.isNotBlank() } ?: fallback?.first
             val body = notificationBody?.takeIf { it.isNotBlank() } ?: data["body"]?.takeIf { it.isNotBlank() }
@@ -47,6 +50,7 @@ data class PushPayload(
                     data["leaseId"] ?: data["lease_id"],
                 ),
                 type = data[EXTRA_TYPE].orEmpty().ifBlank { "GENERAL" },
+                imageUrl = listOf(data["imageUrl"], data["image"], notificationImage).firstOrNull { !it.isNullOrBlank() }.orEmpty(),
             )
         }
     }

@@ -20,7 +20,7 @@
     <string name="contact_support_ticket_soon">Support tickets are coming soon. Meanwhile you can reach us here:</string>
     <string name="contact_support_ticket_soon_no_channels">Support tickets are coming soon. Please try again later.</string>
     <string name="account_blocked_no_app">No app found to open this</string>
-    <string name="account_blocked_email_subject">Account %1$s – help</string>
+    <string name="account_blocked_email_subject">Help with account %1$s</string>
     <string name="account_blocked_channel_email">Email</string>
     <string name="account_blocked_channel_call">Call</string>
     <string name="account_blocked_channel_whatsapp">WhatsApp</string>
@@ -54,7 +54,7 @@
     <string name="add_property_submitted_body">We\'ll notify you once it\'s approved; then you can publish it.</string>
     <string name="add_property_back_to_dashboard">Back to dashboard</string>
     <string name="add_property_error_generic">Something went wrong. Check your internet and try again.</string>
-    <string name="add_property_error_conflict">This property was just updated elsewhere. We loaded the latest copy — please try again.</string>
+    <string name="add_property_error_conflict">This property was just updated elsewhere. We loaded the latest copy. Please try again.</string>
     <string name="add_property_error_max_photos">This property already has the maximum number of photos.</string>
     <string name="add_property_error_photo_required">Add at least one photo (a front view is recommended).</string>
     <string name="add_property_error_unit_required">Add at least one unit or room first.</string>
@@ -75,7 +75,7 @@
     <string name="add_property_type_locked">The property type can\'t be changed after the draft is created. Start a new property to pick another type.</string>
     <string name="add_property_listing_type">Listing type</string>
     <string name="add_property_description_hint">Describe the home in at least 30 characters to submit (%1$d now).</string>
-    <string name="add_property_location_hint">Add the property while you\'re AT the property — the map pin must be its real location. You can edit the address after.</string>
+    <string name="add_property_location_hint">Add the property while you\'re AT the property. The map pin must be its real location. You can edit the address after.</string>
     <string name="add_property_location_needed">Location permission is needed to fill the property address automatically.</string>
     <string name="add_property_allow_location">Allow location</string>
     <string name="add_property_locating">Finding your location…</string>
@@ -118,8 +118,8 @@
     <string name="add_property_charge_amount">Amount (₹)</string>
     <string name="add_property_charge_frequency">Frequency</string>
     <string name="add_property_charge_amount_required">Enter the amount for this charge.</string>
-    <string name="add_property_charge_amount_not_allowed">Remove the amount — this billing type has none.</string>
-    <string name="add_property_optional_hint">Optional — you can skip this step and add these later.</string>
+    <string name="add_property_charge_amount_not_allowed">Remove the amount. This billing type has none.</string>
+    <string name="add_property_optional_hint">Optional. You can skip this step and add these later.</string>
     <string name="add_property_utilities">Utilities</string>
     <string name="add_property_rules">House rules</string>
     <string name="add_property_rule_title">Rule</string>
@@ -184,7 +184,7 @@
     <string name="prop_field_sale_price">Sale price (₹)</string>
     <string name="prop_field_monthly_rent">Monthly rent (₹)</string>
     <string name="prop_field_advance_rent_months">Advance rent (months)</string>
-    <string name="prop_field_rent_due_day">Rent due day (1–31)</string>
+    <string name="prop_field_rent_due_day">Rent due day (1 to 31)</string>
     <string name="prop_field_lock_in_months">Lock-in period (months)</string>
     <string name="prop_field_notice_days">Notice period (days)</string>
     <string name="prop_field_rent_negotiable">Rent negotiable</string>
@@ -202,7 +202,7 @@
     <string name="prop_field_pets">Pets allowed</string>
     <string name="prop_field_smoking">Smoking allowed</string>
     <string name="home_add_property">Add property</string>
-    <string name="home_add_property_body">List a home in a few steps — photos are taken live.</string>
+    <string name="home_add_property_body">List a home in a few steps. Photos are taken live.</string>
 
     <!-- Notifications -->
     <string name="notification_channel_name">SafeRent updates</string>
@@ -218,7 +218,7 @@
     <string name="add_property_photo_done">Done</string>
     <string name="add_property_required">Required</string>
     <string name="add_property_error_bedroom_photos">Take every photo in the list (front view and each flat\'s rooms).</string>
-    <string name="add_property_error_wait_uploads">Photos are still uploading — please wait a moment.</string>
+    <string name="add_property_error_wait_uploads">Photos are still uploading. Please wait a moment.</string>
 
     <!-- Property status push (used when the server sends no text) -->
     <string name="push_property_approved_title">Property approved 🎉</string>
@@ -243,7 +243,7 @@
     <string name="filter_archived">Archived</string>
     <string name="status_draft">Draft</string>
     <string name="status_under_verification">Under verification</string>
-    <string name="status_approved">Approved – publish it</string>
+    <string name="status_approved">Approved, publish it</string>
     <string name="status_needs_changes">Needs changes</string>
     <string name="status_live">Live</string>
     <string name="status_inactive">Inactive</string>
@@ -284,7 +284,7 @@
     <string name="manage_banner_pending">SafeRent is verifying this property. Editing is locked until the review is done.</string>
     <string name="manage_banner_approved">Approved! Publish it so tenants can find it.</string>
     <string name="manage_banner_suspended">Suspended by SafeRent</string>
-    <string name="manage_banner_inactive">Inactive — hidden from tenants.</string>
+    <string name="manage_banner_inactive">Inactive. Hidden from tenants.</string>
     <string name="manage_banner_archived">Archived. Contact support to restore it.</string>
     <string name="manage_code_copied">Code copied</string>
     <string name="manage_copy_link">Copy link</string>
@@ -359,7 +359,7 @@
     <string name="notifications_minutes_ago">%1$d min ago</string>
     <string name="notifications_hours_ago">%1$d h ago</string>
     <string name="notifications_yesterday">Yesterday</string>
-    <string name="notifications_banner">%1$s — tap to open</string>
+    <string name="notifications_banner">%1$s. Tap to open</string>
     <string name="notifications_item_gone">This item is no longer available</string>
     <string name="notifications_not_available">This screen isn\'t in the app yet</string>
     <string name="deep_link_not_for_account">This link isn\'t available for your account</string>
@@ -419,7 +419,7 @@
     <string name="explore_load_more_failed">Couldn\'t load more. Tap to retry</string>
     <string name="explore_end">That\'s all for now</string>
     <string name="explore_to_top">Back to top</string>
-    <string name="explore_offline">You\'re offline — showing what was loaded</string>
+    <string name="explore_offline">You\'re offline. Showing what was loaded</string>
     <string name="explore_locating">Finding your location…</string>
     <string name="explore_no_location">Couldn\'t get your location. Try again near a window.</string>
     <string name="explore_allow_location">Allow location to see homes near you</string>
@@ -498,7 +498,7 @@
     <string name="listing_application_sent">Application sent</string>
     <string name="listing_waiting_owner">Waiting for the owner to reply</string>
     <string name="listing_withdraw">Withdraw</string>
-    <string name="listing_approved">Approved — the owner will share the lease</string>
+    <string name="listing_approved">Approved. The owner will share the lease</string>
     <string name="listing_apply_title">Apply for this home</string>
     <string name="listing_move_in">Move-in date</string>
     <string name="listing_pick_date">Pick a date</string>
@@ -512,8 +512,8 @@
     <string name="listing_err_occupants">Between 1 and 20 people.</string>
     <string name="listing_applied_title">Sent to the owner</string>
     <string name="listing_applied_body">We\'ll notify you when they reply.</string>
-    <string name="listing_enquiry_sent">Sent — the owner will reply in Messages / notifications</string>
-    <string name="listing_report_sent">Thanks — SafeRent will look into it.</string>
+    <string name="listing_enquiry_sent">Sent. The owner will reply in Messages / notifications</string>
+    <string name="listing_report_sent">Thanks, SafeRent will look into it.</string>
     <string name="listing_report_title">Report this listing</string>
     <string name="listing_report_hint">What\'s wrong? (at least 10 characters)</string>
     <string name="listing_report_short">Please add at least 10 characters.</string>
@@ -579,9 +579,9 @@
     <string name="apartment_flat_photos">Photos of this %1$s</string>
     <string name="apartment_flat_photos_empty">Add the number of bedrooms / bathrooms in the details to list its room photos.</string>
     <string name="apartment_common_charges">Common charges</string>
-    <string name="apartment_common_charges_hint">Charges and terms common to every %1$s (maintenance, water, electricity, food …). Rent and deposit are set on each %1$s — tenants see its own price plus these.</string>
+    <string name="apartment_common_charges_hint">Charges and terms common to every %1$s (maintenance, water, electricity, food …). Rent and deposit are set on each %1$s. Tenants see its own price plus these.</string>
     <string name="apartment_common_amenities">Common amenities</string>
-    <string name="apartment_common_amenities_hint">Facilities of the whole building — Wi-Fi, lift, security, food … Amenities inside a %1$s are added on each %1$s.</string>
+    <string name="apartment_common_amenities_hint">Facilities of the whole building: Wi-Fi, lift, security, food … Amenities inside a %1$s are added on each %1$s.</string>
     <string name="apartment_building_photos">Building photos</string>
     <string name="apartment_more_building_photos">More building photos</string>
     <string name="apartment_flat_progress">%1$d / %2$d rooms</string>
@@ -710,8 +710,8 @@
     <string name="lease_closed_on">Lease closed on %1$s</string>
     <string name="lease_write_review">Write your review</string>
     <string name="lease_review_required">You need to review this rental before your next one.</string>
-    <string name="lease_review_done">Thanks — your review is in.</string>
-    <string name="lease_review_saved">Review saved — it will be posted when the lease closes.</string>
+    <string name="lease_review_done">Thanks, your review is in.</string>
+    <string name="lease_review_saved">Review saved. It will be posted when the lease closes.</string>
     <string name="lease_post_review">Post review</string>
     <string name="lease_history">Previous close requests (%1$d)</string>
     <string name="lease_h_declined">Declined</string>
@@ -815,7 +815,7 @@
     <string name="pay_online">Pay online</string>
     <string name="pay_online_soon">Online payment isn\'t available yet. Use "Update paid amount".</string>
     <string name="pay_update_paid">Update paid amount</string>
-    <string name="pay_update_paid_hint">Paid by UPI, bank or cash? Send the transaction id and a screenshot — your landlord checks it and marks the month paid.</string>
+    <string name="pay_update_paid_hint">Paid by UPI, bank or cash? Send the transaction id and a screenshot. Your landlord checks it and marks the month paid.</string>
     <string name="pay_form_title">Update paid amount</string>
     <string name="pay_amount_paid">Amount paid</string>
     <string name="pay_txn_id">Transaction / UPI id</string>
@@ -848,7 +848,7 @@
     <string name="lease_review_required_title">Your review (required)</string>
     <string name="manage_review_tenant_title">Review %1$s</string>
     <string name="manage_review_tenant_note">Their lease has ended. Review them before inviting a new tenant here.</string>
-    <string name="manage_review_first">Review %1$s first — then you can invite a new tenant.</string>
+    <string name="manage_review_first">Review %1$s first, then you can invite a new tenant.</string>
     <string name="gate_title">How was your stay at %1$s?</string>
     <string name="gate_body">Your lease with %1$s has ended. Review your rental to continue.</string>
     <string name="gate_ended_on">(Ended %1$s)</string>
@@ -881,7 +881,7 @@
     <string name="prop_field_utility_notes">Anything else about utilities</string>
     <string name="prop_field_max_guest_days">Max guest stay (days)</string>
     <string name="prop_field_guest_registration">Guests must register at the gate / with landlord?</string>
-    <string name="prop_field_visitor_timings">Visitor timings (e.g. 8 AM – 10 PM)</string>
+    <string name="prop_field_visitor_timings">Visitor timings (e.g. 8 AM to 10 PM)</string>
     <string name="prop_field_landlord_approval">Landlord approval needed for guests?</string>
     <string name="prop_field_guest_parking">Guest parking</string>
     <string name="prop_field_guest_charges">Extra charges for guests?</string>
@@ -902,7 +902,7 @@
     <string name="add_property_rules_guests">Guests</string>
     <string name="add_property_rules_house">House rules</string>
     <string name="add_property_rules_extra">Extra rules</string>
-    <string name="add_property_missing_answers">%1$d answers missing — tenants see "Not disclosed".</string>
+    <string name="add_property_missing_answers">%1$d answers missing. Tenants see "Not disclosed".</string>
     <string name="add_property_missing_edit">Answer now</string>
     <string name="home_card_properties">Your properties</string>
     <string name="home_card_units_title">Flats &amp; beds</string>
@@ -957,7 +957,7 @@
     <string name="req_send_update">Send update</string>
     <string name="req_remind">Send reminder</string>
     <string name="req_resolved_btn">Issue resolved</string>
-    <string name="req_reopen">Not fixed — reopen</string>
+    <string name="req_reopen">Not fixed, reopen</string>
     <string name="req_withdraw">Withdraw request</string>
     <string name="req_add_photos">Add photos</string>
     <string name="req_sheet_resolve">Mark this as resolved?</string>
@@ -1012,7 +1012,7 @@
     <string name="ann_q_title">Title</string>
     <string name="ann_title_ph">e.g. Water supply off on Sunday</string>
     <string name="ann_q_body">Description</string>
-    <string name="ann_body_ph">e.g. Tank cleaning on Sunday 10 AM – 2 PM. Please store water on Saturday night.</string>
+    <string name="ann_body_ph">e.g. Tank cleaning on Sunday 10 AM to 2 PM. Please store water on Saturday night.</string>
     <string name="ann_q_image">Image (optional)</string>
     <string name="ann_send">Send announcement</string>
     <string name="ann_to_x">To %1$s</string>
@@ -1044,4 +1044,8 @@
     <string name="greeting_afternoon">Good afternoon</string>
     <string name="greeting_evening">Good evening</string>
     <string name="greeting_welcome">Welcome to SafeRent</string>
+    <string name="ann_err_audience">Pick who to send to</string>
+    <string name="ann_pick_audience">Select</string>
+    <string name="word_tenant">Tenant</string>
+    <string name="changes_recently">recently</string>
 </resources>

@@ -57,7 +57,7 @@ class MyApplicationsViewModel @Inject constructor(
                 setState { copy(status = intent.status, items = emptyList()) }
                 load()
             }
-            MyApplicationsIntent.Refresh -> if (currentState.isOpen) load()
+            MyApplicationsIntent.Refresh -> if (currentState.isOpen) { com.saferenttechnologies.android.data.remote.ApiCache.clear(); load() }
             is MyApplicationsIntent.Withdraw -> {
                 setState { copy(busyId = intent.id) }
                 val r = repository.withdraw(intent.id)

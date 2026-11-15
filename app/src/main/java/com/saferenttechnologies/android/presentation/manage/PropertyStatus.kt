@@ -67,14 +67,14 @@ fun StatusPill(text: String, color: Color, modifier: Modifier = Modifier) {
     )
 }
 
-/** "₹18,000 – ₹22,000" (or one value). */
+/** "₹18,000 to ₹22,000" (or one value). */
 fun rentRange(from: String, to: String): String {
     fun fmt(v: String) = v.toDoubleOrNull()?.let { "₹" + String.format(java.util.Locale("en", "IN"), "%,.0f", it) } ?: v
     return when {
         from.isBlank() && to.isBlank() -> ""
         to.isBlank() || from == to -> fmt(from.ifBlank { to })
         from.isBlank() -> fmt(to)
-        else -> "${fmt(from)} – ${fmt(to)}"
+        else -> "${fmt(from)} to ${fmt(to)}"
     }
 }
 

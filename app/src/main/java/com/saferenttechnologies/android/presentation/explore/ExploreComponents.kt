@@ -126,7 +126,7 @@ fun ListingCard(item: Listing, onClick: () -> Unit, onLongClick: () -> Unit) {
         Spacer(Modifier.height(6.sdp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                Money.range(item.rentFrom, item.rentTo).ifBlank { "—" },
+                Money.range(item.rentFrom, item.rentTo).ifBlank { stringResource(R.string.apartment_rent_not_disclosed) },
                 color = AuthColors.Ink,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.ExtraBold,

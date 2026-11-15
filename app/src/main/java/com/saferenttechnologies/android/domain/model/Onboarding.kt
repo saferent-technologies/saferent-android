@@ -51,7 +51,7 @@ object DefaultOnboarding {
         OnboardingPage(
             id = "default-rental",
             title = "Your rental in one place",
-            description = "Lease, rent and receipts — all online, for tenants and owners.",
+            description = "Lease, rent and receipts, all online, for tenants and owners.",
             buttonText = NEXT,
             media = listOf(OnboardingMedia.Bundled),
         ),
