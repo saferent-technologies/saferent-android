@@ -34,6 +34,24 @@ sealed interface AppError {
         override val message: String = info.message.ifBlank { "This account can no longer be used." },
     ) : AppError
 
+    /** 400 VALIDATION_ERROR with details.issues[] → message per field path. */
+    data class FieldIssues(
+        override val message: String,
+        val issues: Map<String, String>,
+    ) : AppError
+
+    /** 409 CONFLICT: [versionConflict] → reload and retry; otherwise e.g. "Flat number already exists". */
+    data class Conflict(
+        override val message: String,
+        val versionConflict: Boolean,
+    ) : AppError
+
+    /** 412 INVALID_STATE (e.g. locked while under verification, submit problems). */
+    data class InvalidState(
+        override val message: String,
+        val problems: List<String> = emptyList(),
+    ) : AppError
+
     /** 409 EMAIL_IN_USE — another account already uses this email. */
     data class EmailInUse(
         override val message: String = "This email is already used by another account.",

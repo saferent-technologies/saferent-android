@@ -96,6 +96,13 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
 
+    // Add property: in-app camera only (no gallery / file picker) + GPS address
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.play.services.location)
+
     // Storage
     implementation(libs.androidx.datastore.preferences)
 

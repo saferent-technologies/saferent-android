@@ -273,14 +273,14 @@ class AccountUseCasesTest {
     }
 
     @Test
-    fun `logout sends the fcm token first, then signs out`() = runTest {
+    fun `logout sends the fcm token first, then signs out and deletes the token`() = runTest {
         auth.user = AuthUser("uid", null)
         deviceTokens.lastSent = "fcm-token-1"
         ticked()
         val events = SessionEvents()
         SignOutUseCase(auth, account, deviceTokens, session, events)()
 
-        assertEquals(listOf("logout:fcm-token-1", "clearToken"), calls)
+        assertEquals(listOf("logout:fcm-token-1", "deleteToken", "clearToken"), calls)
         assertNull(auth.user)
         assertNull(deviceTokens.lastSent)
         assertNull(session.getLoginConsent())

@@ -25,6 +25,8 @@ sealed interface ApiResult<out T> {
         val message: String,
         val code: Int,
         val headers: Headers,
+        /** Envelope "meta" (paging: page, pageSize, total, totalPages). */
+        val meta: kotlinx.serialization.json.JsonElement? = null,
     ) : ApiResult<T>
 
     /** 304 — server says the cached copy is still valid (empty body). */
@@ -71,7 +73,8 @@ class SafeApiCall @Inject constructor(
         }
 
         val code = response.code()
-        val url = response.raw().request.url
+        // Query strings can hold coordinates (geo/reverse?lat=…) → never logged.
+        val url = response.raw().request.url.newBuilder().query(null).build()
 
         if (code == HTTP_NOT_MODIFIED) {
             logger.d(TAG, "✓ $name → 304 Not Modified ($url)")
@@ -111,6 +114,7 @@ class SafeApiCall @Inject constructor(
             message = envelope.message,
             code = code,
             headers = response.headers(),
+            meta = envelope.meta,
         )
     }
 

@@ -49,6 +49,16 @@ class DeviceTokenRepositoryImpl @Inject constructor(
         runCatching { dataStore.edit { it.remove(KEY_LAST_SENT) } }
     }
 
+    override suspend fun deleteToken() {
+        try {
+            withTimeoutOrNull(TOKEN_TIMEOUT_MS) { FirebaseMessaging.getInstance().deleteToken().awaitOrNull() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.w(TAG, "FCM token delete failed: ${e::class.java.simpleName}", e)
+        }
+    }
+
     private companion object {
         const val TAG = "SafeRent-Push"
         const val TOKEN_TIMEOUT_MS = 10_000L

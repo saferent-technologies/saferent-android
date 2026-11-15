@@ -1,11 +1,11 @@
 package com.saferenttechnologies.android
 
+import com.saferenttechnologies.android.data.push.NotificationChannels
 import com.saferenttechnologies.android.core.session.SessionEvent
 import com.saferenttechnologies.android.core.session.SessionEvents
 import com.saferenttechnologies.android.domain.usecase.HandleAccountBlockedUseCase
 import kotlinx.coroutines.flow.filterIsInstance
 import com.saferenttechnologies.android.core.ui.ResponsiveScale
-import android.Manifest
 import android.app.Activity
 import android.app.Application
 import android.content.pm.PackageManager
@@ -70,6 +70,7 @@ class SafeRentApp : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate() // Hilt injects fields here
         ResponsiveScale.update(resources.configuration) // sdp / ssp for this device
+        NotificationChannels.create(this) // FCM's default channel must exist before the first push
         registerActivityLifecycleCallbacks(currentActivityHolder) // Firebase phone auth needs it
         // Once per process: sends If-None-Match, 304 keeps cache, never throws.
         // Then, if the splash version changed, download the new splash in the background.
@@ -95,8 +96,8 @@ class SafeRentApp : Application(), SingletonImageLoader.Factory {
 
     /**
      * Debug only, asked on the first screen of each launch while missing:
-     * - POST_NOTIFICATIONS (Android 13+) → Chucker's "tap to inspect" notification
-     *   (release builds ask after login instead — see MainActivity).
+     * (Notifications are asked after login with our own popup first — LaunchPermissionsHost.
+     *  Chucker's notification shows once that's granted.)
      * - ACCESS_LOCAL_NETWORK (Android 17+, targetSdk 37) → reach the dev API on the
      *   laptop's LAN IP. Without it connections to 192.168.x.x silently time out.
      * The startup sync usually fires before the user answers the popup, so when
@@ -104,9 +105,6 @@ class SafeRentApp : Application(), SingletonImageLoader.Factory {
      */
     private fun requestDebugPermissions() {
         val wanted = buildList {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
             if (Build.VERSION.SDK_INT >= API_ANDROID_17) {
                 add(PERMISSION_ACCESS_LOCAL_NETWORK)
             }

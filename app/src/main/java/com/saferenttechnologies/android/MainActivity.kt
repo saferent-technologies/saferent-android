@@ -1,16 +1,33 @@
 package com.saferenttechnologies.android
 
+import com.saferenttechnologies.android.domain.model.DeepLinks
+import com.saferenttechnologies.android.domain.model.PropertyFilter
+import com.saferenttechnologies.android.domain.model.UserRole
+import com.saferenttechnologies.android.domain.usecase.TenantHomeState
+import com.saferenttechnologies.android.presentation.explore.ExploreScreen
+import com.saferenttechnologies.android.presentation.explore.ExploreViewModel
+import com.saferenttechnologies.android.presentation.listing.ListingDetailIntent
+import com.saferenttechnologies.android.presentation.listing.ListingDetailScreen
+import com.saferenttechnologies.android.presentation.listing.ListingDetailViewModel
+import com.saferenttechnologies.android.presentation.tenant.MyApplicationsIntent
+import com.saferenttechnologies.android.presentation.tenant.MyApplicationsScreen
+import com.saferenttechnologies.android.presentation.tenant.MyApplicationsViewModel
+import com.saferenttechnologies.android.presentation.tenant.TenantHomeIntent
+import com.saferenttechnologies.android.presentation.tenant.TenantHomeViewModel
+import android.content.Intent
+import com.saferenttechnologies.android.data.push.PushPayload
+import com.saferenttechnologies.android.domain.model.NavRoute
+import com.saferenttechnologies.android.presentation.manage.DetailTab
+import com.saferenttechnologies.android.presentation.notifications.InAppPushBanner
+import com.saferenttechnologies.android.presentation.notifications.NotificationsEffect
+import com.saferenttechnologies.android.presentation.notifications.NotificationsIntent
+import com.saferenttechnologies.android.presentation.notifications.NotificationsScreen
+import com.saferenttechnologies.android.presentation.notifications.NotificationsViewModel
 import com.saferenttechnologies.android.core.ui.ResponsiveScale
 import com.saferenttechnologies.android.core.ui.sdp
 import android.graphics.Color
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -52,6 +69,23 @@ import com.saferenttechnologies.android.ui.theme.SafeRentTheme
 import com.saferenttechnologies.android.core.session.BlockedAccountStore
 import com.saferenttechnologies.android.presentation.blocked.AccountBlockedScreen
 import com.saferenttechnologies.android.presentation.blocked.AccountBlockedViewModel
+import androidx.compose.runtime.CompositionLocalProvider
+import com.saferenttechnologies.android.domain.model.AppPermission
+import com.saferenttechnologies.android.domain.repository.PermissionManager
+import com.saferenttechnologies.android.presentation.permission.LaunchPermissionsHost
+import com.saferenttechnologies.android.presentation.permission.LaunchPermissionsViewModel
+import com.saferenttechnologies.android.presentation.permission.LocalPermissionManager
+import com.saferenttechnologies.android.presentation.permission.rememberPermissionRequester
+import com.saferenttechnologies.android.presentation.property.AddPropertyIntent
+import com.saferenttechnologies.android.presentation.property.AddPropertyScreen
+import com.saferenttechnologies.android.presentation.property.AddPropertyViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.saferenttechnologies.android.presentation.manage.MyPropertiesIntent
+import com.saferenttechnologies.android.presentation.manage.MyPropertiesScreen
+import com.saferenttechnologies.android.presentation.manage.MyPropertiesViewModel
+import com.saferenttechnologies.android.presentation.manage.PropertyDetailIntent
+import com.saferenttechnologies.android.presentation.manage.PropertyDetailScreen
+import com.saferenttechnologies.android.presentation.manage.PropertyDetailViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -65,6 +99,18 @@ class MainActivity : ComponentActivity() {
     private val userProfileViewModel: UserProfileViewModel by viewModels()
     private val homeViewModel: HomeViewModel by viewModels()
     private val accountBlockedViewModel: AccountBlockedViewModel by viewModels()
+    private val addPropertyViewModel: AddPropertyViewModel by viewModels()
+    private val launchPermissionsViewModel: LaunchPermissionsViewModel by viewModels()
+    private val myPropertiesViewModel: MyPropertiesViewModel by viewModels()
+    private val propertyDetailViewModel: PropertyDetailViewModel by viewModels()
+    private val notificationsViewModel: NotificationsViewModel by viewModels()
+    private val tenantHomeViewModel: TenantHomeViewModel by viewModels()
+    private val exploreViewModel: ExploreViewModel by viewModels()
+    private val listingDetailViewModel: ListingDetailViewModel by viewModels()
+    private val myApplicationsViewModel: MyApplicationsViewModel by viewModels()
+
+    @Inject
+    lateinit var permissionManager: PermissionManager
 
     @Inject
     lateinit var blockedAccountStore: BlockedAccountStore
@@ -82,8 +128,10 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
+        // Tapped a notification while the app was closed (system tray → launcher with data extras).
+        if (savedInstanceState == null) handleNotificationIntent(intent)
         setContent {
-            run {
+            CompositionLocalProvider(LocalPermissionManager provides permissionManager) {
                 SafeRentTheme {
                     val splashState by splashViewModel.state.collectAsState()
                     val onboardingState by onboardingViewModel.state.collectAsState()
@@ -91,9 +139,63 @@ class MainActivity : ComponentActivity() {
                     val postLoginState by postLoginViewModel.state.collectAsState()
                     val userProfileState by userProfileViewModel.state.collectAsState()
                     val homeState by homeViewModel.state.collectAsState()
+                    val addPropertyState by addPropertyViewModel.state.collectAsState()
+                    val myPropertiesState by myPropertiesViewModel.state.collectAsState()
+                    val propertyDetailState by propertyDetailViewModel.state.collectAsState()
+                    val notificationsState by notificationsViewModel.state.collectAsState()
+                    val tenantHomeState by tenantHomeViewModel.state.collectAsState()
+                    val exploreState by exploreViewModel.state.collectAsState()
+                    val listingDetailState by listingDetailViewModel.state.collectAsState()
+                    val myApplicationsState by myApplicationsViewModel.state.collectAsState()
+                    // Notification links → screens (only property detail exists today).
+                    LaunchedEffect(Unit) {
+                        notificationsViewModel.effect.collect { effect ->
+                            when (effect) {
+                                is NotificationsEffect.Navigate -> when (val route = effect.route) {
+                                    is NavRoute.PropertyDetail -> propertyDetailViewModel.onIntent(
+                                        PropertyDetailIntent.Open(route.propertyId, DetailTab.fromLink(route.tab)),
+                                    )
+                                    is NavRoute.ListingDetail -> listingDetailViewModel.onIntent(ListingDetailIntent.Open(route.listingId, route.unitId))
+                                    NavRoute.MyProperties -> myPropertiesViewModel.onIntent(MyPropertiesIntent.Open(PropertyFilter.ALL))
+                                    // Tenant → my applications; landlord → their properties (applications live per property).
+                                    NavRoute.Applications ->
+                                        if (homeViewModel.state.value.activeRole == UserRole.TENANT) {
+                                            myApplicationsViewModel.onIntent(MyApplicationsIntent.Open)
+                                        } else {
+                                            myPropertiesViewModel.onIntent(MyPropertiesIntent.Open(PropertyFilter.ALL))
+                                        }
+                                    NavRoute.Explore -> if (homeViewModel.state.value.activeRole == UserRole.TENANT) {
+                                        tenantHomeViewModel.onIntent(TenantHomeIntent.OpenExplore)
+                                    }
+                                    else -> Unit // Home / Notifications: nothing to open on top
+                                }
+                            }
+                        }
+                    }
+                    // Something changed on a property → list + dashboard numbers reload.
+                    val onPropertyChanged = {
+                        myPropertiesViewModel.onIntent(MyPropertiesIntent.Invalidate)
+                        homeViewModel.onIntent(HomeIntent.RefreshSummary)
+                    }
+                    // Wizard closed (new property or an edit) → refresh what's on screen.
+                    LaunchedEffect(addPropertyState.isOpen) {
+                        if (!addPropertyState.isOpen) {
+                            if (propertyDetailState.isOpen) propertyDetailViewModel.onIntent(PropertyDetailIntent.Refresh)
+                            onPropertyChanged()
+                        }
+                    }
+                    // "Add property": location popup first (the flow still opens without it).
+                    val locationForAddProperty = rememberPermissionRequester(AppPermission.LOCATION)
                     // Non-null = account deleted / deactivated / suspended (login or while using the app).
                     val blockedInfo by blockedAccountStore.info.collectAsState()
                     val blockedState by accountBlockedViewModel.state.collectAsState()
+                    // Opened from a notification → once the dashboard is ready (after splash / login).
+                    val dashboardReady = homeState.user != null && blockedInfo == null
+                    LaunchedEffect(dashboardReady, notificationsState.hasPending) {
+                        if (dashboardReady && notificationsState.hasPending) {
+                            notificationsViewModel.onIntent(NotificationsIntent.ConsumePending)
+                        }
+                    }
 
                     // After the splash (→ config ready on first launch) decide the next steps.
                     LaunchedEffect(splashState.isFinished) {
@@ -106,22 +208,6 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(authState.isSignedIn) {
                         if (authState.isSignedIn) {
                             postLoginViewModel.onIntent(PostLoginIntent.Load)
-                        }
-                    }
-                    // Android 13+: ask for notifications once signed in (push for rent reminders etc.).
-                    // Denied → nothing changes; the app never blocks on it.
-                    val notificationPermission = rememberLauncherForActivityResult(
-                        ActivityResultContracts.RequestPermission(),
-                    ) { granted -> Log.d("SafeRent-Push", "POST_NOTIFICATIONS granted=$granted") }
-                    LaunchedEffect(authState.isSignedIn) {
-                        if (authState.isSignedIn &&
-                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            ContextCompat.checkSelfPermission(
-                                this@MainActivity,
-                                Manifest.permission.POST_NOTIFICATIONS,
-                            ) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     }
                     // UserProfile or straight to the active role's dashboard.
@@ -153,6 +239,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    Box(Modifier.fillMaxSize()) {
                     when {
                         showSplash -> SplashScreen(state = splashState)
 
@@ -193,11 +280,152 @@ class MainActivity : ComponentActivity() {
 
                         homeState.user == null -> LoadingScreen()
 
-                        else -> HomeScreen(state = homeState, onIntent = homeViewModel::onIntent)
+                        addPropertyState.isOpen -> AddPropertyScreen(
+                            state = addPropertyState,
+                            onIntent = addPropertyViewModel::onIntent,
+                        )
+
+                        propertyDetailState.isOpen -> PropertyDetailScreen(
+                            state = propertyDetailState,
+                            effects = propertyDetailViewModel.effect,
+                            onIntent = propertyDetailViewModel::onIntent,
+                            onOpenEditor = { id, step -> addPropertyViewModel.onIntent(AddPropertyIntent.Edit(id, step)) },
+                            onChanged = onPropertyChanged,
+                            onNotFound = {
+                                propertyDetailViewModel.onIntent(PropertyDetailIntent.Close)
+                                notificationsViewModel.onIntent(NotificationsIntent.ItemGone)
+                            },
+                        )
+
+                        myPropertiesState.isOpen -> MyPropertiesScreen(
+                            state = myPropertiesState,
+                            onIntent = myPropertiesViewModel::onIntent,
+                            onOpenProperty = { propertyDetailViewModel.onIntent(PropertyDetailIntent.Open(it)) },
+                            onEditDraft = { addPropertyViewModel.onIntent(AddPropertyIntent.ResumeDraft(it)) },
+                            onAddProperty = {
+                                locationForAddProperty.request { addPropertyViewModel.onIntent(AddPropertyIntent.Open) }
+                            },
+                        )
+
+                        listingDetailState.isOpen -> ListingDetailScreen(
+                            state = listingDetailState,
+                            effects = listingDetailViewModel.effect,
+                            onIntent = listingDetailViewModel::onIntent,
+                            onApplicationsChanged = {
+                                tenantHomeViewModel.onIntent(TenantHomeIntent.Refresh)
+                                myApplicationsViewModel.onIntent(MyApplicationsIntent.Refresh)
+                            },
+                        )
+
+                        myApplicationsState.isOpen -> MyApplicationsScreen(
+                            state = myApplicationsState,
+                            onIntent = myApplicationsViewModel::onIntent,
+                            onOpenListing = { listingDetailViewModel.onIntent(ListingDetailIntent.Open(it)) },
+                        )
+
+                        notificationsState.isOpen -> NotificationsScreen(
+                            state = notificationsState,
+                            onIntent = notificationsViewModel::onIntent,
+                        )
+
+                        // Tenant: active lease → dashboard placeholder; none (or lease check failed) → Explore.
+                        homeState.activeRole == UserRole.TENANT && (tenantHomeState.showExplore || (tenantHomeState.home == null && tenantHomeState.error != null)) -> {
+                            LaunchedEffect(Unit) { tenantHomeViewModel.onIntent(TenantHomeIntent.Start) }
+                            val linked = tenantHomeState.home is TenantHomeState.Linked
+                            ExploreScreen(
+                                state = exploreState,
+                                effects = exploreViewModel.effect,
+                                onIntent = exploreViewModel::onIntent,
+                                firstName = homeState.user?.fullName?.trim()?.substringBefore(' ').orEmpty(),
+                                unreadNotifications = notificationsState.unread,
+                                onOpenNotifications = { notificationsViewModel.onIntent(NotificationsIntent.Open) },
+                                onOpenListing = { listingDetailViewModel.onIntent(ListingDetailIntent.Open(it)) },
+                                pendingReviews = tenantHomeState.pendingReviews,
+                                hasApplications = tenantHomeState.hasApplications,
+                                onOpenApplications = { myApplicationsViewModel.onIntent(MyApplicationsIntent.Open) },
+                                onBack = if (linked) ({ tenantHomeViewModel.onIntent(TenantHomeIntent.CloseExplore) }) else null,
+                                menu = if (linked) emptyList() else buildList<Pair<String, () -> Unit>> {
+                                    homeState.roles.filter { it != homeState.activeRole }.forEach { role ->
+                                        add(getString(R.string.explore_switch_to, roleName(role)) to { homeViewModel.onIntent(HomeIntent.SwitchRole(role)) })
+                                    }
+                                    add(getString(R.string.explore_sign_out) to { homeViewModel.onIntent(HomeIntent.SignOut) })
+                                },
+                            )
+                            LaunchPermissionsHost(launchPermissionsViewModel)
+                            LifecycleResumeEffect(Unit) {
+                                homeViewModel.onIntent(HomeIntent.Visible)
+                                notificationsViewModel.onIntent(NotificationsIntent.RefreshBadge)
+                                onPauseOrDispose { }
+                            }
+                        }
+
+                        homeState.activeRole == UserRole.TENANT && tenantHomeState.home == null -> {
+                            LaunchedEffect(Unit) { tenantHomeViewModel.onIntent(TenantHomeIntent.Start) }
+                            LoadingScreen()
+                        }
+
+                        else -> {
+                            HomeScreen(
+                                state = homeState,
+                                onIntent = homeViewModel::onIntent,
+                                onAddProperty = {
+                                    locationForAddProperty.request { addPropertyViewModel.onIntent(AddPropertyIntent.Open) }
+                                },
+                                onOpenProperties = { myPropertiesViewModel.onIntent(MyPropertiesIntent.Open(it)) },
+                                unreadNotifications = notificationsState.unread,
+                                onOpenNotifications = { notificationsViewModel.onIntent(NotificationsIntent.Open) },
+                                tenantLease = (tenantHomeState.home as? TenantHomeState.Linked)?.lease
+                                    ?.takeIf { homeState.activeRole == UserRole.TENANT },
+                                onExploreHomes = { tenantHomeViewModel.onIntent(TenantHomeIntent.OpenExplore) },
+                            )
+                            // Signed in + active: our popups for location, then notifications (one at a time).
+                            LaunchPermissionsHost(launchPermissionsViewModel)
+                            // Every time the dashboard is shown / comes back: FCM token check (updates the server only if it changed).
+                            LifecycleResumeEffect(Unit) {
+                                homeViewModel.onIntent(HomeIntent.Visible)
+                                notificationsViewModel.onIntent(NotificationsIntent.RefreshBadge)
+                                onPauseOrDispose { }
+                            }
+                        }
+                    }
+                    // Push while the app is open (and signed in) → "Title — tap to open".
+                    if (dashboardReady) {
+                        InAppPushBanner(
+                            push = notificationsState.banner,
+                            onOpen = { notificationsViewModel.onIntent(NotificationsIntent.OpenBanner) },
+                            onDismiss = { notificationsViewModel.onIntent(NotificationsIntent.DismissBanner) },
+                            modifier = Modifier.align(Alignment.TopCenter),
+                        )
+                    }
                     }
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleNotificationIntent(intent)
+    }
+
+    /** Notification tap → remember link + id; opened once the session / dashboard is ready. */
+    private fun handleNotificationIntent(intent: Intent?) {
+        intent ?: return
+        // Deep link (https://…saferenttechnologies.com/homes/{id}, saferent://homes/{id} …):
+        // same routing as a notification link, opened once the session / dashboard is ready.
+        DeepLinks.linkOf(intent.action, intent.data?.scheme, intent.data?.host, intent.data?.encodedPath, intent.data?.encodedQuery)?.let { link ->
+            notificationsViewModel.onIntent(NotificationsIntent.FromPush(link, null))
+            intent.data = null // handled once (recreate / back doesn't reopen it)
+            return
+        }
+        val link = intent.getStringExtra(PushPayload.EXTRA_LINK)
+        val id = intent.getStringExtra(PushPayload.EXTRA_NOTIFICATION_ID)
+        if (link == null && id == null) return
+        notificationsViewModel.onIntent(NotificationsIntent.FromPush(link, id, intent.getStringExtra(PushPayload.EXTRA_TYPE)))
+        // Handled once — a later recreate must not open it again.
+        intent.removeExtra(PushPayload.EXTRA_LINK)
+        intent.removeExtra(PushPayload.EXTRA_NOTIFICATION_ID)
     }
 }
 
@@ -213,3 +441,6 @@ private fun LoadingScreen() {
         CircularProgressIndicator(color = AuthColors.Orange, strokeWidth = 3.sdp, modifier = Modifier.size(36.sdp))
     }
 }
+
+private fun android.content.Context.roleName(role: UserRole): String =
+    getString(if (role == UserRole.LANDLORD) R.string.role_landlord else R.string.role_tenant)

@@ -165,6 +165,7 @@ internal fun OtpScreen(state: AuthState, onIntent: (AuthIntent) -> Unit) {
                     loading = state.isVerifying,
                     leadingIcon = R.drawable.ic_shield_check,
                     onClick = { onIntent(AuthIntent.VerifyClicked) },
+                    shadow = false, // flat — no glow under the button
                 )
                 Spacer(Modifier.height(16.sdp))
             }

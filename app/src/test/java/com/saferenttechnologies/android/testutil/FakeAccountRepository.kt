@@ -85,4 +85,9 @@ class FakeDeviceTokenRepository(val calls: MutableList<String> = mutableListOf()
         lastSent = null
         calls += "clearToken"
     }
+
+    override suspend fun deleteToken() {
+        token = null
+        calls += "deleteToken"
+    }
 }

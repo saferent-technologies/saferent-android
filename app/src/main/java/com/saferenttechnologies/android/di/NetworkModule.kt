@@ -59,7 +59,10 @@ object NetworkModule {
                         .build(),
                 )
                 addInterceptor(
-                    HttpLoggingInterceptor().apply {
+                    // Coordinates in query strings (geo/reverse?lat=…&lng=…) are masked in the log.
+                    HttpLoggingInterceptor { line ->
+                        HttpLoggingInterceptor.Logger.DEFAULT.log(line.replace(COORDINATE_QUERY, "$1=•••"))
+                    }.apply {
                         level = HttpLoggingInterceptor.Level.HEADERS
                         // Never log credentials, even in debug.
                         redactHeader("Authorization")
@@ -82,3 +85,5 @@ object NetworkModule {
             .build()
     }
 }
+
+private val COORDINATE_QUERY = Regex("""\b(lat|lng|latitude|longitude)=[^&\s]+""")

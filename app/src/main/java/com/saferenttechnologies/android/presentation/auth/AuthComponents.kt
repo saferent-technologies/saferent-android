@@ -1,5 +1,8 @@
 package com.saferenttechnologies.android.presentation.auth
 
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -150,6 +153,9 @@ internal fun AuthPrimaryButton(
     modifier: Modifier = Modifier,
     @DrawableRes leadingIcon: Int? = null,
     @DrawableRes trailingIcon: Int? = null,
+    fontSize: TextUnit = 17.ssp,
+    /** Orange glow under the button; off on login / OTP. */
+    shadow: Boolean = true,
 ) {
     val shape = RoundedCornerShape(14.sdp)
     val active = enabled && !loading
@@ -162,7 +168,7 @@ internal fun AuthPrimaryButton(
             .fillMaxWidth()
             .height(56.sdp)
             .then(
-                if (disabled) Modifier
+                if (disabled || !shadow) Modifier
                 else Modifier.shadow(12.sdp, shape, ambientColor = AuthColors.Orange, spotColor = AuthColors.Orange),
             )
             .clip(shape)
@@ -173,12 +179,22 @@ internal fun AuthPrimaryButton(
         if (loading) {
             CircularProgressIndicator(color = Color.White, strokeWidth = 2.5.sdp, modifier = Modifier.size(24.sdp))
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Side padding so long labels ("Submit for verification") never touch the edges.
+            Row(Modifier.padding(horizontal = 16.sdp), verticalAlignment = Alignment.CenterVertically) {
                 leadingIcon?.let {
                     Icon(painterResource(it), null, tint = content, modifier = Modifier.size(20.sdp))
                     Spacer(Modifier.width(10.sdp))
                 }
-                Text(text, color = content, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 17.ssp)
+                Text(
+                    text,
+                    color = content,
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = fontSize,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
                 trailingIcon?.let {
                     Spacer(Modifier.width(10.sdp))
                     Icon(painterResource(it), null, tint = content, modifier = Modifier.size(20.sdp))

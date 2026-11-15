@@ -31,3 +31,13 @@ annotation class OnboardingPreferences
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class SessionPreferences
+
+/** Preferences DataStore "saferent_permissions" (asked-before / last popup time per permission). */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class PermissionPreferences
+
+/** Preferences DataStore "saferent_browse" (recent searches on Explore). */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class BrowsePreferences

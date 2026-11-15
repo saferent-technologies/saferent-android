@@ -89,6 +89,9 @@ class SignOutUseCase @Inject constructor(
             account.logout(deviceTokens.currentToken())
         }
         auth.signOut()
+        // After the server call (it needed the token) and after Firebase sign-out (so a new token
+        // isn't sent for the old user): the next user on this phone gets a fresh token.
+        deviceTokens.deleteToken()
         deviceTokens.clearLastSentToken()
         session.clearLoginConsent()
         sessionEvents.emit(SessionEvent.SignedOut)

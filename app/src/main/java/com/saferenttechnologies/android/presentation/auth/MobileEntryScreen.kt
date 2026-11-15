@@ -163,6 +163,7 @@ internal fun MobileEntryScreen(state: AuthState, onIntent: (AuthIntent) -> Unit)
                     loading = state.isSendingOtp,
                     trailingIcon = R.drawable.ic_arrow_forward,
                     onClick = { onIntent(AuthIntent.ContinueClicked) },
+                    shadow = false, // flat — no glow under the button
                 )
                 Spacer(Modifier.height(16.sdp))
             }

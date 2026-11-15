@@ -36,4 +36,7 @@ interface DeviceTokenRepository {
     suspend fun lastSentToken(): String?
     suspend fun saveLastSentToken(token: String)
     suspend fun clearLastSentToken()
+
+    /** FirebaseMessaging.deleteToken() — the next user on this phone gets a fresh token (never throws). */
+    suspend fun deleteToken()
 }

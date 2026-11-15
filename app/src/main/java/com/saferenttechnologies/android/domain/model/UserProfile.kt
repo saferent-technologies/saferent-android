@@ -55,7 +55,24 @@ data class SimpleDate(val year: Int, val month: Int, val day: Int) : Comparable<
     /** "YYYY-MM-DD" */
     fun iso(): String = String.format(java.util.Locale.US, "%04d-%02d-%02d", year, month, day)
 
+    /** Next calendar day. */
+    fun plusDays(n: Int): SimpleDate {
+        val c = java.util.Calendar.getInstance().apply { clear(); set(year, month - 1, day); add(java.util.Calendar.DAY_OF_MONTH, n) }
+        return SimpleDate(c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH))
+    }
+
     companion object {
+        /** Today on this phone. */
+        fun today(): SimpleDate {
+            val c = java.util.Calendar.getInstance()
+            return SimpleDate(c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH))
+        }
+
+        fun fromMillis(millis: Long): SimpleDate {
+            val c = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply { timeInMillis = millis }
+            return SimpleDate(c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH))
+        }
+
         private val ISO = Regex("""^(\d{4})-(\d{2})-(\d{2})$""")
 
         /** Parses "YYYY-MM-DD"; null when malformed or not a real date. */
