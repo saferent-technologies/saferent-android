@@ -33,7 +33,7 @@ enum class LocationNote { LOW_ACCURACY, NO_FIX, LOOKUP_UNAVAILABLE }
 /** Banner texts that come from strings.xml (server messages are shown as they are). */
 enum class AddPropertyMessage {
     NETWORK_OR_SERVER, VERSION_CONFLICT, MAX_PHOTOS, UNITS_LIMIT, PHOTO_REQUIRED, UNIT_REQUIRED, PIN_INVALID,
-    REQUIRED_PHOTOS_MISSING, WAIT_FOR_UPLOADS, CHANGES_LOCKED,
+    REQUIRED_PHOTOS_MISSING, WAIT_FOR_UPLOADS, CHANGES_LOCKED, UNIT_OCCUPIED,
 }
 
 /** Add / edit one flat (units) or room (PG). */
@@ -184,7 +184,8 @@ data class AddPropertyState(
 sealed interface AddPropertyIntent : UiIntent {
     data object Open : AddPropertyIntent
     /** Edit an existing property (from its detail screen) at [step]. */
-    data class Edit(val propertyId: String, val step: Int) : AddPropertyIntent
+    /** [newUnit] = open on the Units step with a blank "add flat" editor (property screen → Add flat). */
+    data class Edit(val propertyId: String, val step: Int, val newUnit: Boolean = false) : AddPropertyIntent
     /** Draft card "Edit" → open the wizard where the landlord left it (property.wizardStep). */
     data class ResumeDraft(val propertyId: String) : AddPropertyIntent
     data class ContinueDraft(val id: String) : AddPropertyIntent

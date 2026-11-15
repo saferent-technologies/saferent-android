@@ -31,19 +31,26 @@ sealed interface NavRoute {
     data class ListingDetail(val listingId: String, val unitId: String? = null) : NavRoute
     data object Explore : NavRoute
     data class LeaseDetail(val leaseId: String) : NavRoute
+    data object Leases : NavRoute
     /** Tenant: my applications; landlord: applications of their properties. */
     data object Applications : NavRoute
     data class Invitation(val token: String) : NavRoute
     data object Rent : NavRoute
     data object OwnerVerification : NavRoute
     data object Reviews : NavRoute
+    data object Wallet : NavRoute
+    data object Maintenance : NavRoute
+    data class SupportTicket(val ticketId: String?) : NavRoute
+    data object Referrals : NavRoute
+    data object MyDocuments : NavRoute
     data object Notifications : NavRoute
     data object Home : NavRoute
 
     /** Has a screen in the app today. */
     val available: Boolean
         get() = this is PropertyDetail || this is ListingDetail || this == MyProperties || this == Explore ||
-            this == Applications || this == Notifications || this == Home
+            this == Applications || this == Notifications || this == Home || this is Invitation ||
+            this is LeaseDetail || this == Leases
 }
 
 /**
@@ -77,9 +84,17 @@ object DeepLinkRouter {
         }
     }
 
+    /** Notification links: unknown path → Notifications list. */
     fun route(link: String?): NavRoute {
         val raw = link?.trim().orEmpty()
         if (raw.isEmpty()) return NavRoute.Notifications
+        return routeOrNull(raw) ?: NavRoute.Notifications
+    }
+
+    /** Web / app links: unknown path → null (just open the app home). */
+    fun routeOrNull(link: String?): NavRoute? {
+        val raw = link?.trim().orEmpty()
+        if (raw.isEmpty()) return null
         // Accept full URLs too: keep only the path + query.
         val noScheme = if (raw.contains("://")) "/" + raw.substringAfter("://").substringAfter('/', "") else raw
         val path = noScheme.substringBefore('?').substringBefore('#').trim('/')
@@ -95,15 +110,20 @@ object DeepLinkRouter {
                 second?.let { NavRoute.PropertyDetail(it, query["tab"] ?: third?.lowercase()) } ?: NavRoute.MyProperties
             "browse", "homes", "listings" -> second?.let { NavRoute.ListingDetail(it, query["unitId"]) } ?: NavRoute.Explore
             "explore" -> NavRoute.Explore
-            "leases", "lease" -> second?.let { NavRoute.LeaseDetail(it) } ?: NavRoute.Notifications
+            "leases", "lease" -> second?.let { NavRoute.LeaseDetail(it) } ?: NavRoute.Leases
             "applications" -> query["propertyId"]?.let { NavRoute.PropertyDetail(it, "applications") } ?: NavRoute.Applications
-            "invite", "invitations" -> second?.let { NavRoute.Invitation(it) } ?: NavRoute.Notifications
+            "invite", "invitations" -> second?.let { NavRoute.Invitation(it) }
             "rent", "payments" -> NavRoute.Rent
             "verify", "kyc" -> NavRoute.OwnerVerification
             "reviews" -> NavRoute.Reviews
+            "wallet" -> NavRoute.Wallet
+            "maintenance" -> NavRoute.Maintenance
+            "support" -> NavRoute.SupportTicket(second)
+            "referrals" -> NavRoute.Referrals
+            "my-documents" -> NavRoute.MyDocuments
             "notifications" -> NavRoute.Notifications
             "dashboard", "home" -> NavRoute.Home
-            else -> NavRoute.Notifications
+            else -> null
         }
     }
 }
@@ -136,8 +156,15 @@ sealed interface RelativeTime {
 
 /** Incoming VIEW intents → an app link for [DeepLinkRouter] (pure, unit-tested). */
 object DeepLinks {
-    val WEB_HOSTS = setOf("saferenttechnologies.com", "www.saferenttechnologies.com", "dev.saferenttechnologies.com")
+    val WEB_HOSTS = setOf("saferenttechnologies.com", "dev.saferenttechnologies.com", "app.saferenttechnologies.com")
     const val APP_SCHEME = "saferent"
+
+    /** A link opened by someone of the wrong role can't open its screen (→ "isn't available for your account"). */
+    fun allowedFor(route: NavRoute, isTenant: Boolean): Boolean = when (route) {
+        is NavRoute.PropertyDetail, NavRoute.MyProperties, NavRoute.OwnerVerification -> !isTenant
+        NavRoute.Explore, is NavRoute.Invitation -> isTenant
+        else -> true
+    }
 
     /**
      * https://dev.saferenttechnologies.com/homes/abc?unitId=u1 → "/homes/abc?unitId=u1";

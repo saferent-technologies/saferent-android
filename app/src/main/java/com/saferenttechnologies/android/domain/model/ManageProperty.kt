@@ -61,6 +61,8 @@ enum class PropertyFilter(val publicationStatus: String? = null, val activeStatu
     DRAFTS(publicationStatus = "DRAFT"),
     INACTIVE(activeStatus = "INACTIVE"),
     ARCHIVED(activeStatus = "ARCHIVED"),
+    /** Properties with at least one available flat / bed (dashboard "Available units"). */
+    AVAILABLE_UNITS,
 }
 
 data class PropertyListItem(
@@ -126,6 +128,9 @@ data class Lease(
     /** Null for ended leases (no contact details). */
     val tenantPhone: String? = null,
     val exitDate: String? = null,
+    /** Set on the all-properties list (GET leases without propertyId). */
+    val propertyId: String = "",
+    val propertyTitle: String = "",
 )
 
 data class Invitation(
@@ -254,8 +259,10 @@ object PropertyActions {
         }
     }
 
+    /** A property with tenants living in it can't be archived (deleted) — end the leases first. */
     fun allowed(property: Property, can: PropertyPermissions, revision: PropertyRevision? = null) =
         allowed(property.publicationStatus, property.activeStatus, can.manage, revision?.status)
+            .let { if (property.hasTenants) it - PropertyAction.ARCHIVE else it }
 
     /** Change-request buttons come from the server's can flags. */
     fun canSubmitChanges(detail: PropertyDetail) = detail.pendingRevision?.open == true && detail.can.submitRevision

@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.manage
 
+import com.saferenttechnologies.android.domain.model.UnitPricing
+import com.saferenttechnologies.android.domain.model.LeaseSummary
 import com.saferenttechnologies.android.domain.model.PropertyRevision
 import com.saferenttechnologies.android.core.mvi.UiEffect
 import com.saferenttechnologies.android.core.mvi.UiIntent
@@ -18,16 +20,19 @@ enum class DetailTab {
     OVERVIEW, UNITS, TENANTS, INVITATIONS, APPLICATIONS, PHOTOS, DOCUMENTS, HISTORY;
 
     companion object {
-        /** Tabs shown on the property screen (photos are managed in the edit wizard; no history tab). */
-        val VISIBLE: List<DetailTab> get() = entries.filter { it != PHOTOS && it != HISTORY }
+        /**
+         * Tabs on the property screen, in this order: flats / units first, overview last. No tenants tab
+         * (each flat's sheet shows its tenant + lease), photos live in the edit wizard, no history.
+         */
+        val VISIBLE: List<DetailTab> get() = listOf(UNITS, INVITATIONS, APPLICATIONS, DOCUMENTS, OVERVIEW)
 
-        /** "?tab=documents" → DOCUMENTS ("rooms" / "beds" → UNITS); unknown → OVERVIEW. */
+        /** "?tab=documents" → DOCUMENTS ("rooms" / "beds" / "tenants" → UNITS); no tab (status news) → OVERVIEW; unknown → UNITS. */
         fun fromLink(tab: String?): DetailTab {
             val key = tab?.trim()?.lowercase().orEmpty()
             return when (key) {
                 "" -> OVERVIEW
-                "rooms", "beds" -> UNITS
-                else -> VISIBLE.firstOrNull { it.name.equals(key, ignoreCase = true) } ?: OVERVIEW
+                "rooms", "beds", "flats", "tenants" -> UNITS
+                else -> VISIBLE.firstOrNull { it.name.equals(key, ignoreCase = true) } ?: UNITS
             }
         }
     }
@@ -69,7 +74,7 @@ data class PropertyDetailState(
     val loading: Boolean = false,
     val busy: Boolean = false,
     val error: String? = null,
-    val tab: DetailTab = DetailTab.OVERVIEW,
+    val tab: DetailTab = DetailTab.UNITS,
     /** Action waiting for the confirm dialog. */
     val confirm: PropertyAction? = null,
     /** Submit 412 → checklist (problem, wizard step). */
@@ -81,6 +86,13 @@ data class PropertyDetailState(
     val invitationStatus: String = "PENDING",
     /** Always the PENDING invitations (any tab filter) → hides "Invite tenant" on flats / beds already invited. */
     val pendingInvites: List<Invitation> = emptyList(),
+    /** Active leases whose tenant asked to close → "Close requested" chip (GET leases/{id}/exit). */
+    val closeRequested: Set<String> = emptySet(),
+    /** Flat sheet open for this unit id. */
+    val openUnitId: String? = null,
+    /** Current tenants (any tab) → who lives in which flat. */
+    val activeLeases: List<Lease> = emptyList(),
+    val activeLeasesLoading: Boolean = false,
     val inviteForm: InviteForm? = null,
     val applications: List<RentalApplication> = emptyList(),
     val decision: DecisionForm? = null,
@@ -101,6 +113,11 @@ data class PropertyDetailState(
     val actions: List<PropertyAction>
         get() = detail?.let { PropertyActions.allowed(it.property, it.can, it.pendingRevision) }.orEmpty()
     val canManage: Boolean get() = detail?.can?.manage == true
+    /** Apartment / independent building / commercial complex / villa community: flats with their own rent + photos. */
+    val isUnitPriced: Boolean
+        get() = detail?.property?.let { UnitPricing.isUnitPriced(it.propertyType, it.building["villaListing"]) } == true
+    /** "Flat" / "Portion" / "Shop" / "Villa" / "Unit". */
+    val unitWord: String get() = UnitPricing.unitWord(detail?.property?.propertyType, null, detail?.property?.structure)
     /** Editing is off while SafeRent reviews (listing or its changes), or when suspended / archived. */
     val canEdit: Boolean get() = PropertyAction.EDIT in actions && (detail?.let(PropertyActions::canEditChanges) ?: false)
     /** Edit button reads "Continue changes" while a change is open. */
@@ -109,7 +126,7 @@ data class PropertyDetailState(
 
 sealed interface PropertyDetailIntent : UiIntent {
     /** [tab] from a notification link (?tab=documents). */
-    data class Open(val propertyId: String, val tab: DetailTab = DetailTab.OVERVIEW) : PropertyDetailIntent
+    data class Open(val propertyId: String, val tab: DetailTab = DetailTab.UNITS) : PropertyDetailIntent
     data object Close : PropertyDetailIntent
     data object Refresh : PropertyDetailIntent
     data class SelectTab(val tab: DetailTab) : PropertyDetailIntent
@@ -140,6 +157,12 @@ sealed interface PropertyDetailIntent : UiIntent {
     data class InvitationFilter(val status: String) : PropertyDetailIntent
     data class RenewLink(val invitationId: String) : PropertyDetailIntent
     data class Revoke(val invitationId: String) : PropertyDetailIntent
+    data class OpenLease(val lease: Lease) : PropertyDetailIntent
+    /** Flat card → flat sheet (photos, tenant, lease). */
+    data class OpenUnit(val unitId: String) : PropertyDetailIntent
+    data object CloseUnit : PropertyDetailIntent
+    /** "Add flat" → wizard on the Units step with a new flat. */
+    data object AddUnit : PropertyDetailIntent
 
     data class StartDecision(val application: RentalApplication, val approve: Boolean) : PropertyDetailIntent
     data class DecisionChanged(val form: DecisionForm) : PropertyDetailIntent
@@ -162,7 +185,7 @@ sealed interface PropertyDetailEffect : UiEffect {
     data class Message(val text: String) : PropertyDetailEffect
     data class Share(val text: String, val url: String) : PropertyDetailEffect
     /** Open the add wizard on this property at [step]. */
-    data class OpenEditor(val propertyId: String, val step: Int) : PropertyDetailEffect
+    data class OpenEditor(val propertyId: String, val step: Int, val newUnit: Boolean = false) : PropertyDetailEffect
     data class Dial(val phone: String) : PropertyDetailEffect
     data class WhatsApp(val phone: String) : PropertyDetailEffect
     data class ContactSupport(val email: String) : PropertyDetailEffect
@@ -171,4 +194,7 @@ sealed interface PropertyDetailEffect : UiEffect {
 
     /** 404 — the property is gone (opened from an old notification). */
     data object NotFound : PropertyDetailEffect
+
+    /** Tenant card tapped → lease screen (close requests). */
+    data class OpenLease(val leaseId: String, val preview: LeaseSummary) : PropertyDetailEffect
 }

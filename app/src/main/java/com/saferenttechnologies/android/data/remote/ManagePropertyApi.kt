@@ -62,7 +62,7 @@ interface ManagePropertyApi {
     ): Response<ApiEnvelope<JsonElement>>
 
     @GET("api/v1/leases")
-    suspend fun leases(@Query("propertyId") propertyId: String, @Query("status") status: String, @Query("page") page: Int): Response<ApiEnvelope<JsonElement>>
+    suspend fun leases(@Query("propertyId") propertyId: String?, @Query("status") status: String, @Query("page") page: Int): Response<ApiEnvelope<JsonElement>>
 
     @GET("api/v1/invitations")
     suspend fun invitations(@Query("propertyId") propertyId: String, @Query("status") status: String): Response<ApiEnvelope<JsonElement>>

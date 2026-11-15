@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.property
 
+import com.saferenttechnologies.android.domain.model.isFullyOccupied
+import com.saferenttechnologies.android.domain.model.isOccupied
 import com.saferenttechnologies.android.domain.model.ApartmentRules
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.items
@@ -187,22 +189,29 @@ fun OutlineAction(text: String, icon: Int? = null, enabled: Boolean = true, modi
 }
 
 @Composable
-private fun ListRow(title: String, subtitle: String?, onClick: () -> Unit, trailing: @Composable () -> Unit = {}) {
+private fun ListRow(title: String, subtitle: String?, onClick: () -> Unit, locked: Boolean = false, trailing: @Composable () -> Unit = {}) {
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.sdp))
-            .background(AuthColors.Field)
+            .background(if (locked) AuthColors.Surface else AuthColors.Field)
             .border(1.sdp, AuthColors.Border, RoundedCornerShape(12.sdp))
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(enabled = !locked, role = Role.Button, onClick = onClick)
             .padding(horizontal = 14.sdp, vertical = 12.sdp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 15.ssp)
             subtitle?.takeIf { it.isNotBlank() }?.let { Text(it, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp) }
+            if (locked) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.sdp)) {
+                    Icon(painterResource(R.drawable.ic_lock), null, tint = AuthColors.Muted, modifier = Modifier.size(12.sdp))
+                    Spacer(Modifier.width(4.sdp))
+                    Text(stringResource(R.string.add_property_occupied_locked), color = AuthColors.Muted, fontFamily = Inter, fontSize = 11.ssp)
+                }
+            }
         }
-        trailing()
+        if (locked) Icon(painterResource(R.drawable.ic_lock), null, tint = AuthColors.Muted, modifier = Modifier.size(18.sdp)) else trailing()
     }
 }
 
@@ -428,6 +437,7 @@ fun UnitsStep(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
                         else stringResource(R.string.units_per_bed, com.saferenttechnologies.android.domain.model.Money.inr(room.values["rentPerBed"])),
                     ).joinToString(" · "),
                     onClick = { onIntent(AddPropertyIntent.EditRoom(room.id)) },
+                    locked = room.isFullyOccupied,
                 ) {
                     IconButtonSmall(R.drawable.ic_camera, stringResource(R.string.apartment_flat_amenities_photos)) { onIntent(AddPropertyIntent.OpenRoomPanel(room.id)) }
                     IconButtonSmall(R.drawable.ic_add, stringResource(R.string.add_property_add_bed)) { onIntent(AddPropertyIntent.StartBed(room.id)) }
@@ -447,6 +457,7 @@ fun UnitsStep(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
                     title = "$unitLabel ${unit.unitNumber}".trim(),
                     subtitle = if (state.isUnitPriced) flatSubtitle(unit, state.listingType, unit.id in noPrice) else unit.values["bhkType"],
                     onClick = { onIntent(AddPropertyIntent.EditUnit(unit.id)) },
+                    locked = unit.isOccupied,
                 ) {
                     if (state.isUnitPriced) {
                         IconButtonSmall(R.drawable.ic_camera, stringResource(R.string.apartment_flat_amenities_photos)) { onIntent(AddPropertyIntent.OpenFlatPanel(unit.id)) }

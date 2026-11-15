@@ -19,6 +19,7 @@ import com.saferenttechnologies.android.domain.usecase.MarkAllNotificationsReadU
 import com.saferenttechnologies.android.domain.usecase.MarkNotificationReadUseCase
 import com.saferenttechnologies.android.domain.usecase.NotificationEvents
 import com.saferenttechnologies.android.domain.usecase.RefreshUnreadCountUseCase
+import androidx.lifecycle.SavedStateHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -43,6 +44,8 @@ data class NotificationsState(
     val pendingLink: String? = null,
     val pendingId: String? = null,
     val pendingType: String? = null,
+    /** The pending link came from outside (App Link / saferent://): Back → home, not Notifications. */
+    val pendingExternal: Boolean = false,
 ) : UiState {
     val hasMore: Boolean get() = page < totalPages
     val hasPending: Boolean get() = pendingLink != null || pendingId != null
@@ -61,7 +64,10 @@ sealed interface NotificationsIntent : UiIntent {
     /** A notification was tapped in the system tray (intent extras). */
     data class FromPush(val link: String?, val notificationId: String?, val type: String? = null) : NotificationsIntent
 
-    /** Session + dashboard ready → open what [FromPush] remembered. */
+    /** An https App Link / saferent:// link opened the app (already reduced to "/path?query"). */
+    data class FromLink(val link: String) : NotificationsIntent
+
+    /** Session + dashboard ready → open what [FromPush] / [FromLink] remembered. */
     data object ConsumePending : NotificationsIntent
     data object OpenBanner : NotificationsIntent
     data object DismissBanner : NotificationsIntent
@@ -72,7 +78,11 @@ sealed interface NotificationsIntent : UiIntent {
 }
 
 sealed interface NotificationsEffect : UiEffect {
-    data class Navigate(val route: NavRoute) : NotificationsEffect
+    /** [fromLink] = opened by an outside link (role check + Back goes home). */
+    data class Navigate(val route: NavRoute, val fromLink: Boolean = false) : NotificationsEffect
+
+    /** Outside link that can't open a screen: [notInApp] = screen not built yet, else not for this account. */
+    data class LinkUnavailable(val notInApp: Boolean) : NotificationsEffect
 }
 
 @HiltViewModel
@@ -84,11 +94,14 @@ class NotificationsViewModel @Inject constructor(
     private val events: NotificationEvents,
     private val logger: AppLogger,
     sessionEvents: SessionEvents,
+    /** Keeps a link opened before login across process death (OTP screen in the background etc.). */
+    private val saved: SavedStateHandle = SavedStateHandle(),
 ) : MviViewModel<NotificationsState, NotificationsIntent, NotificationsEffect>(NotificationsState()) {
 
     private var loadJob: Job? = null
 
     init {
+        saved.get<String>(KEY_LINK)?.let { link -> setState { copy(pendingLink = link, pendingExternal = true) } }
         viewModelScope.launch { events.unread.collect { n -> setState { copy(unread = n) } } }
         viewModelScope.launch {
             events.pushes.collect { push ->
@@ -132,11 +145,19 @@ class NotificationsViewModel @Inject constructor(
                 logger.d(TAG, "opened from a notification (hasLink=${!intent.link.isNullOrBlank()})")
                 setState { copy(pendingLink = intent.link.orEmpty(), pendingId = intent.notificationId?.takeIf { it.isNotBlank() }, pendingType = intent.type) }
             }
+            is NotificationsIntent.FromLink -> {
+                logger.d(TAG, "opened from an app link")
+                saved[KEY_LINK] = intent.link
+                setState { copy(pendingLink = intent.link, pendingId = null, pendingType = null, pendingExternal = true) }
+            }
             NotificationsIntent.ConsumePending -> {
                 val link = currentState.pendingLink ?: return
                 val id = currentState.pendingId
                 val type = currentState.pendingType
-                setState { copy(pendingLink = null, pendingId = null, pendingType = null) }
+                val external = currentState.pendingExternal
+                saved.remove<String>(KEY_LINK)
+                setState { copy(pendingLink = null, pendingId = null, pendingType = null, pendingExternal = false) }
+                if (external) return openExternal(link)
                 // Fire and forget: POST notifications/read, then the real badge count.
                 if (id != null) viewModelScope.launch {
                     markRead(id, wasUnread = false)
@@ -212,6 +233,18 @@ class NotificationsViewModel @Inject constructor(
         }
     }
 
+    /** App Link: open the screen straight over home (Back → home); unknown path → just home. */
+    private fun openExternal(link: String) {
+        val route = DeepLinkRouter.routeOrNull(link) ?: return
+        logger.d(TAG, "app link → ${route::class.simpleName}")
+        when {
+            route == NavRoute.Home -> Unit
+            route == NavRoute.Notifications -> onIntent(NotificationsIntent.Open)
+            route.available -> sendEffect(NotificationsEffect.Navigate(route, fromLink = true))
+            else -> sendEffect(NotificationsEffect.LinkUnavailable(notInApp = true))
+        }
+    }
+
     /** Opens what the notification is about (screens the app has), else stays here with a note. */
     private fun open(link: String, hint: String? = null) {
         val route = DeepLinkRouter.route(link, hint)
@@ -238,6 +271,7 @@ class NotificationsViewModel @Inject constructor(
     companion object {
         const val MESSAGE_NOT_AVAILABLE = "@not_available"
         const val MESSAGE_GONE = "@gone"
+        private const val KEY_LINK = "pending_app_link"
         private const val READ_NOW = "now"
         private const val TAG = "SR-Push"
     }

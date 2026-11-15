@@ -1,5 +1,9 @@
 package com.saferenttechnologies.android.presentation.notifications
 
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
+import com.saferenttechnologies.android.presentation.common.ListSkeleton
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -128,8 +132,7 @@ fun NotificationsScreen(state: NotificationsState, onIntent: (NotificationsInten
                 modifier = Modifier.fillMaxWidth().weight(1f),
             ) {
                 when {
-                    state.items.isEmpty() && state.loading ->
-                        CircularProgressIndicator(color = AuthColors.Orange, modifier = Modifier.align(Alignment.Center))
+                    state.items.isEmpty() && state.loading -> ListSkeleton(rows = 6, thumbnail = 40.sdp, roundThumb = true)
                     state.items.isEmpty() && state.error != null -> Column(
                         Modifier.align(Alignment.Center).padding(24.sdp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -167,7 +170,13 @@ private fun NotificationList(state: NotificationsState, onIntent: (Notifications
     val now = System.currentTimeMillis()
     val startOfToday = remember(now / 60_000) { startOfDay(now) }
     val (today, earlier) = state.items.partition { (it.createdAtMillis ?: 0) >= startOfToday }
-    LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.sdp), modifier = Modifier.fillMaxSize()) {
+    // Same frame as the loading shimmer: 16dp sides, separate cards 10dp apart.
+    LazyColumn(
+        state = listState,
+        contentPadding = PaddingValues(start = 16.sdp, end = 16.sdp, bottom = 24.sdp),
+        verticalArrangement = Arrangement.spacedBy(10.sdp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
         if (today.isNotEmpty()) {
             item(key = "h-today") { GroupHeader(stringResource(R.string.notifications_today)) }
             items(today, key = { it.id }) { NotificationRow(it, now, startOfToday) { onIntent(NotificationsIntent.Tap(it)) } }
@@ -194,21 +203,35 @@ private fun GroupHeader(text: String) {
         fontFamily = Inter,
         fontWeight = FontWeight.Medium,
         fontSize = 12.ssp,
-        modifier = Modifier.padding(start = 20.sdp, end = 20.sdp, top = 14.sdp, bottom = 4.sdp),
+        modifier = Modifier.padding(start = 4.sdp, top = 10.sdp),
     )
 }
 
 @Composable
 private fun NotificationRow(n: AppNotification, now: Long, startOfToday: Long, onClick: () -> Unit) {
+    // One card per notification (unread: soft orange tint + orange edge + dot on the icon).
+    val shape = RoundedCornerShape(14.sdp)
     Row(
         Modifier
             .fillMaxWidth()
+            .clip(shape)
+            .background(if (n.isUnread) AuthColors.OrangeSoft.copy(alpha = 0.35f) else AuthColors.Card)
+            .border(1.sdp, if (n.isUnread) AuthColors.Orange.copy(alpha = 0.35f) else AuthColors.Border, shape)
             .clickable(role = Role.Button, onClick = onClick)
-            .background(if (n.isUnread) AuthColors.OrangeSoft.copy(alpha = 0.35f) else Color.Transparent)
-            .padding(horizontal = 16.sdp, vertical = 12.sdp),
+            .padding(12.sdp),
     ) {
-        Box(Modifier.padding(top = 6.sdp).size(8.sdp).clip(CircleShape).background(if (n.isUnread) AuthColors.Orange else Color.Transparent))
-        Spacer(Modifier.width(10.sdp))
+        Box(Modifier.size(40.sdp)) {
+            Box(
+                Modifier.fillMaxSize().clip(CircleShape).background(if (n.isUnread) AuthColors.OrangeSoft else AuthColors.Surface),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(R.drawable.ic_notifications), null, tint = if (n.isUnread) AuthColors.OrangeText else AuthColors.Muted, modifier = Modifier.size(20.sdp))
+            }
+            if (n.isUnread) {
+                Box(Modifier.align(Alignment.TopEnd).size(10.sdp).clip(CircleShape).background(AuthColors.Orange).border(1.5.sdp, AuthColors.Card, CircleShape))
+            }
+        }
+        Spacer(Modifier.width(12.sdp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.Top) {
                 Text(
@@ -273,19 +296,34 @@ fun BellWithBadge(unread: Int, onClick: () -> Unit, modifier: Modifier = Modifie
             Icon(painterResource(R.drawable.ic_notifications), stringResource(R.string.notifications_title), tint = AuthColors.Ink, modifier = Modifier.size(22.sdp))
         }
         if (unread > 0) {
+            val text = badgeText(unread)
+            // 1–9 → a true circle (fixed 20×20); "9+" → a pill of the same height.
+            val shape = if (text.length == 1) CircleShape else RoundedCornerShape(50)
             Box(
                 Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 2.sdp, y = (-2).sdp)
-                    .heightIn(min = 18.sdp)
-                    .widthIn(min = 18.sdp)
-                    .clip(RoundedCornerShape(50))
+                    .offset(x = 3.sdp, y = (-3).sdp)
+                    .then(if (text.length == 1) Modifier.size(20.sdp) else Modifier.height(20.sdp).widthIn(min = 26.sdp))
+                    .clip(shape)
                     .background(AuthColors.Error)
-                    .border(1.5.sdp, AuthColors.Background, RoundedCornerShape(50))
-                    .padding(horizontal = 4.sdp),
+                    .border(1.5.sdp, AuthColors.Background, shape)
+                    .padding(horizontal = if (text.length == 1) 0.sdp else 5.sdp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(badgeText(unread), color = Color.White, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 10.ssp)
+                Text(
+                    text,
+                    color = Color.White,
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.ssp,
+                    textAlign = TextAlign.Center,
+                    // No font padding → the digit sits in the exact centre of the circle.
+                    style = TextStyle(
+                        platformStyle = PlatformTextStyle(includeFontPadding = false),
+                        lineHeight = 10.ssp,
+                        lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+                    ),
+                )
             }
         }
     }

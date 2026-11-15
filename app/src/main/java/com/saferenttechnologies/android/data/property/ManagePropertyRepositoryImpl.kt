@@ -81,9 +81,10 @@ class ManagePropertyRepositoryImpl @Inject constructor(
             filter.publicationStatus?.let { put("publicationStatus", it) }
             filter.activeStatus?.let { put("activeStatus", it) }
             if (filter == PropertyFilter.ARCHIVED) put("includeArchived", "true")
+            if (filter == PropertyFilter.AVAILABLE_UNITS) put("hasAvailableUnits", "true")
             query.trim().takeIf { it.isNotEmpty() }?.let { put("q", it) }
         }
-        return call("GET properties (list)", { api.list(params) }) { data, meta ->
+        val result = call("GET properties (list)", { api.list(params) }) { data, meta ->
             toPage(data, meta, page) { o ->
                 PropertyListItem(
                     id = o.text("id"),
@@ -107,6 +108,12 @@ class ManagePropertyRepositoryImpl @Inject constructor(
                     changesStatus = RevisionStatus.of(o.text("changesStatus")),
                 )
             }
+        }
+        // Until the server filters by hasAvailableUnits, drop properties without a free flat / bed here.
+        return if (filter == PropertyFilter.AVAILABLE_UNITS && result is AppResult.Success) {
+            AppResult.Success(result.data.copy(items = result.data.items.filter { it.availableCount > 0 }))
+        } else {
+            result
         }
     }
 
@@ -172,11 +179,16 @@ class ManagePropertyRepositoryImpl @Inject constructor(
             })
         }) { _, message -> ActionResult(message) }
 
-    override suspend fun leases(propertyId: String, active: Boolean): AppResult<List<Lease>> =
+    override suspend fun leases(propertyId: String, active: Boolean): AppResult<List<Lease>> = leaseList(propertyId, active)
+
+    override suspend fun allLeases(active: Boolean): AppResult<List<Lease>> = leaseList(null, active)
+
+    private suspend fun leaseList(propertyId: String?, active: Boolean): AppResult<List<Lease>> =
         call("GET leases", { api.leases(propertyId, if (active) "ACTIVE" else "ENDED", 1) }) { data, _ ->
             data.arrayAt("items", "leases").mapNotNull { e ->
                 val o = e as? JsonObject ?: return@mapNotNull null
                 val tenant = o["tenant"] as? JsonObject
+                val property = o["property"] as? JsonObject
                 val exit = o["exit"] as? JsonObject
                 Lease(
                     id = o.text("id"),
@@ -193,6 +205,8 @@ class ManagePropertyRepositoryImpl @Inject constructor(
                     tenantName = tenant?.text("fullName").orEmpty(),
                     tenantPhone = tenant?.text("phoneNumber")?.ifBlank { null },
                     exitDate = exit?.let { x -> x.text("moveOutDate").ifBlank { x.text("requestedAt").ifBlank { x.text("date") } } },
+                    propertyId = o.text("propertyId").ifBlank { property?.text("id").orEmpty() },
+                    propertyTitle = property?.text("title").orEmpty(),
                 )
             }
         }

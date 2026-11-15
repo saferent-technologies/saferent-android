@@ -1,5 +1,23 @@
 package com.saferenttechnologies.android
 
+import com.saferenttechnologies.android.presentation.rent.TransactionsViewModel
+import com.saferenttechnologies.android.presentation.rent.TransactionsScreen
+import com.saferenttechnologies.android.presentation.rent.TransactionsIntent
+import com.saferenttechnologies.android.presentation.rent.RentViewModel
+import com.saferenttechnologies.android.presentation.rent.RentScreen
+import com.saferenttechnologies.android.presentation.rent.RentIntent
+import com.saferenttechnologies.android.domain.model.LeaseSummary
+import com.saferenttechnologies.android.presentation.manage.TenantsViewModel
+import com.saferenttechnologies.android.presentation.manage.TenantsScreen
+import com.saferenttechnologies.android.presentation.manage.TenantsIntent
+import com.saferenttechnologies.android.presentation.common.HomeSkeleton
+import com.saferenttechnologies.android.domain.model.toSummary
+import com.saferenttechnologies.android.presentation.lease.LeaseDetailViewModel
+import com.saferenttechnologies.android.presentation.lease.LeaseDetailScreen
+import com.saferenttechnologies.android.presentation.lease.LeaseDetailIntent
+import com.saferenttechnologies.android.presentation.invitation.InvitationIntent
+import com.saferenttechnologies.android.presentation.invitation.InvitationScreen
+import com.saferenttechnologies.android.presentation.invitation.InvitationViewModel
 import com.saferenttechnologies.android.domain.model.DeepLinks
 import com.saferenttechnologies.android.domain.model.PropertyFilter
 import com.saferenttechnologies.android.domain.model.UserRole
@@ -37,6 +55,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -108,6 +127,11 @@ class MainActivity : ComponentActivity() {
     private val exploreViewModel: ExploreViewModel by viewModels()
     private val listingDetailViewModel: ListingDetailViewModel by viewModels()
     private val myApplicationsViewModel: MyApplicationsViewModel by viewModels()
+    private val invitationViewModel: InvitationViewModel by viewModels()
+    private val leaseDetailViewModel: LeaseDetailViewModel by viewModels()
+    private val tenantsViewModel: TenantsViewModel by viewModels()
+    private val rentViewModel: RentViewModel by viewModels()
+    private val transactionsViewModel: TransactionsViewModel by viewModels()
 
     @Inject
     lateinit var permissionManager: PermissionManager
@@ -147,15 +171,38 @@ class MainActivity : ComponentActivity() {
                     val exploreState by exploreViewModel.state.collectAsState()
                     val listingDetailState by listingDetailViewModel.state.collectAsState()
                     val myApplicationsState by myApplicationsViewModel.state.collectAsState()
+                    val invitationState by invitationViewModel.state.collectAsState()
+                    val leaseDetailState by leaseDetailViewModel.state.collectAsState()
+                    val tenantsState by tenantsViewModel.state.collectAsState()
+                    val rentState by rentViewModel.state.collectAsState()
+                    val transactionsState by transactionsViewModel.state.collectAsState()
                     // Notification links → screens (only property detail exists today).
                     LaunchedEffect(Unit) {
                         notificationsViewModel.effect.collect { effect ->
                             when (effect) {
-                                is NotificationsEffect.Navigate -> when (val route = effect.route) {
-                                    is NavRoute.PropertyDetail -> propertyDetailViewModel.onIntent(
+                                is NotificationsEffect.LinkUnavailable -> toast(
+                                    if (effect.notInApp) R.string.notifications_not_available else R.string.deep_link_not_for_account,
+                                )
+                                // Wrong role (a tenant opening /properties/{id} …) → message, stay home.
+                                is NotificationsEffect.Navigate -> if (effect.fromLink &&
+                                    !DeepLinks.allowedFor(effect.route, homeViewModel.state.value.activeRole == UserRole.TENANT)
+                                ) {
+                                    toast(R.string.deep_link_not_for_account)
+                                } else when (val route = effect.route) {
+                                    is NavRoute.PropertyDetail -> propertyDetailViewModel.also { openedFromLink = effect.fromLink }.onIntent(
                                         PropertyDetailIntent.Open(route.propertyId, DetailTab.fromLink(route.tab)),
                                     )
                                     is NavRoute.ListingDetail -> listingDetailViewModel.onIntent(ListingDetailIntent.Open(route.listingId, route.unitId))
+                                    is NavRoute.Invitation -> invitationViewModel.onIntent(InvitationIntent.Open(route.token))
+                                    is NavRoute.LeaseDetail -> leaseDetailViewModel.onIntent(LeaseDetailIntent.Open(route.leaseId))
+                                    // "/leases" (close-request pushes): tenant → their lease; landlord → properties (leases live per property).
+                                    NavRoute.Leases -> if (homeViewModel.state.value.activeRole == UserRole.TENANT) {
+                                        (tenantHomeViewModel.state.value.home as? TenantHomeState.Linked)?.lease?.let {
+                                            leaseDetailViewModel.onIntent(LeaseDetailIntent.Open(it.id, it.toSummary()))
+                                        } ?: tenantHomeViewModel.onIntent(TenantHomeIntent.Refresh)
+                                    } else {
+                                        myPropertiesViewModel.onIntent(MyPropertiesIntent.Open(PropertyFilter.ALL))
+                                    }
                                     NavRoute.MyProperties -> myPropertiesViewModel.onIntent(MyPropertiesIntent.Open(PropertyFilter.ALL))
                                     // Tenant → my applications; landlord → their properties (applications live per property).
                                     NavRoute.Applications ->
@@ -285,16 +332,66 @@ class MainActivity : ComponentActivity() {
                             onIntent = addPropertyViewModel::onIntent,
                         )
 
+                        // Above the property screen: a tenant card opens the lease on top, Back returns.
+                        leaseDetailState.isOpen -> LeaseDetailScreen(
+                            state = leaseDetailState,
+                            effects = leaseDetailViewModel.effect,
+                            onIntent = leaseDetailViewModel::onIntent,
+                            onChanged = {
+                                tenantHomeViewModel.onIntent(TenantHomeIntent.Refresh)
+                                if (propertyDetailState.isOpen) propertyDetailViewModel.onIntent(PropertyDetailIntent.Refresh)
+                                tenantsViewModel.onIntent(TenantsIntent.Refresh)
+                                onPropertyChanged()
+                            },
+                        )
+
+                        // Landlord → this month's rent (Expected / Collected / Overdue).
+                        rentState.isOpen -> RentScreen(state = rentState, effects = rentViewModel.effect, onIntent = rentViewModel::onIntent)
+
+                        // Landlord → all payments / refunds.
+                        transactionsState.isOpen -> TransactionsScreen(
+                            state = transactionsState,
+                            effects = transactionsViewModel.effect,
+                            onIntent = transactionsViewModel::onIntent,
+                        )
+
+                        // Landlord → all tenants (under the lease screen it opens).
+                        tenantsState.isOpen -> TenantsScreen(
+                            state = tenantsState,
+                            onIntent = tenantsViewModel::onIntent,
+                            onOpenLease = { l ->
+                                leaseDetailViewModel.onIntent(
+                                    LeaseDetailIntent.Open(
+                                        l.id,
+                                        LeaseSummary(
+                                            id = l.id,
+                                            status = l.status,
+                                            propertyTitle = l.propertyTitle,
+                                            place = listOf(l.place, l.placeCode).filter { it.isNotBlank() }.joinToString(" · "),
+                                            monthlyRent = l.monthlyRent,
+                                            securityDeposit = l.securityDeposit,
+                                            rentDueDay = l.rentDueDay,
+                                            startDate = l.startDate,
+                                            endDate = l.endDate,
+                                            otherName = l.tenantName,
+                                        ),
+                                    ),
+                                )
+                            },
+                        )
+
                         propertyDetailState.isOpen -> PropertyDetailScreen(
                             state = propertyDetailState,
                             effects = propertyDetailViewModel.effect,
                             onIntent = propertyDetailViewModel::onIntent,
-                            onOpenEditor = { id, step -> addPropertyViewModel.onIntent(AddPropertyIntent.Edit(id, step)) },
+                            onOpenEditor = { id, step, newUnit -> addPropertyViewModel.onIntent(AddPropertyIntent.Edit(id, step, newUnit)) },
                             onChanged = onPropertyChanged,
                             onNotFound = {
                                 propertyDetailViewModel.onIntent(PropertyDetailIntent.Close)
-                                notificationsViewModel.onIntent(NotificationsIntent.ItemGone)
+                                // App link → stay home with a note; notification → back to the list.
+                                if (openedFromLink) toast(R.string.deep_link_not_for_account) else notificationsViewModel.onIntent(NotificationsIntent.ItemGone)
                             },
+                            onOpenLease = { id, preview -> leaseDetailViewModel.onIntent(LeaseDetailIntent.Open(id, preview)) },
                         )
 
                         myPropertiesState.isOpen -> MyPropertiesScreen(
@@ -315,6 +412,18 @@ class MainActivity : ComponentActivity() {
                                 tenantHomeViewModel.onIntent(TenantHomeIntent.Refresh)
                                 myApplicationsViewModel.onIntent(MyApplicationsIntent.Refresh)
                             },
+                        )
+
+                        // Under the listing: "View the home" opens the listing on top, Back returns here.
+                        invitationState.isOpen -> InvitationScreen(
+                            state = invitationState,
+                            effects = invitationViewModel.effect,
+                            onIntent = invitationViewModel::onIntent,
+                            onChanged = {
+                                tenantHomeViewModel.onIntent(TenantHomeIntent.Refresh)
+                                myApplicationsViewModel.onIntent(MyApplicationsIntent.Refresh)
+                            },
+                            onOpenHome = { listingDetailViewModel.onIntent(ListingDetailIntent.Open(it, null)) },
                         )
 
                         myApplicationsState.isOpen -> MyApplicationsScreen(
@@ -361,7 +470,7 @@ class MainActivity : ComponentActivity() {
 
                         homeState.activeRole == UserRole.TENANT && tenantHomeState.home == null -> {
                             LaunchedEffect(Unit) { tenantHomeViewModel.onIntent(TenantHomeIntent.Start) }
-                            LoadingScreen()
+                            HomeSkeleton(Modifier.statusBarsPadding())
                         }
 
                         else -> {
@@ -377,6 +486,11 @@ class MainActivity : ComponentActivity() {
                                 tenantLease = (tenantHomeState.home as? TenantHomeState.Linked)?.lease
                                     ?.takeIf { homeState.activeRole == UserRole.TENANT },
                                 onExploreHomes = { tenantHomeViewModel.onIntent(TenantHomeIntent.OpenExplore) },
+                                onOpenLease = { leaseDetailViewModel.onIntent(LeaseDetailIntent.Open(it.id, it.toSummary())) },
+                                leaseCloseRequested = tenantHomeState.closeRequested,
+                                onOpenTenants = { tenantsViewModel.onIntent(TenantsIntent.Open) },
+                                onOpenRent = { bucket, period -> rentViewModel.onIntent(RentIntent.Open(bucket, period)) },
+                                onOpenTransactions = { transactionsViewModel.onIntent(TransactionsIntent.Open) },
                             )
                             // Signed in + active: our popups for location, then notifications (one at a time).
                             LaunchPermissionsHost(launchPermissionsViewModel)
@@ -410,12 +524,17 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Notification tap → remember link + id; opened once the session / dashboard is ready. */
+    /** Set when the property screen was opened by an App Link (a 404 then goes home with a toast). */
+    private var openedFromLink = false
+
+    private fun toast(@androidx.annotation.StringRes res: Int) = android.widget.Toast.makeText(this, res, android.widget.Toast.LENGTH_LONG).show()
+
     private fun handleNotificationIntent(intent: Intent?) {
         intent ?: return
         // Deep link (https://…saferenttechnologies.com/homes/{id}, saferent://homes/{id} …):
         // same routing as a notification link, opened once the session / dashboard is ready.
         DeepLinks.linkOf(intent.action, intent.data?.scheme, intent.data?.host, intent.data?.encodedPath, intent.data?.encodedQuery)?.let { link ->
-            notificationsViewModel.onIntent(NotificationsIntent.FromPush(link, null))
+            notificationsViewModel.onIntent(NotificationsIntent.FromLink(link))
             intent.data = null // handled once (recreate / back doesn't reopen it)
             return
         }

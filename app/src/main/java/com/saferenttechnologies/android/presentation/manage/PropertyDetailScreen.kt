@@ -1,5 +1,18 @@
 package com.saferenttechnologies.android.presentation.manage
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.AnimatedVisibility
+import com.saferenttechnologies.android.domain.model.BuildingPhotos
+import com.saferenttechnologies.android.presentation.common.DetailSkeleton
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -74,14 +87,16 @@ import com.saferenttechnologies.android.ui.theme.PlusJakartaSans
 import kotlinx.coroutines.flow.Flow
 
 /** Property detail: header, status banners, tabs, actions (only those PropertyActions allows). */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PropertyDetailScreen(
     state: PropertyDetailState,
     effects: Flow<PropertyDetailEffect>,
     onIntent: (PropertyDetailIntent) -> Unit,
-    onOpenEditor: (propertyId: String, step: Int) -> Unit,
+    onOpenEditor: (propertyId: String, step: Int, newUnit: Boolean) -> Unit,
     onChanged: () -> Unit,
     onNotFound: () -> Unit = {},
+    onOpenLease: (leaseId: String, preview: com.saferenttechnologies.android.domain.model.LeaseSummary) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -105,7 +120,7 @@ fun PropertyDetailScreen(
                         snackbar.showSnackbar(copied)
                     }
                 }
-                is PropertyDetailEffect.OpenEditor -> onOpenEditor(effect.propertyId, effect.step)
+                is PropertyDetailEffect.OpenEditor -> onOpenEditor(effect.propertyId, effect.step, effect.newUnit)
                 is PropertyDetailEffect.Dial -> if (!context.tryStart(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${effect.phone}")))) snackbar.showSnackbar(noApp)
                 is PropertyDetailEffect.WhatsApp -> {
                     val digits = effect.phone.filter(Char::isDigit)
@@ -115,6 +130,7 @@ fun PropertyDetailScreen(
                     if (!context.tryStart(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${effect.email}")))) snackbar.showSnackbar(noApp)
                 PropertyDetailEffect.Changed -> onChanged()
                 PropertyDetailEffect.NotFound -> onNotFound()
+                is PropertyDetailEffect.OpenLease -> onOpenLease(effect.leaseId, effect.preview)
             }
         }
     }
@@ -139,12 +155,36 @@ fun PropertyDetailScreen(
                         AuthPrimaryButton(text = stringResource(R.string.add_property_retry), enabled = true, loading = false, onClick = { onIntent(PropertyDetailIntent.Refresh) })
                     }
                 }
-                else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                else -> Column(Modifier.fillMaxSize()) {
+                    // Building photos sit above the scrolling page: scroll up → they slide away,
+                    // scroll down (anywhere) → they come back. Pager kept here so the page survives hiding.
+                    val images = galleryImages(state)
+                    val pager = rememberPagerState { images.size }
+                    var galleryOpen by rememberSaveable { mutableStateOf(true) }
+                    val hideOnScroll = remember {
+                        object : NestedScrollConnection {
+                            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                                if (available.y < -GALLERY_SCROLL_SLOP) galleryOpen = false
+                                else if (available.y > GALLERY_SCROLL_SLOP) galleryOpen = true
+                                return Offset.Zero
+                            }
+                        }
+                    }
+                    AnimatedVisibility(
+                        visible = galleryOpen && images.isNotEmpty(),
+                        enter = expandVertically(tween(260), expandFrom = Alignment.Top) + fadeIn(tween(260)),
+                        exit = shrinkVertically(tween(220), shrinkTowards = Alignment.Top) + fadeOut(tween(180)),
+                    ) {
+                        HorizontalPager(pager, Modifier.fillMaxWidth().height(220.sdp).background(AuthColors.Surface)) { page ->
+                            AsyncImage(model = absoluteUrl(images[page].url), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
+                    }
+                    Column(Modifier.fillMaxSize().nestedScroll(hideOnScroll).verticalScroll(rememberScrollState())) {
                     Header(state)
                     Banners(state, onIntent)
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.sdp, vertical = 8.sdp), horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
                         items(DetailTab.VISIBLE) { tab ->
-                            Chip(tabLabel(tab, detail.property.structure.usesRooms), selected = tab == state.tab) { onIntent(PropertyDetailIntent.SelectTab(tab)) }
+                            Chip(tabLabel(tab, detail.property.structure.usesRooms, state.unitWord.takeIf { state.isUnitPriced }), selected = tab == state.tab) { onIntent(PropertyDetailIntent.SelectTab(tab)) }
                         }
                     }
                     Column(Modifier.padding(horizontal = 16.sdp, vertical = 8.sdp)) {
@@ -160,11 +200,13 @@ fun PropertyDetailScreen(
                         }
                     }
                     Spacer(Modifier.height(32.sdp))
+                    }
                 }
             }
         }
+        // First load: the page's shape shimmers (covers the empty header / tabs).
         if (state.detail == null && state.loading) {
-            CircularProgressIndicator(color = AuthColors.Orange, modifier = Modifier.align(Alignment.Center))
+            DetailSkeleton(Modifier.fillMaxSize().background(AuthColors.Background).statusBarsPadding().padding(top = 56.sdp))
         }
         if (state.busy) LinearProgressIndicator(color = AuthColors.Orange, trackColor = Color.Transparent, modifier = Modifier.fillMaxWidth().statusBarsPadding())
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.sdp))
@@ -174,6 +216,7 @@ fun PropertyDetailScreen(
     if (state.confirmDiscard) DiscardChangesDialog(onIntent)
     state.changeProblems?.let { ChangeProblemsSheet(it, onIntent) }
     state.inviteForm?.let { InviteDialog(state, it, onIntent) }
+    state.openUnitId?.let { id -> state.detail?.property?.units?.firstOrNull { it.id == id }?.let { FlatSheet(state, it, onIntent) } }
     state.decision?.let { DecisionDialog(state, it, onIntent) }
 }
 
@@ -218,19 +261,22 @@ private fun TopBar(state: PropertyDetailState, onIntent: (PropertyDetailIntent) 
 
 private val DANGER = setOf(PropertyAction.ARCHIVE, PropertyAction.DELETE_DRAFT, PropertyAction.DEACTIVATE, PropertyAction.UNPUBLISH)
 
+/** Finger movement (px) before the gallery hides / shows — ignores tiny jitters. */
+private const val GALLERY_SCROLL_SLOP = 6f
+
+/** Apartment / PG: the top gallery is the building only — flat / room photos stay in their own sheet. */
+private fun galleryImages(state: PropertyDetailState): List<com.saferenttechnologies.android.domain.model.PropertyImage> {
+    val property = state.detail?.property ?: return emptyList()
+    return (if (state.isUnitPriced || property.structure.usesRooms) BuildingPhotos.of(property) else property.images)
+        .sortedBy { it.displayOrder ?: Int.MAX_VALUE }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Header(state: PropertyDetailState) {
     val property = state.detail?.property ?: return
     val context = LocalContext.current
     val copied = stringResource(R.string.manage_code_copied)
-    val images = property.images.sortedBy { it.displayOrder ?: Int.MAX_VALUE }
-    if (images.isNotEmpty()) {
-        val pager = rememberPagerState { images.size }
-        HorizontalPager(pager, Modifier.fillMaxWidth().height(220.sdp).background(AuthColors.Surface)) { page ->
-            AsyncImage(model = absoluteUrl(images[page].url), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        }
-    }
     Column(Modifier.padding(16.sdp)) {
         PropertyStatusChip(property.publicationStatus, property.activeStatus)
         Spacer(Modifier.height(8.sdp))
@@ -381,7 +427,8 @@ private fun confirmText(action: PropertyAction): Int = when (action) {
 }
 
 @Composable
-fun tabLabel(tab: DetailTab, rooms: Boolean): String = stringResource(
+fun tabLabel(tab: DetailTab, rooms: Boolean, unitWord: String? = null): String =
+    if (tab == DetailTab.UNITS && unitWord != null) stringResource(R.string.manage_tab_unit_plural, unitWord) else stringResource(
     when (tab) {
         DetailTab.OVERVIEW -> R.string.manage_tab_overview
         DetailTab.UNITS -> if (rooms) R.string.manage_tab_rooms else R.string.manage_tab_units

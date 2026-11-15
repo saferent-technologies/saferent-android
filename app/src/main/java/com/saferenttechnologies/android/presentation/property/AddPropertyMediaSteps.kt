@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.property
 
+import com.saferenttechnologies.android.presentation.common.ListSkeleton
 import com.saferenttechnologies.android.domain.model.WizardStep
 import com.saferenttechnologies.android.domain.model.RequiredPhoto
 import com.saferenttechnologies.android.domain.model.PhotoRequirements
@@ -373,7 +374,7 @@ fun SubmitProblemsList(state: AddPropertyState, onIntent: (AddPropertyIntent) ->
 private fun ReviewCompleteness(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
     val completeness = state.completeness
     if (state.loading && completeness == null) {
-        CircularProgressIndicator(color = AuthColors.Orange)
+        ListSkeleton(rows = 3, thumbnail = 24.sdp, roundThumb = true)
         return
     }
     completeness?.let { c ->

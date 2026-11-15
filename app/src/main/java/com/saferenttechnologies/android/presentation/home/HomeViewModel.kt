@@ -28,6 +28,8 @@ data class HomeState(
     val isSigningOut: Boolean = false,
     /** Landlord dashboard numbers (GET properties/summary). */
     val summary: PropertySummary? = null,
+    /** First summary load → the dashboard shimmers. */
+    val summaryLoading: Boolean = false,
 ) : UiState {
     /** Role switcher only when the account has more than one role. */
     val showRoleSwitcher: Boolean get() = (user?.allRoles?.size ?: 0) > 1
@@ -106,7 +108,9 @@ class HomeViewModel @Inject constructor(
     private fun loadSummary() {
         if (currentState.activeRole != UserRole.LANDLORD) return
         viewModelScope.launch {
+            setState { copy(summaryLoading = true) }
             (manageProperties.summary() as? AppResult.Success)?.let { r -> setState { copy(summary = r.data) } }
+            setState { copy(summaryLoading = false) }
         }
     }
 }

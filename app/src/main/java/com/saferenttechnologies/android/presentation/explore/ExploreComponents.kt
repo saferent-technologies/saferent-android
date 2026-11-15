@@ -1,5 +1,8 @@
 package com.saferenttechnologies.android.presentation.explore
 
+import com.saferenttechnologies.android.presentation.common.BoneLine
+import com.saferenttechnologies.android.presentation.common.Bone
+import com.saferenttechnologies.android.presentation.common.ShimmerHost
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -171,23 +174,19 @@ fun listingTypeLabel(type: String): String = stringResource(
     },
 )
 
-/** Pulsing grey card while the feed loads. */
+/** Shimmering card while the feed loads. */
 @Composable
 fun SkeletonCard() {
-    val pulse by rememberInfiniteTransition(label = "skeleton").animateFloat(
-        initialValue = 0.45f,
-        targetValue = 0.9f,
-        animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
-        label = "alpha",
-    )
-    Column(Modifier.fillMaxWidth().alpha(pulse)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 10f).clip(RoundedCornerShape(20.sdp)).background(AuthColors.Surface))
-        Spacer(Modifier.height(10.sdp))
-        Box(Modifier.fillMaxWidth(0.7f).height(16.sdp).clip(RoundedCornerShape(6.sdp)).background(AuthColors.Surface))
-        Spacer(Modifier.height(6.sdp))
-        Box(Modifier.fillMaxWidth(0.5f).height(12.sdp).clip(RoundedCornerShape(6.sdp)).background(AuthColors.Surface))
-        Spacer(Modifier.height(8.sdp))
-        Box(Modifier.fillMaxWidth(0.35f).height(16.sdp).clip(RoundedCornerShape(6.sdp)).background(AuthColors.Surface))
+    ShimmerHost {
+        Column(Modifier.fillMaxWidth()) {
+            Bone(Modifier.fillMaxWidth().aspectRatio(16f / 10f), RoundedCornerShape(20.sdp))
+            Spacer(Modifier.height(10.sdp))
+            BoneLine(0.7f, 16.sdp)
+            Spacer(Modifier.height(6.sdp))
+            BoneLine(0.5f)
+            Spacer(Modifier.height(8.sdp))
+            BoneLine(0.35f, 16.sdp)
+        }
     }
 }
 

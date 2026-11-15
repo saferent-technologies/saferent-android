@@ -1,5 +1,8 @@
 package com.saferenttechnologies.android.presentation.manage
 
+import com.saferenttechnologies.android.presentation.common.BoneLine
+import com.saferenttechnologies.android.presentation.common.Bone
+import com.saferenttechnologies.android.presentation.common.ShimmerHost
 import com.saferenttechnologies.android.domain.model.ChangeBadges
 import com.saferenttechnologies.android.domain.model.ChangeBadge
 import androidx.activity.compose.BackHandler
@@ -76,6 +79,7 @@ fun filterLabel(filter: PropertyFilter): String = stringResource(
         PropertyFilter.DRAFTS -> R.string.filter_drafts
         PropertyFilter.INACTIVE -> R.string.filter_inactive
         PropertyFilter.ARCHIVED -> R.string.filter_archived
+        PropertyFilter.AVAILABLE_UNITS -> R.string.filter_available_units
     },
 )
 
@@ -128,7 +132,12 @@ fun MyPropertiesScreen(
             modifier = Modifier.fillMaxWidth().weight(1f),
         ) {
             when {
-                state.items.isEmpty() && state.loading -> CircularProgressIndicator(color = AuthColors.Orange, modifier = Modifier.align(Alignment.Center))
+                state.items.isEmpty() && state.loading -> ShimmerHost {
+                    // Same list padding / gaps as the real cards below.
+                    Column(Modifier.fillMaxSize().padding(16.sdp), verticalArrangement = Arrangement.spacedBy(12.sdp)) {
+                        repeat(3) { PropertyCardSkeleton() }
+                    }
+                }
                 state.items.isEmpty() -> EmptyState(state, onAddProperty, onRetry = { onIntent(MyPropertiesIntent.Refresh) })
                 else -> {
                     val listState = rememberLazyListState()
@@ -229,6 +238,35 @@ private fun PropertyCard(item: PropertyListItem, onEdit: () -> Unit, onClick: ()
                 Spacer(Modifier.height(12.sdp))
                 OutlineAction(stringResource(R.string.my_properties_edit_draft), R.drawable.ic_edit, modifier = Modifier.fillMaxWidth(), onClick = onEdit)
             }
+        }
+    }
+}
+
+/** [PropertyCard]'s exact shape: 150dp cover with the status chip, title, place line, rent row, progress bar. */
+@Composable
+private fun PropertyCardSkeleton() {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.sdp))
+            .background(AuthColors.Card)
+            .border(1.sdp, AuthColors.Border, RoundedCornerShape(16.sdp)),
+    ) {
+        Box(Modifier.fillMaxWidth().height(150.sdp)) {
+            Bone(Modifier.fillMaxSize(), RoundedCornerShape(0.sdp))
+            Box(Modifier.padding(10.sdp).width(86.sdp).height(24.sdp).background(AuthColors.Card, RoundedCornerShape(50)))
+        }
+        Column(Modifier.padding(14.sdp)) {
+            BoneLine(0.6f, 18.sdp)
+            Spacer(Modifier.height(6.sdp))
+            BoneLine(0.8f, 12.sdp)
+            Spacer(Modifier.height(10.sdp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { BoneLine(0.55f, 15.sdp) }
+                Bone(Modifier.width(90.sdp).height(12.sdp), RoundedCornerShape(6.sdp))
+            }
+            Spacer(Modifier.height(12.sdp))
+            Bone(Modifier.fillMaxWidth().height(5.sdp), RoundedCornerShape(3.sdp))
         }
     }
 }

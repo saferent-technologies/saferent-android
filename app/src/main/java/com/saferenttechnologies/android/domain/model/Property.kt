@@ -184,3 +184,20 @@ data class AmenityItem(val key: String, val label: String)
 
 /** Only property type "APARTMENT" uses the building + flats rules. */
 fun isApartmentType(propertyType: String?): Boolean = propertyType.equals("APARTMENT", ignoreCase = true)
+
+/** A tenant lives here (lease) → the flat can't be edited, re-priced or deleted in the wizard. */
+val PropertyUnit.isOccupied: Boolean get() = values["availabilityStatus"].equals("OCCUPIED", true)
+
+/** Every bed has a tenant → the room (details, rent, photos, beds) is locked in the wizard. */
+val PropertyRoom.isFullyOccupied: Boolean get() = beds.isNotEmpty() && beds.all { it.availabilityStatus.equals("OCCUPIED", true) }
+
+/** Any occupied flat / bed → the property can't be archived and those units can't be deleted. */
+val Property.hasTenants: Boolean get() = units.any { it.isOccupied } || rooms.any { r -> r.beds.any { it.availabilityStatus.equals("OCCUPIED", true) } }
+
+/** Photos of the building itself: not tagged to a flat / room, and not listed in any flat's / room's imageIds. */
+object BuildingPhotos {
+    fun of(p: Property): List<PropertyImage> {
+        val inside = (p.units.flatMap { it.imageIds } + p.rooms.flatMap { it.imageIds }).toSet()
+        return p.images.filter { it.unitId.isNullOrBlank() && it.roomId.isNullOrBlank() && it.id !in inside }
+    }
+}

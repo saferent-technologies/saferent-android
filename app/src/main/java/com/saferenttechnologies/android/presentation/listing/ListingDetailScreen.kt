@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.listing
 
+import com.saferenttechnologies.android.presentation.common.DetailSkeleton
 import com.saferenttechnologies.android.domain.model.UnitOption
 import androidx.compose.runtime.key
 import androidx.compose.foundation.selection.selectable
@@ -127,7 +128,7 @@ fun ListingDetailScreen(
     Box(Modifier.fillMaxSize().background(AuthColors.Background)) {
         val d = state.detail
         when {
-            d == null && state.loading -> CircularProgressIndicator(color = AuthColors.Orange, modifier = Modifier.align(Alignment.Center))
+            d == null && state.loading -> DetailSkeleton(Modifier.statusBarsPadding().padding(top = 8.sdp), heroInset = false)
             d == null -> Column(Modifier.align(Alignment.Center).padding(24.sdp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(state.error ?: stringResource(R.string.add_property_error_generic), color = AuthColors.Body, fontFamily = Inter, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(12.sdp))

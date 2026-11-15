@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.property
 
+import com.saferenttechnologies.android.presentation.common.FormSkeleton
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
@@ -91,7 +92,7 @@ fun AddPropertyScreen(state: AddPropertyState, onIntent: (AddPropertyIntent) -> 
             // Types loading, or an existing property (continue draft / edit) still loading.
             if (state.types == null || (state.loading && state.property == null)) {
                 if (state.loading) {
-                    CircularProgressIndicator(color = AuthColors.Orange, modifier = Modifier.align(Alignment.Center))
+                    FormSkeleton()
                 } else {
                     RetryBox(onRetry = { onIntent(AddPropertyIntent.Retry) })
                 }
@@ -285,6 +286,7 @@ private fun AddPropertyMessage.res(): Int = when (this) {
     AddPropertyMessage.MAX_PHOTOS -> R.string.add_property_error_max_photos
     AddPropertyMessage.CHANGES_LOCKED -> R.string.changes_wizard_locked
     AddPropertyMessage.UNITS_LIMIT -> R.string.add_property_error_units_limit
+    AddPropertyMessage.UNIT_OCCUPIED -> R.string.add_property_error_occupied
     AddPropertyMessage.PHOTO_REQUIRED -> R.string.add_property_error_photo_required
     AddPropertyMessage.UNIT_REQUIRED -> R.string.add_property_error_unit_required
     AddPropertyMessage.PIN_INVALID -> R.string.add_property_error_pin

@@ -38,6 +38,8 @@ interface ManagePropertyRepository {
     suspend fun setBedAvailability(id: String, roomId: String, bedId: String, version: Int, status: String): AppResult<ActionResult>
 
     suspend fun leases(propertyId: String, active: Boolean): AppResult<List<Lease>>
+    /** Landlord: tenants of every property (GET leases without propertyId). */
+    suspend fun allLeases(active: Boolean): AppResult<List<Lease>>
     suspend fun invitations(propertyId: String, status: String): AppResult<List<Invitation>>
     suspend fun createInvitation(propertyId: String, input: CreateInvitation): AppResult<InvitationCreated>
     suspend fun renewInvitationLink(invitationId: String, expiresInDays: Int): AppResult<InvitationLink>

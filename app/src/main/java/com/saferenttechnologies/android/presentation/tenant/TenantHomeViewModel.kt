@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.tenant
 
+import com.saferenttechnologies.android.domain.repository.LeaseRepository
 import androidx.lifecycle.viewModelScope
 import com.saferenttechnologies.android.core.mvi.MviViewModel
 import com.saferenttechnologies.android.core.mvi.UiEffect
@@ -26,6 +27,8 @@ data class TenantHomeUiState(
     /** Linked tenant tapped "Explore homes". */
     val exploring: Boolean = false,
     val hasApplications: Boolean = false,
+    /** The landlord asked to close my lease → "Close requested" on the lease card. */
+    val closeRequested: Boolean = false,
 ) : UiState {
     val showExplore: Boolean get() = home == TenantHomeState.Explore || exploring
 }
@@ -45,6 +48,7 @@ sealed interface TenantHomeEffect : UiEffect
 class TenantHomeViewModel @Inject constructor(
     private val getHome: GetTenantHomeStateUseCase,
     private val repository: BrowseRepository,
+    private val leases: LeaseRepository,
     sessionEvents: SessionEvents,
 ) : MviViewModel<TenantHomeUiState, TenantHomeIntent, TenantHomeEffect>(TenantHomeUiState()) {
 
@@ -73,7 +77,12 @@ class TenantHomeViewModel @Inject constructor(
             setState { copy(hasApplications = any) }
         }
         when (val r = getHome()) {
-            is AppResult.Success -> setState { copy(loading = false, home = r.data) }
+            is AppResult.Success -> {
+                setState { copy(loading = false, home = r.data) }
+                val leaseId = (r.data as? TenantHomeState.Linked)?.lease?.id
+                val asked = leaseId != null && (leases.exitState(leaseId) as? AppResult.Success)?.data?.needsMyResponse == true
+                setState { copy(closeRequested = asked) }
+            }
             is AppResult.Failure -> setState { copy(loading = false, error = r.error.takeUnless { it is AppError.AccountBlocked }?.message) }
         }
     }

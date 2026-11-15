@@ -73,3 +73,41 @@ class UnitPricingTest {
         assertTrue(community.isUnitPriced)
     }
 }
+
+class OccupiedLockTest {
+    @org.junit.Test fun `occupied flat and full room are locked`() {
+        org.junit.Assert.assertTrue(PropertyUnit("u1", values = mapOf("availabilityStatus" to "OCCUPIED")).isOccupied)
+        org.junit.Assert.assertFalse(PropertyUnit("u2", values = mapOf("availabilityStatus" to "AVAILABLE")).isOccupied)
+        val full = PropertyRoom("r1", beds = listOf(Bed("b1", "A", "OCCUPIED"), Bed("b2", "B", "OCCUPIED")))
+        val half = PropertyRoom("r2", beds = listOf(Bed("b1", "A", "OCCUPIED"), Bed("b2", "B", "AVAILABLE")))
+        org.junit.Assert.assertTrue(full.isFullyOccupied)
+        org.junit.Assert.assertFalse(half.isFullyOccupied)
+        org.junit.Assert.assertFalse(PropertyRoom("r3").isFullyOccupied)
+    }
+}
+
+class ArchiveWithTenantsTest {
+    @org.junit.Test fun `property with an occupied flat can't be archived`() {
+        val can = PropertyPermissions(manage = true)
+        val base = Property(id = "p1", publicationStatus = "PUBLISHED", activeStatus = "ACTIVE")
+        org.junit.Assert.assertTrue(PropertyAction.ARCHIVE in PropertyActions.allowed(base, can))
+        val occupied = base.copy(units = listOf(PropertyUnit("u1", values = mapOf("availabilityStatus" to "OCCUPIED"))))
+        org.junit.Assert.assertFalse(PropertyAction.ARCHIVE in PropertyActions.allowed(occupied, can))
+    }
+}
+
+class BuildingPhotosTest {
+    @org.junit.Test fun `only building photos in the top gallery`() {
+        val p = Property(
+            id = "p",
+            units = listOf(PropertyUnit("u1", imageIds = listOf("i3"))),
+            images = listOf(
+                PropertyImage("i1", "FRONT_VIEW"),
+                PropertyImage("i2", "BEDROOM", unitId = "u1"),
+                PropertyImage("i3", "KITCHEN"),
+                PropertyImage("i4", "BEDROOM", roomId = "r1"),
+            ),
+        )
+        org.junit.Assert.assertEquals(listOf("i1"), BuildingPhotos.of(p).map { it.id })
+    }
+}

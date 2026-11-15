@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.property
 
+import com.saferenttechnologies.android.domain.model.isFullyOccupied
+import com.saferenttechnologies.android.domain.model.isOccupied
 import com.saferenttechnologies.android.domain.model.FlatAmenityCycle
 import com.saferenttechnologies.android.domain.model.ApartmentRules
 import com.saferenttechnologies.android.domain.model.SubmitProblems
@@ -85,6 +87,7 @@ class AddPropertyViewModel @Inject constructor(
                 if (currentState.property?.id == intent.propertyId) {
                     setState { copy(step = intent.step.coerceIn(WizardStep.CATEGORY, WizardStep.LAST)) }
                     onEnterStep()
+                    if (intent.newUnit) handleIntent(AddPropertyIntent.NewUnit)
                 }
             }
             is AddPropertyIntent.ResumeDraft -> {
@@ -136,11 +139,14 @@ class AddPropertyViewModel @Inject constructor(
                 setState { copy(unitEditor = FormEditor(), roomEditor = null) }
             }
             is AddPropertyIntent.EditUnit -> currentState.property?.units?.firstOrNull { it.id == intent.id }?.let { u ->
+                if (u.isOccupied) return banner(AddPropertyMessage.UNIT_OCCUPIED)
                 setState { copy(unitEditor = FormEditor(u.id, u.version, u.values + ("unitNumber" to u.unitNumber))) }
             }
             AddPropertyIntent.SaveUnit -> saveUnit()
-            is AddPropertyIntent.OpenFlatPanel -> openFlatPanel(intent.unitId)
-            is AddPropertyIntent.OpenRoomPanel -> openRoomPanel(intent.roomId)
+            is AddPropertyIntent.OpenFlatPanel ->
+                if (occupiedUnit(intent.unitId)) banner(AddPropertyMessage.UNIT_OCCUPIED) else openFlatPanel(intent.unitId)
+            is AddPropertyIntent.OpenRoomPanel ->
+                if (occupiedRoom(intent.roomId)) banner(AddPropertyMessage.UNIT_OCCUPIED) else openRoomPanel(intent.roomId)
             AddPropertyIntent.CloseFlatPanel -> setState { copy(flatPanel = null) }
             is AddPropertyIntent.CycleFlatAmenity -> setState {
                 val p = flatPanel ?: return@setState this
@@ -158,8 +164,9 @@ class AddPropertyViewModel @Inject constructor(
             }
             AddPropertyIntent.SaveFlatAmenities -> saveFlatAmenities()
             AddPropertyIntent.CancelEditor -> setState { copy(unitEditor = null, roomEditor = null, bedDraft = null, floorsUnitId = null) }
-            is AddPropertyIntent.DeleteUnit -> mutate { repository.deleteUnit(it, intent.id) }
-            is AddPropertyIntent.EditFloors -> setState {
+            is AddPropertyIntent.DeleteUnit ->
+                if (occupiedUnit(intent.id)) banner(AddPropertyMessage.UNIT_OCCUPIED) else mutate { repository.deleteUnit(it, intent.id) }
+            is AddPropertyIntent.EditFloors -> if (occupiedUnit(intent.unitId)) banner(AddPropertyMessage.UNIT_OCCUPIED) else setState {
                 copy(floorsUnitId = intent.unitId, floors = floors.ifEmpty { listOf(FloorRow("0"), FloorRow("1")) })
             }
             AddPropertyIntent.AddFloor -> setState { copy(floors = floors + FloorRow(floors.size.toString())) }
@@ -171,6 +178,7 @@ class AddPropertyViewModel @Inject constructor(
 
             AddPropertyIntent.NewRoom -> setState { copy(roomEditor = FormEditor(), unitEditor = null) }
             is AddPropertyIntent.EditRoom -> currentState.property?.rooms?.firstOrNull { it.id == intent.id }?.let { r ->
+                if (r.isFullyOccupied) return banner(AddPropertyMessage.UNIT_OCCUPIED)
                 setState { copy(roomEditor = FormEditor(r.id, r.version, r.values + ("roomNumber" to r.roomNumber))) }
             }
             AddPropertyIntent.SaveRoom -> saveRoom()
@@ -858,6 +866,9 @@ class AddPropertyViewModel @Inject constructor(
 
     private val CHANGES_TAG = "SR-Changes"
     private val APARTMENT_TAG = "SR-Apartment"
+
+    private fun occupiedUnit(id: String) = currentState.property?.units?.firstOrNull { it.id == id }?.isOccupied == true
+    private fun occupiedRoom(id: String) = currentState.property?.rooms?.firstOrNull { it.id == id }?.isFullyOccupied == true
 
     private fun banner(message: AddPropertyMessage, text: String? = null) =
         setState { copy(bannerMessage = message, bannerText = text) }

@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.tenant
 
+import com.saferenttechnologies.android.presentation.common.ListSkeleton
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -73,7 +74,7 @@ fun MyApplicationsScreen(state: MyApplicationsState, onIntent: (MyApplicationsIn
                 }
             }
             when {
-                state.loading && state.items.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = AuthColors.Orange) }
+                state.loading && state.items.isEmpty() -> ListSkeleton(rows = 4, thumbnail = null)
                 state.error != null && state.items.isEmpty() -> Text(state.error, color = AuthColors.Body, fontFamily = Inter, modifier = Modifier.padding(24.sdp))
                 state.items.isEmpty() -> Text(stringResource(R.string.applications_empty), color = AuthColors.Body, fontFamily = Inter, modifier = Modifier.padding(24.sdp))
                 else -> LazyColumn(contentPadding = PaddingValues(16.sdp), verticalArrangement = Arrangement.spacedBy(10.sdp)) {

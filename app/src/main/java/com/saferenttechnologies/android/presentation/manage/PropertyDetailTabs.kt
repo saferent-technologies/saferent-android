@@ -1,5 +1,8 @@
 package com.saferenttechnologies.android.presentation.manage
 
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import com.saferenttechnologies.android.domain.model.InviteLocks
 import com.saferenttechnologies.android.domain.model.SimpleDate
 import androidx.compose.foundation.clickable
@@ -78,7 +81,7 @@ import java.util.TimeZone
 // ---------------- shared ----------------
 
 @Composable
-private fun Card(content: @Composable () -> Unit) {
+private fun Card(onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -86,6 +89,7 @@ private fun Card(content: @Composable () -> Unit) {
             .clip(RoundedCornerShape(14.sdp))
             .background(AuthColors.Card)
             .border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp))
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .padding(14.sdp),
     ) { content() }
 }
@@ -103,7 +107,15 @@ private fun Line(text: String, strong: Boolean = false) {
 
 @Composable
 private fun Empty(text: String) {
-    Text(text, color = AuthColors.Muted, fontFamily = Inter, fontSize = 14.ssp, modifier = Modifier.padding(vertical = 24.sdp))
+    // Every tab's "nothing here" line: centred in the tab area.
+    Text(
+        text,
+        color = AuthColors.Muted,
+        fontFamily = Inter,
+        fontSize = 14.ssp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 56.sdp),
+    )
 }
 
 /** "2026-11-14T10:32:05.120Z" / "2026-12-01" → "14 Nov 2026, 4:02 PM" / "1 Dec 2026" (device time zone). */
@@ -165,7 +177,18 @@ fun UnitsTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) -> Uni
     val p = state.detail?.property ?: return
     val invitedUnits = InviteLocks.units(state.pendingInvites)
     val invitedBeds = InviteLocks.beds(state.pendingInvites)
-    if (state.canEdit) {
+    if (state.canEdit && state.isUnitPriced) {
+        // Flats tab: add a flat right here (wizard opens on a new flat), or edit the list.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+            OutlineAction(stringResource(R.string.manage_add_unit, state.unitWord.lowercase()), R.drawable.ic_add, modifier = Modifier.weight(1f)) {
+                onIntent(PropertyDetailIntent.AddUnit)
+            }
+            OutlineAction(stringResource(R.string.add_property_edit), R.drawable.ic_edit, modifier = Modifier.weight(1f)) {
+                onIntent(PropertyDetailIntent.Edit(WizardStep.UNITS))
+            }
+        }
+        Spacer(Modifier.height(8.sdp))
+    } else if (state.canEdit) {
         OutlineAction(stringResource(R.string.manage_edit_units), R.drawable.ic_add, modifier = Modifier.fillMaxWidth()) {
             onIntent(PropertyDetailIntent.Edit(WizardStep.UNITS))
         }
@@ -200,10 +223,19 @@ fun UnitsTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) -> Uni
         p.units.forEach { unit ->
             val status = unit.values["availabilityStatus"].orEmpty()
             val rent = unit.values["monthlyRent"].orEmpty()
-            Card {
+            // Apartment etc.: each flat card shows its photo and opens the flat sheet (photos, tenant, lease).
+            Card(onClick = if (state.isUnitPriced) ({ onIntent(PropertyDetailIntent.OpenUnit(unit.id)) }) else null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (state.isUnitPriced) {
+                        UnitThumb(unitPhotoIds(p, unit).firstOrNull(), Modifier.size(72.sdp))
+                        Spacer(Modifier.width(12.sdp))
+                    }
                     Column(Modifier.weight(1f)) {
-                        Line("${p.propertyTypeLabel.ifBlank { stringResource(R.string.add_property_unit) }} ${unit.unitNumber}".trim(), strong = true)
+                        Line(
+                            if (state.isUnitPriced) "${state.unitWord} ${unit.unitNumber}".trim()
+                            else "${p.propertyTypeLabel.ifBlank { stringResource(R.string.add_property_unit) }} ${unit.unitNumber}".trim(),
+                            strong = true,
+                        )
                         Line(
                             listOfNotNull(
                                 unit.values["floorNumber"]?.let { stringResource(R.string.add_property_floor_n, it) },
@@ -260,7 +292,11 @@ fun TenantsTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) -> U
     Spacer(Modifier.height(8.sdp))
     if (state.leases.isEmpty()) Empty(stringResource(R.string.manage_no_tenants))
     state.leases.forEach { lease ->
-        Card {
+        Card(onClick = { onIntent(PropertyDetailIntent.OpenLease(lease)) }) {
+            if (lease.id in state.closeRequested) {
+                StatusPill(stringResource(R.string.lease_close_requested), com.saferenttechnologies.android.presentation.explore.Amber)
+                Spacer(Modifier.height(6.sdp))
+            }
             Line(lease.tenantName, strong = true)
             Line(listOf(lease.place, lease.placeCode).filter { it.isNotBlank() }.joinToString(" · "))
             Line(
@@ -287,25 +323,19 @@ fun TenantsTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) -> U
 
 // ---------------- Invitations ----------------
 
-private val INVITATION_STATUSES = listOf("PENDING", "ACCEPTED", "REJECTED", "REVOKED", "EXPIRED")
+/** Pending orange · accepted green · rejected red · revoked / expired grey. */
+@Composable
+private fun invitationStatusColor(status: String) = when (status.uppercase()) {
+    "PENDING" -> AuthColors.OrangeText
+    "ACCEPTED" -> AuthColors.Green
+    "REJECTED" -> AuthColors.Error
+    else -> AuthColors.Muted
+}
 
 @Composable
 fun InvitationsTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) -> Unit) {
-    if (state.canManage) {
-        AuthPrimaryButton(
-            text = stringResource(R.string.manage_invite_tenant),
-            enabled = !state.busy,
-            loading = false,
-            leadingIcon = R.drawable.ic_add,
-            onClick = { onIntent(PropertyDetailIntent.StartInvite(null, null, "", state.detail?.property?.rentFrom.orEmpty())) },
-        )
-        Spacer(Modifier.height(10.sdp))
-    }
-    // Status filters fill the width (3 per row, equal widths).
-    ChipGrid(INVITATION_STATUSES, columns = 3) { s, mod ->
-        Chip(optionLabel(s), selected = s == state.invitationStatus, modifier = mod, maxLines = 1) { onIntent(PropertyDetailIntent.InvitationFilter(s)) }
-    }
-    Spacer(Modifier.height(8.sdp))
+    // Invites start from a flat / bed (Flats tab or the flat sheet), not from here.
+    // One list (all statuses, pending first); each card carries its own status.
     if (state.invitations.isEmpty()) Empty(stringResource(R.string.manage_no_invitations))
     state.invitations.forEach { inv ->
         Card {
@@ -315,13 +345,14 @@ fun InvitationsTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) 
                     Line(listOf(inv.code, inv.target, inv.monthlyRent.takeIf { it.isNotBlank() }?.let { money(it) }.orEmpty()).filter { it.isNotBlank() }.joinToString(" · "))
                     if (inv.expiresAt.isNotBlank()) Line(stringResource(R.string.manage_expires, prettyDate(inv.expiresAt)))
                 }
-                StatusPill(optionLabel(inv.status), AuthColors.Body)
+                StatusPill(optionLabel(inv.status), invitationStatusColor(inv.status))
             }
             if (state.canManage && inv.status.uppercase() == "PENDING") {
                 Spacer(Modifier.height(10.sdp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
-                    OutlineAction(stringResource(R.string.manage_new_link)) { onIntent(PropertyDetailIntent.RenewLink(inv.id)) }
-                    OutlineAction(stringResource(R.string.manage_revoke)) { onIntent(PropertyDetailIntent.Revoke(inv.id)) }
+                // Two equal halves of the card width.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+                    OutlineAction(stringResource(R.string.manage_new_link), modifier = Modifier.weight(1f)) { onIntent(PropertyDetailIntent.RenewLink(inv.id)) }
+                    OutlineAction(stringResource(R.string.manage_revoke), modifier = Modifier.weight(1f)) { onIntent(PropertyDetailIntent.Revoke(inv.id)) }
                 }
             }
         }
@@ -601,7 +632,7 @@ fun HistoryTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) -> U
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateInput(
+internal fun DateInput(
     label: String,
     value: String,
     min: SimpleDate,
@@ -672,3 +703,201 @@ private fun utcMillis(d: SimpleDate): Long = java.util.Calendar.getInstance(java
     clear()
     set(d.year, d.month - 1, d.day)
 }.timeInMillis
+
+
+// ---------------- Flat sheet (unit-priced buildings) ----------------
+
+/** The flat's own photos (unit.imageIds), else the property photos tagged with this unit. */
+internal fun unitPhotoIds(p: com.saferenttechnologies.android.domain.model.Property, unit: com.saferenttechnologies.android.domain.model.PropertyUnit): List<String> =
+    unit.imageIds.ifEmpty { p.images.filter { it.unitId == unit.id }.map { it.id } }
+
+@Composable
+private fun UnitThumb(imageId: String?, modifier: Modifier) {
+    Box(modifier.clip(RoundedCornerShape(12.sdp)).background(AuthColors.Surface), contentAlignment = Alignment.Center) {
+        Icon(painterResource(R.drawable.ic_building), null, tint = AuthColors.Muted, modifier = Modifier.size(26.sdp))
+        coverUrl(imageId)?.let { AsyncImage(model = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+    }
+}
+
+/** "Flat 302": photos, details, what's in the flat, and who lives there (tenant + lease). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FlatSheet(state: PropertyDetailState, unit: com.saferenttechnologies.android.domain.model.PropertyUnit, onIntent: (PropertyDetailIntent) -> Unit) {
+    val p = state.detail?.property ?: return
+    val word = state.unitWord
+    val status = unit.values["availabilityStatus"].orEmpty()
+    val photos = unitPhotoIds(p, unit)
+    val lease = state.activeLeases.firstOrNull { it.unitId == unit.id }
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = { onIntent(PropertyDetailIntent.CloseUnit) },
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = AuthColors.Background,
+    ) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.sdp).navigationBarsPadding()) {
+            Row(Modifier.padding(horizontal = 20.sdp), verticalAlignment = Alignment.CenterVertically) {
+                Text("$word ${unit.unitNumber}".trim(), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 22.ssp, modifier = Modifier.weight(1f))
+                AvailabilityChip(status)
+            }
+            Spacer(Modifier.height(12.sdp))
+
+            // Photos: swipeable 16:9 strip.
+            if (photos.isEmpty()) {
+                Box(
+                    Modifier.padding(horizontal = 20.sdp).fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(16.sdp)).background(AuthColors.Surface),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(painterResource(R.drawable.ic_camera), null, tint = AuthColors.Muted, modifier = Modifier.size(28.sdp))
+                        Spacer(Modifier.height(6.sdp))
+                        Text(stringResource(R.string.manage_flat_no_photos, word.lowercase()), color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp)
+                    }
+                }
+            } else {
+                androidx.compose.foundation.lazy.LazyRow(
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.sdp),
+                    horizontalArrangement = Arrangement.spacedBy(10.sdp),
+                ) {
+                    items(photos.size) { i ->
+                        AsyncImage(
+                            model = coverUrl(photos[i]),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .width(if (photos.size == 1) 320.sdp else 260.sdp)
+                                .aspectRatio(16f / 9f)
+                                .clip(RoundedCornerShape(16.sdp))
+                                .background(AuthColors.Surface),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.sdp))
+                Text(stringResource(R.string.manage_flat_photos_n, photos.size), color = AuthColors.Muted, fontFamily = Inter, fontSize = 12.ssp, modifier = Modifier.padding(horizontal = 20.sdp))
+            }
+
+            Column(Modifier.padding(horizontal = 20.sdp)) {
+                // Tenant first: it's what the landlord opens this for.
+                Spacer(Modifier.height(16.sdp))
+                SheetHeading(stringResource(R.string.manage_flat_tenant))
+                when {
+                    state.activeLeasesLoading && lease == null -> com.saferenttechnologies.android.presentation.common.ShimmerHost {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.sdp)) {
+                            com.saferenttechnologies.android.presentation.common.BoneLine(0.5f, 16.sdp)
+                            com.saferenttechnologies.android.presentation.common.BoneLine(0.8f)
+                            com.saferenttechnologies.android.presentation.common.BoneLine(0.6f)
+                        }
+                    }
+                    lease != null -> TenantBlock(state, lease, onIntent)
+                    else -> {
+                        Text(stringResource(R.string.manage_flat_no_tenant, word.lowercase()), color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
+                        if (state.canManage && status.uppercase() == "AVAILABLE" && unit.id !in InviteLocks.units(state.pendingInvites)) {
+                            Spacer(Modifier.height(10.sdp))
+                            OutlineAction(stringResource(R.string.manage_invite_tenant), modifier = Modifier.fillMaxWidth()) {
+                                onIntent(PropertyDetailIntent.CloseUnit)
+                                onIntent(PropertyDetailIntent.StartInvite(unit.id, null, unit.unitNumber, unit.values["monthlyRent"].orEmpty()))
+                            }
+                        }
+                    }
+                }
+
+                // Details
+                val rows = listOfNotNull(
+                    unit.values["bhkType"]?.ifBlank { null }?.let { optionLabel(it) to "" },
+                    unit.values["floorNumber"]?.ifBlank { null }?.let { stringResource(R.string.add_property_floor_n, it) to "" },
+                    unit.values["furnishing"]?.ifBlank { null }?.let { optionLabel(it) to "" },
+                    unit.values["monthlyRent"]?.ifBlank { null }?.let { stringResource(R.string.lease_rent) to money(it) },
+                    unit.values["securityDeposit"]?.ifBlank { null }?.let { stringResource(R.string.invitation_deposit) to money(it) },
+                    unit.values["maintenanceCharges"]?.ifBlank { null }?.takeIf { it.toDoubleOrNull() != 0.0 }?.let { stringResource(R.string.invitation_maintenance) to money(it) },
+                )
+                if (rows.isNotEmpty()) {
+                    Spacer(Modifier.height(18.sdp))
+                    SheetHeading(stringResource(R.string.manage_flat_details))
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp)).border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp)).padding(horizontal = 14.sdp, vertical = 6.sdp)) {
+                        rows.forEach { (k, v) ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 6.sdp)) {
+                                Text(k, color = if (v.isEmpty()) AuthColors.Ink else AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp, modifier = Modifier.weight(1f))
+                                if (v.isNotEmpty()) Text(v, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.ssp)
+                            }
+                        }
+                    }
+                }
+
+                // In this flat (amenities marked YES)
+                val inFlat = unit.amenities.filterValues { it.equals("YES", true) }.keys.toList()
+                if (inFlat.isNotEmpty()) {
+                    Spacer(Modifier.height(18.sdp))
+                    SheetHeading(stringResource(R.string.manage_flat_amenities, word.lowercase()))
+                    com.saferenttechnologies.android.presentation.property.ChipFlow(inFlat) { key ->
+                        Text(
+                            key.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
+                            color = AuthColors.Ink,
+                            fontFamily = Inter,
+                            fontSize = 12.ssp,
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(AuthColors.Surface).padding(horizontal = 10.sdp, vertical = 6.sdp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SheetHeading(text: String) {
+    Text(text, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 16.ssp)
+    Spacer(Modifier.height(8.sdp))
+}
+
+@Composable
+private fun TenantBlock(state: PropertyDetailState, lease: com.saferenttechnologies.android.domain.model.Lease, onIntent: (PropertyDetailIntent) -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp)).background(AuthColors.Surface).padding(14.sdp)) {
+        if (lease.id in state.closeRequested) {
+            StatusPill(stringResource(R.string.lease_close_requested), com.saferenttechnologies.android.presentation.explore.Amber)
+            Spacer(Modifier.height(6.sdp))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.sdp).clip(CircleShape).background(AuthColors.OrangeSoft), contentAlignment = Alignment.Center) {
+                Text(
+                    lease.tenantName.trim().split(Regex("\\s+")).filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }.ifBlank { "?" },
+                    color = AuthColors.OrangeText,
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 14.ssp,
+                )
+            }
+            Spacer(Modifier.width(10.sdp))
+            Column(Modifier.weight(1f)) {
+                Text(lease.tenantName, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
+                lease.startDate.takeIf { it.isNotBlank() }?.let { Text(stringResource(R.string.manage_since, prettyDate(it.take(10))), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp) }
+            }
+        }
+        Spacer(Modifier.height(10.sdp))
+        listOfNotNull(
+            lease.monthlyRent.takeIf { it.isNotBlank() }?.let { stringResource(R.string.lease_rent) to money(it) },
+            lease.securityDeposit.takeIf { it.isNotBlank() }?.let { stringResource(R.string.invitation_deposit) to money(it) },
+            lease.rentDueDay?.let { stringResource(R.string.invitation_rent_due) to stringResource(R.string.lease_due_day, it) },
+            lease.endDate.takeIf { it.isNotBlank() }?.let { stringResource(R.string.invitation_lease_ends) to prettyDate(it.take(10)) },
+        ).forEach { (k, v) ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 3.sdp)) {
+                Text(k, color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp, modifier = Modifier.weight(1f))
+                Text(v, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.ssp)
+            }
+        }
+        lease.exitDate?.let {
+            Spacer(Modifier.height(6.sdp))
+            StatusPill(stringResource(R.string.manage_move_out_requested, prettyDate(it.take(10))), AuthColors.OrangeText)
+        }
+        Spacer(Modifier.height(12.sdp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+            lease.tenantPhone?.let { phone ->
+                OutlineAction(stringResource(R.string.account_blocked_channel_call), R.drawable.ic_call, modifier = Modifier.weight(1f)) { onIntent(PropertyDetailIntent.CallTenant(phone)) }
+                OutlineAction(stringResource(R.string.account_blocked_channel_whatsapp), R.drawable.ic_chat, modifier = Modifier.weight(1f)) { onIntent(PropertyDetailIntent.WhatsAppTenant(phone)) }
+            }
+        }
+        Spacer(Modifier.height(8.sdp))
+        // The lease screen draws under a bottom sheet → close the sheet first.
+        OutlineAction(stringResource(R.string.lease_view), R.drawable.ic_document, modifier = Modifier.fillMaxWidth()) {
+            onIntent(PropertyDetailIntent.CloseUnit)
+            onIntent(PropertyDetailIntent.OpenLease(lease))
+        }
+    }
+}

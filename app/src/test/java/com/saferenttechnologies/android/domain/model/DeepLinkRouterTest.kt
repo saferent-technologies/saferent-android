@@ -44,7 +44,8 @@ class DeepLinkRouterTest {
         assertTrue(NavRoute.PropertyDetail("p").available)
         assertTrue(NavRoute.Applications.available)
         assertFalse(NavRoute.Rent.available)
-        assertFalse(NavRoute.LeaseDetail("l").available)
+        assertTrue(NavRoute.LeaseDetail("l").available)
+        assertTrue(NavRoute.Invitation("t").available)
     }
 
     @Test fun `full url works too`() = assertEquals(NavRoute.PropertyDetail("8f1c", null), route("https://saferent.in/properties/8f1c"))
@@ -86,7 +87,10 @@ class DetailTabFromLinkTest {
         assertEquals(DetailTab.DOCUMENTS, DetailTab.fromLink("documents"))
         assertEquals(DetailTab.UNITS, DetailTab.fromLink("rooms"))
         assertEquals(DetailTab.OVERVIEW, DetailTab.fromLink(null))
-        assertEquals(DetailTab.OVERVIEW, DetailTab.fromLink("nope"))
+        assertEquals(DetailTab.UNITS, DetailTab.fromLink("nope"))
+        assertEquals(DetailTab.UNITS, DetailTab.fromLink("tenants"))
+        assertEquals(DetailTab.OVERVIEW, DetailTab.VISIBLE.last())
+        assertEquals(false, DetailTab.TENANTS in DetailTab.VISIBLE)
     }
 }
 
@@ -96,6 +100,7 @@ class DeepLinksTest {
     @Test fun `web and app links become router links`() {
         assertEquals("/homes/abc?unitId=u1", DeepLinks.linkOf(view, "https", "dev.saferenttechnologies.com", "/homes/abc", "unitId=u1"))
         assertEquals("/homes/abc", DeepLinks.linkOf(view, "saferent", "homes", "/abc", null))
+        assertEquals("/invite/tok", DeepLinks.linkOf(view, "https", "app.saferenttechnologies.com", "/invite/tok", null))
         assertEquals("/properties/p1", DeepLinks.linkOf(view, "saferent", "properties", "/p1/", null))
         assertEquals(NavRoute.ListingDetail("abc", "u1"), DeepLinkRouter.route(DeepLinks.linkOf(view, "https", "saferenttechnologies.com", "/homes/abc", "unitId=u1")))
     }
@@ -104,5 +109,41 @@ class DeepLinksTest {
         assertEquals(null, DeepLinks.linkOf(view, "https", "evil.example.com", "/homes/abc", null))
         assertEquals(null, DeepLinks.linkOf("android.intent.action.MAIN", "https", "saferenttechnologies.com", "/homes/abc", null))
         assertEquals(null, DeepLinks.linkOf(view, "http", "saferenttechnologies.com", "/homes/abc", null))
+    }
+}
+
+class AppLinkRoutesTest {
+    @Test fun `backend app link paths`() {
+        assertEquals(NavRoute.ListingDetail("l1", "f302"), DeepLinkRouter.routeOrNull("/homes/l1?unitId=f302"))
+        assertEquals(NavRoute.ListingDetail("l1", null), DeepLinkRouter.routeOrNull("/homes/l1/"))
+        assertEquals(NavRoute.Explore, DeepLinkRouter.routeOrNull("/browse"))
+        assertEquals(NavRoute.Invitation("TOK"), DeepLinkRouter.routeOrNull("/invite/TOK"))
+        assertEquals(NavRoute.PropertyDetail("p1", "documents"), DeepLinkRouter.routeOrNull("/properties/p1?tab=documents"))
+        assertEquals(NavRoute.PropertyDetail("p1", "applications"), DeepLinkRouter.routeOrNull("/applications?propertyId=p1"))
+        assertEquals(NavRoute.Applications, DeepLinkRouter.routeOrNull("/applications"))
+        assertEquals(NavRoute.LeaseDetail("le1"), DeepLinkRouter.routeOrNull("/leases/le1"))
+        assertEquals(NavRoute.Notifications, DeepLinkRouter.routeOrNull("/notifications"))
+        assertEquals(null, DeepLinkRouter.routeOrNull("/something-else"))
+    }
+
+    @Test fun `notification-only paths`() {
+        assertEquals(NavRoute.Leases, DeepLinkRouter.route("/leases"))
+        assertEquals(NavRoute.Rent, DeepLinkRouter.route("/payments"))
+        assertEquals(NavRoute.Wallet, DeepLinkRouter.route("/wallet"))
+        assertEquals(NavRoute.Maintenance, DeepLinkRouter.route("/maintenance"))
+        assertEquals(NavRoute.SupportTicket("t9"), DeepLinkRouter.route("/support/t9"))
+        assertEquals(NavRoute.Reviews, DeepLinkRouter.route("/reviews/pending"))
+        assertEquals(NavRoute.Referrals, DeepLinkRouter.route("/referrals"))
+        assertEquals(NavRoute.OwnerVerification, DeepLinkRouter.route("/verify"))
+        assertEquals(NavRoute.MyDocuments, DeepLinkRouter.route("/my-documents"))
+        assertEquals(NavRoute.Home, DeepLinkRouter.route("/dashboard"))
+        assertEquals(NavRoute.Notifications, DeepLinkRouter.route("/unknown/thing"))
+    }
+
+    @Test fun `role check for app links`() {
+        assertEquals(false, DeepLinks.allowedFor(NavRoute.PropertyDetail("p1"), isTenant = true))
+        assertEquals(true, DeepLinks.allowedFor(NavRoute.PropertyDetail("p1"), isTenant = false))
+        assertEquals(true, DeepLinks.allowedFor(NavRoute.ListingDetail("l1"), isTenant = true))
+        assertEquals(false, DeepLinks.allowedFor(NavRoute.Explore, isTenant = false))
     }
 }

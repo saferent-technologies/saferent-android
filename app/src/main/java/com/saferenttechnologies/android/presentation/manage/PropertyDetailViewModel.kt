@@ -1,5 +1,11 @@
 package com.saferenttechnologies.android.presentation.manage
 
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
+import com.saferenttechnologies.android.domain.model.Lease
+import com.saferenttechnologies.android.domain.model.LeaseSummary
+import com.saferenttechnologies.android.domain.repository.LeaseRepository
 import androidx.lifecycle.viewModelScope
 import com.saferenttechnologies.android.core.log.AppLogger
 import com.saferenttechnologies.android.core.mvi.MviViewModel
@@ -32,6 +38,9 @@ import javax.inject.Inject
  * tenants, invitations, applications, photos, documents, history. Shows the server `message`.
  * Never logs phone numbers or addresses.
  */
+private const val MAX_EXIT_CHECKS = 20
+private val INVITATION_STATUSES = listOf("PENDING", "ACCEPTED", "REJECTED", "REVOKED", "EXPIRED")
+
 @HiltViewModel
 class PropertyDetailViewModel @Inject constructor(
     private val manage: ManagePropertyRepository,
@@ -40,6 +49,7 @@ class PropertyDetailViewModel @Inject constructor(
     private val uploads: PhotoUploadQueue,
     private val logger: AppLogger,
     private val getSupportConfig: GetSupportConfigUseCase,
+    private val leases: LeaseRepository,
     sessionEvents: SessionEvents,
 ) : MviViewModel<PropertyDetailState, PropertyDetailIntent, PropertyDetailEffect>(PropertyDetailState()) {
 
@@ -58,7 +68,7 @@ class PropertyDetailViewModel @Inject constructor(
                 close()
                 setState { PropertyDetailState(isOpen = true, propertyId = intent.propertyId, loading = true, tab = intent.tab) }
                 refresh()
-                if (currentState.detail != null && intent.tab != DetailTab.OVERVIEW) loadTab(intent.tab)
+                if (currentState.detail != null) loadTab(intent.tab)
                 watchUploads(intent.propertyId)
             }
             PropertyDetailIntent.Close -> close()
@@ -101,6 +111,33 @@ class PropertyDetailViewModel @Inject constructor(
                 loadTab(DetailTab.TENANTS)
             }
             is PropertyDetailIntent.CallTenant -> sendEffect(PropertyDetailEffect.Dial(intent.phone))
+            is PropertyDetailIntent.OpenUnit -> {
+                setState { copy(openUnitId = intent.unitId) }
+                loadActiveLeases()
+            }
+            PropertyDetailIntent.CloseUnit -> setState { copy(openUnitId = null) }
+            PropertyDetailIntent.AddUnit -> currentState.propertyId?.takeIf { currentState.canEdit }?.let {
+                sendEffect(PropertyDetailEffect.OpenEditor(it, WizardStep.UNITS, newUnit = true))
+            }
+            is PropertyDetailIntent.OpenLease -> intent.lease.let { l ->
+                sendEffect(
+                    PropertyDetailEffect.OpenLease(
+                        l.id,
+                        LeaseSummary(
+                            id = l.id,
+                            status = l.status,
+                            propertyTitle = currentState.detail?.property?.title.orEmpty(),
+                            place = listOf(l.place, l.placeCode).filter { it.isNotBlank() }.joinToString(" · "),
+                            monthlyRent = l.monthlyRent,
+                            securityDeposit = l.securityDeposit,
+                            rentDueDay = l.rentDueDay,
+                            startDate = l.startDate,
+                            endDate = l.endDate,
+                            otherName = l.tenantName,
+                        ),
+                    ),
+                )
+            }
             is PropertyDetailIntent.WhatsAppTenant -> sendEffect(PropertyDetailEffect.WhatsApp(intent.phone))
 
             is PropertyDetailIntent.StartInvite -> if (!InviteLocks.isLocked(currentState.pendingInvites, intent.unitId, intent.bedId)) setState {
@@ -294,6 +331,33 @@ class PropertyDetailViewModel @Inject constructor(
         }
     }
 
+    /** Every status in one list (pending first, then accepted, rejected, revoked, expired). */
+    private suspend fun loadAllInvitations(id: String) {
+        val all = coroutineScope {
+            INVITATION_STATUSES.map { s -> async { (manage.invitations(id, s) as? AppResult.Success)?.data.orEmpty() } }.awaitAll()
+        }.flatten().distinctBy { it.id }
+        setState { copy(invitations = all) }
+    }
+
+    private suspend fun loadActiveLeases() {
+        val id = currentState.propertyId ?: return
+        setState { copy(activeLeasesLoading = true) }
+        val r = manage.leases(id, active = true)
+        setState { copy(activeLeasesLoading = false, activeLeases = (r as? AppResult.Success)?.data ?: activeLeases) }
+        // "Close requested" on the flat's tenant (the tenants tab that used to load this is gone).
+        loadCloseRequests(currentState.activeLeases)
+    }
+
+    /** Which current tenants asked to close their lease (one GET /exit per lease, first 20). */
+    private fun loadCloseRequests(list: List<Lease>) {
+        viewModelScope.launch {
+            val asked = list.take(MAX_EXIT_CHECKS).mapNotNull { l ->
+                (leases.exitState(l.id) as? AppResult.Success)?.data?.takeIf { it.needsMyResponse }?.let { l.id }
+            }.toSet()
+            setState { copy(closeRequested = asked) }
+        }
+    }
+
     private suspend fun loadPendingInvites() {
         val id = currentState.propertyId ?: return
         if (!currentState.canManage) return
@@ -303,8 +367,11 @@ class PropertyDetailViewModel @Inject constructor(
     private suspend fun loadTab(tab: DetailTab) {
         val id = currentState.propertyId ?: return
         when (tab) {
-            DetailTab.TENANTS -> (manage.leases(id, active = !currentState.pastTenants) as? AppResult.Success)?.let { r -> setState { copy(leases = r.data) } }
-            DetailTab.INVITATIONS -> (manage.invitations(id, currentState.invitationStatus) as? AppResult.Success)?.let { r -> setState { copy(invitations = r.data) } }
+            DetailTab.TENANTS -> (manage.leases(id, active = !currentState.pastTenants) as? AppResult.Success)?.let { r ->
+                setState { copy(leases = r.data) }
+                if (!currentState.pastTenants) loadCloseRequests(r.data)
+            }
+            DetailTab.INVITATIONS -> loadAllInvitations(id)
             DetailTab.APPLICATIONS -> (manage.applications(id, "PENDING") as? AppResult.Success)?.let { r -> setState { copy(applications = r.data) } }
             DetailTab.HISTORY -> loadHistory(1)
             DetailTab.DOCUMENTS -> (properties.documents(id) as? AppResult.Success)?.let { r -> setState { copy(documents = r.data) } }

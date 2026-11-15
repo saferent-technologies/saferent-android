@@ -27,6 +27,17 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.SafeRent">
+        <!-- Rent receipt PDFs → other apps (PDF viewer, Share) via content:// uris. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -41,7 +52,7 @@
             </intent-filter>
 
             <!-- Deep links: shared listing / invite / property links open the app (App Links once
-                 /.well-known/assetlinks.json is on the site; until then Android asks which app). -->
+                 /.well-known/assetlinks.json is on the site; until then Android 12+ opens the link in the browser). -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
 
@@ -50,15 +61,17 @@
 
                 <data android:scheme="https" />
                 <data android:host="saferenttechnologies.com" />
-                <data android:host="www.saferenttechnologies.com" />
                 <data android:host="dev.saferenttechnologies.com" />
-                <data android:pathPrefix="/homes" />
-                <data android:pathPrefix="/browse" />
-                <data android:pathPrefix="/invite" />
-                <data android:pathPrefix="/properties" />
-                <data android:pathPrefix="/applications" />
-                <data android:pathPrefix="/leases" />
-                <data android:pathPrefix="/notifications" />
+                <data android:host="app.saferenttechnologies.com" />
+                <!-- Exactly the backend's list: no http, no wildcard host, no "/" (one unverifiable
+                     host / path drops verification for the whole filter). -->
+                <data android:pathPrefix="/homes/" />
+                <data android:path="/browse" />
+                <data android:pathPrefix="/invite/" />
+                <data android:pathPrefix="/properties/" />
+                <data android:path="/applications" />
+                <data android:pathPrefix="/leases/" />
+                <data android:path="/notifications" />
             </intent-filter>
 
             <!-- saferent://homes/{id} etc. (QR codes, SMS, other apps) -->

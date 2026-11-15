@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files other apps may open through FileProvider (rent receipts for View / Share only). -->
+<paths>
+    <cache-path name="receipts" path="receipts/" />
+</paths>
