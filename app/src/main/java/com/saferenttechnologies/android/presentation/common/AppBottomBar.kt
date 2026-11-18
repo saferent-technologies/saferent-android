@@ -33,7 +33,7 @@ import com.saferenttechnologies.android.core.ui.ssp
 import com.saferenttechnologies.android.presentation.auth.AuthColors
 import com.saferenttechnologies.android.ui.theme.Inter
 
-/** Bottom bar tabs. Landlord: Home, Properties, Tenants, Requests. Tenant: Home, Explore, Requests, Documents. */
+/** Bottom bar tabs. Landlord: Home, Properties, Tenants, Requests, Profile. Tenant: Home, Explore, Requests, Documents, Profile. */
 enum class AppTab(val icon: Int, val label: Int) {
     HOME(R.drawable.ic_home_outline, R.string.tab_home),
     PROPERTIES(R.drawable.ic_building, R.string.tab_properties),
@@ -41,11 +41,12 @@ enum class AppTab(val icon: Int, val label: Int) {
     EXPLORE(R.drawable.ic_search, R.string.tab_explore),
     REQUESTS(R.drawable.ic_edit, R.string.tab_requests),
     DOCUMENTS(R.drawable.ic_lock, R.string.tab_documents),
+    PROFILE(R.drawable.ic_person, R.string.tab_profile),
     ;
 
     companion object {
-        val LANDLORD = listOf(HOME, PROPERTIES, TENANTS, REQUESTS)
-        val TENANT = listOf(HOME, EXPLORE, REQUESTS, DOCUMENTS)
+        val LANDLORD = listOf(HOME, PROPERTIES, TENANTS, REQUESTS, PROFILE)
+        val TENANT = listOf(HOME, EXPLORE, REQUESTS, DOCUMENTS, PROFILE)
     }
 }
 
@@ -107,6 +108,7 @@ object AppTabs {
         val documentsVaultOpen: Boolean = false,
         val exploreShown: Boolean = false,
         val dashboardShown: Boolean = false,
+        val profileOpen: Boolean = false,
     )
 
     fun current(s: Screens): AppTab? = when {
@@ -115,6 +117,8 @@ object AppTabs {
         s.landlord && s.myPropertiesOpen -> AppTab.PROPERTIES
         s.landlord && s.tenantsOpen -> AppTab.TENANTS
         !s.landlord && s.documentsVaultOpen -> AppTab.DOCUMENTS
+        // Profile sits under the screens it opens (leases, documents …), above Explore / Home.
+        s.profileOpen -> AppTab.PROFILE
         !s.landlord && s.exploreShown -> AppTab.EXPLORE
         s.dashboardShown -> AppTab.HOME
         else -> null

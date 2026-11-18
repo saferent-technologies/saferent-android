@@ -1146,4 +1146,24 @@
     <string name="tab_explore">Explore</string>
     <string name="tab_requests">Requests</string>
     <string name="tab_documents">Documents</string>
+    <string name="tab_profile">Profile</string>
+    <string name="account_using_as">Using SafeRent as</string>
+    <string name="account_role_tenant">Tenant</string>
+    <string name="account_role_landlord">Landlord</string>
+    <string name="account_shortcuts">Shortcuts</string>
+    <string name="account_help">Help</string>
+    <string name="account_call_support">Call support</string>
+    <string name="account_whatsapp_support">WhatsApp support</string>
+    <string name="account_email_support">Email support</string>
+    <string name="account_help_center">Help center</string>
+    <string name="account_legal">Legal</string>
+    <string name="account_privacy">Privacy policy</string>
+    <string name="account_terms">Terms of service</string>
+    <string name="account_refund">Refund policy</string>
+    <string name="account_sign_out">Sign out</string>
+    <string name="account_signing_out">Signing out…</string>
+    <string name="account_sign_out_title">Sign out of SafeRent?</string>
+    <string name="account_version">Version %1$s</string>
+    <string name="account_transactions">Transactions</string>
+    <string name="account_notifications">Notifications</string>
 </resources>

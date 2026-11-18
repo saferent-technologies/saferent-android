@@ -1,5 +1,9 @@
 package com.saferenttechnologies.android
 
+import com.saferenttechnologies.android.presentation.account.AccountLink
+import com.saferenttechnologies.android.presentation.account.AccountIntent
+import com.saferenttechnologies.android.presentation.account.AccountViewModel
+import com.saferenttechnologies.android.presentation.account.AccountScreen
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.navigationBars
@@ -168,6 +172,7 @@ class MainActivity : ComponentActivity() {
     private val documentsViewModel: DocumentsViewModel by viewModels()
     private val homeAlertViewModel: HomeAlertViewModel by viewModels()
     private val tenantLeasesViewModel: TenantLeasesViewModel by viewModels()
+    private val accountViewModel: AccountViewModel by viewModels()
 
     @Inject
     lateinit var permissionManager: PermissionManager
@@ -218,6 +223,7 @@ class MainActivity : ComponentActivity() {
                     val documentsState by documentsViewModel.state.collectAsState()
                     val homeAlertState by homeAlertViewModel.state.collectAsState()
                     val tenantLeasesState by tenantLeasesViewModel.state.collectAsState()
+                    val accountState by accountViewModel.state.collectAsState()
                     // Notification links → screens (only property detail exists today).
                     LaunchedEffect(Unit) {
                         notificationsViewModel.effect.collect { effect ->
@@ -379,9 +385,12 @@ class MainActivity : ComponentActivity() {
                             documentsVaultOpen = documentsState.isOpen && !documentsState.landlord,
                             exploreShown = !landlordRole && (tenantHomeState.showExplore || (tenantHomeState.home == null && tenantHomeState.error != null)),
                             dashboardShown = landlordRole || tenantHomeState.home != null,
+                            profileOpen = accountState.isOpen,
                         ),
                     )
                     val selectTab: (AppTab) -> Unit = { tab ->
+                        if (tab != AppTab.PROFILE && accountState.isOpen) accountViewModel.onIntent(AccountIntent.Close)
+                        if (tab == AppTab.PROFILE && !accountState.isOpen) accountViewModel.onIntent(AccountIntent.Open)
                         val keepRequests = tab == AppTab.REQUESTS
                         if (!keepRequests && requestsState.isOpen) requestsViewModel.onIntent(RequestsIntent.Close)
                         if (landlordRole) {
@@ -596,6 +605,27 @@ class MainActivity : ComponentActivity() {
                         notificationsState.isOpen -> NotificationsScreen(
                             state = notificationsState,
                             onIntent = notificationsViewModel::onIntent,
+                        )
+
+                        // Profile tab: account, role switch, shortcuts, help, legal, sign out.
+                        accountState.isOpen -> AccountScreen(
+                            state = accountState,
+                            user = homeState.user,
+                            activeRole = homeState.activeRole,
+                            signingOut = homeState.isSigningOut,
+                            onIntent = accountViewModel::onIntent,
+                            onSwitchRole = { homeViewModel.onIntent(HomeIntent.SwitchRole(it)) },
+                            onSignOut = { homeViewModel.onIntent(HomeIntent.SignOut) },
+                            shortcuts = if (homeState.activeRole == UserRole.TENANT) listOf(
+                                AccountLink(R.drawable.ic_document, getString(R.string.tenant_my_leases), { tenantLeasesViewModel.onIntent(TenantLeasesIntent.Open) }),
+                                AccountLink(R.drawable.ic_home_outline, getString(R.string.explore_my_applications), { myApplicationsViewModel.onIntent(MyApplicationsIntent.Open) }),
+                                AccountLink(R.drawable.ic_campaign, getString(R.string.ann_title), { announcementsViewModel.onIntent(AnnouncementsIntent.Open(landlord = false)) }),
+                                AccountLink(R.drawable.ic_notifications, getString(R.string.account_notifications), { notificationsViewModel.onIntent(NotificationsIntent.Open) }),
+                            ) else listOf(
+                                AccountLink(R.drawable.ic_document, getString(R.string.account_transactions), { transactionsViewModel.onIntent(TransactionsIntent.Open) }),
+                                AccountLink(R.drawable.ic_campaign, getString(R.string.ann_title), { announcementsViewModel.onIntent(AnnouncementsIntent.Open(landlord = true)) }),
+                                AccountLink(R.drawable.ic_notifications, getString(R.string.account_notifications), { notificationsViewModel.onIntent(NotificationsIntent.Open) }),
+                            ),
                         )
 
                         // Tenant: an ended lease not reviewed yet → the review (+ deposit refund) screen first, no skip.

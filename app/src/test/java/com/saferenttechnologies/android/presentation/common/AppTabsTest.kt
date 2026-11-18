@@ -20,4 +20,12 @@ class AppTabsTest {
         assertEquals(AppTab.DOCUMENTS, AppTabs.current(AppTabs.Screens(landlord = false, overlayOpen = false, documentsVaultOpen = true, exploreShown = true)))
         assertNull(AppTabs.current(AppTabs.Screens(landlord = false, overlayOpen = false)))
     }
+
+    @Test fun `profile tab`() {
+        assertEquals(AppTab.PROFILE, AppTabs.current(AppTabs.Screens(landlord = true, overlayOpen = false, profileOpen = true, dashboardShown = true)))
+        // Documents opened from Profile shows on top → Documents tab.
+        assertEquals(AppTab.DOCUMENTS, AppTabs.current(AppTabs.Screens(landlord = false, overlayOpen = false, documentsVaultOpen = true, profileOpen = true, dashboardShown = true)))
+        assertEquals(AppTab.PROFILE, AppTab.LANDLORD.last())
+        assertEquals(AppTab.PROFILE, AppTab.TENANT.last())
+    }
 }

@@ -204,18 +204,8 @@ fun HomeScreen(
             Spacer(Modifier.height(6.sdp))
             Text("Coming soon.", color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
         }
-        Spacer(Modifier.height(32.sdp))
-        Text(
-            if (state.isSigningOut) "Signing out…" else "Sign out",
-            color = AuthColors.Error,
-            fontFamily = Inter,
-            fontWeight = FontWeight.Medium,
-            fontSize = 15.ssp,
-            modifier = Modifier
-                .heightIn(min = 48.sdp)
-                .clickable(enabled = !state.isSigningOut, role = Role.Button) { onIntent(HomeIntent.SignOut) }
-                .padding(vertical = 14.sdp),
-        )
+        // Sign out lives in the Profile tab now.
+        Spacer(Modifier.height(24.sdp))
     }
     }
 }
