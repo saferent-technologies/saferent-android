@@ -54,11 +54,9 @@ object PropertyForms {
         f("securityDeposit", FieldType.MONEY, min = 0.0),
     )
 
-    /** SALE → salePrice instead of monthly rent. */
+    /** SafeRent is rentals only: rent + deposit + terms (no sale price). */
+    @Suppress("UNUSED_PARAMETER")
     fun pricing(listingType: String, types: PropertyTypes?): List<FieldDef> =
-        if (listingType == "SALE") {
-            listOf(f("salePrice", FieldType.MONEY, required = true, min = 0.0))
-        } else {
             // Rent is due every month on the tenant's joining date → no "rent due day" any more.
             listOf(
                 f("monthlyRent", FieldType.MONEY, required = true, min = 0.0),
@@ -80,29 +78,25 @@ object PropertyForms {
                 f("depositUsableAsRent", FieldType.BOOLEAN),
                 f("otherTerms", FieldType.TEXTAREA, maxLength = 5000),
             )
-        }
 
-    /** Rent / deposit / sale price keys — on each flat for an apartment, never on the building. */
-    val FLAT_PRICE_KEYS = setOf("monthlyRent", "securityDeposit", "salePrice")
+    /** Rent / deposit keys — on each flat for an apartment, never on the building. */
+    val FLAT_PRICE_KEYS = setOf("monthlyRent", "securityDeposit")
 
     /** Apartment "Common charges": the pricing step without the flat's own price fields. */
     fun commonPricing(listingType: String, types: PropertyTypes?): List<FieldDef> =
-        if (listingType == "SALE") emptyList() else pricing(listingType, types).filterNot { it.key in FLAT_PRICE_KEYS }
+        pricing(listingType, types).filterNot { it.key in FLAT_PRICE_KEYS }
 
     /** Pricing step for a property type (apartment → common charges only). */
     fun pricingFor(apartment: Boolean, listingType: String, types: PropertyTypes?): List<FieldDef> =
         if (apartment) commonPricing(listingType, types) else pricing(listingType, types)
 
-    /** A flat's own price (apartment): rent + deposit both required; SALE → sale price. */
+    /** A flat's own price (apartment): rent + deposit both required. */
+    @Suppress("UNUSED_PARAMETER")
     fun flatPricing(listingType: String): List<FieldDef> =
-        if (listingType == "SALE") {
-            listOf(f("salePrice", FieldType.MONEY, required = true, min = 0.0))
-        } else {
-            listOf(
-                f("monthlyRent", FieldType.MONEY, required = true, min = 0.0),
-                f("securityDeposit", FieldType.MONEY, required = true, min = 0.0),
-            )
-        }
+        listOf(
+            f("monthlyRent", FieldType.MONEY, required = true, min = 0.0),
+            f("securityDeposit", FieldType.MONEY, required = true, min = 0.0),
+        )
 
     // ---------------- Utilities (PUT properties/{id}/utilities) ----------------
 

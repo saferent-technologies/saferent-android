@@ -169,7 +169,6 @@ fun ListingCard(item: Listing, onClick: () -> Unit, onLongClick: () -> Unit) {
 fun listingTypeLabel(type: String): String = stringResource(
     when (type.uppercase()) {
         "LEASE" -> R.string.explore_for_lease
-        "SALE" -> R.string.explore_for_sale
         else -> R.string.explore_for_rent
     },
 )

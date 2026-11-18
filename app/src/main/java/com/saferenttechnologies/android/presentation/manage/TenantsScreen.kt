@@ -76,6 +76,7 @@ fun TenantsScreen(
     onIntent: (TenantsIntent) -> Unit,
     onOpenLease: (Lease) -> Unit,
     effects: kotlinx.coroutines.flow.Flow<TenantsEffect>? = null,
+    onOpenDocuments: (Lease) -> Unit = {},
 ) {
     BackHandler { onIntent(TenantsIntent.Close) }
     androidx.compose.runtime.LaunchedEffect(effects) {
@@ -144,7 +145,7 @@ fun TenantsScreen(
             modifier = Modifier.fillMaxWidth().weight(1f),
         ) {
             when {
-                state.loading && state.items.isEmpty() -> ListSkeleton(rows = 5, thumbnail = 44.sdp, roundThumb = true)
+                state.loading && state.items.isEmpty() -> ListSkeleton(rows = 5, thumbnail = 44.sdp, roundThumb = true, lines = 3)
                 state.items.isNotEmpty() && state.visible.isEmpty() -> Text(
                     stringResource(R.string.tenants_no_match, state.query.trim()),
                     color = AuthColors.Muted,
@@ -171,7 +172,7 @@ fun TenantsScreen(
             }
         }
     }
-    state.open?.let { lease -> TenantSheet(lease, lease.id in state.closeRequested, onIntent, onOpenLease) }
+    state.open?.let { lease -> TenantSheet(lease, lease.id in state.closeRequested, onIntent, onOpenLease, onOpenDocuments) }
 }
 
 @Composable
@@ -226,7 +227,7 @@ private fun TenantCard(lease: Lease, closeRequested: Boolean, onClick: () -> Uni
 /** Tenant details: who, where, rent and dates, contact (current only), → lease screen. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TenantSheet(lease: Lease, closeRequested: Boolean, onIntent: (TenantsIntent) -> Unit, onOpenLease: (Lease) -> Unit) {
+private fun TenantSheet(lease: Lease, closeRequested: Boolean, onIntent: (TenantsIntent) -> Unit, onOpenLease: (Lease) -> Unit, onOpenDocuments: (Lease) -> Unit) {
     val context = LocalContext.current
     ModalBottomSheet(
         onDismissRequest = { onIntent(TenantsIntent.CloseTenant) },
@@ -288,6 +289,14 @@ private fun TenantSheet(lease: Lease, closeRequested: Boolean, onIntent: (Tenant
             OutlineAction(stringResource(R.string.lease_view), R.drawable.ic_document, modifier = Modifier.fillMaxWidth()) {
                 onIntent(TenantsIntent.CloseTenant)
                 onOpenLease(lease)
+            }
+            // What the tenant shared (only while the lease is active — past tenants: no access).
+            if (lease.exitDate == null && !lease.status.equals("CLOSED", true) && !lease.status.equals("ENDED", true)) {
+                Spacer(Modifier.height(8.sdp))
+                OutlineAction(stringResource(R.string.docs_landlord_btn), R.drawable.ic_lock, modifier = Modifier.fillMaxWidth()) {
+                    onIntent(TenantsIntent.CloseTenant)
+                    onOpenDocuments(lease)
+                }
             }
         }
     }

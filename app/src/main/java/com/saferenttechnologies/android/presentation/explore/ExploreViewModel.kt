@@ -69,6 +69,8 @@ sealed interface ExploreIntent : UiIntent {
     data object LoadMore : ExploreIntent
     data object Retry : ExploreIntent
     data class ToggleChip(val chip: QuickChip) : ExploreIntent
+    /** Quick pill for one of our property types (Apartment, PG …): on / off. */
+    data class QuickType(val key: String) : ExploreIntent
     data object ClearAll : ExploreIntent
 
     data object OpenFilters : ExploreIntent
@@ -140,6 +142,9 @@ class ExploreViewModel @Inject constructor(
             ExploreIntent.Retry -> if (currentState.items.isEmpty()) load(reset = true) else loadMore()
             ExploreIntent.LoadMore -> loadMore()
             is ExploreIntent.ToggleChip -> toggle(intent.chip)
+            is ExploreIntent.QuickType -> currentState.filters.let { f ->
+                apply(f.copy(propertyType = if (f.propertyType == intent.key) null else intent.key))
+            }
             ExploreIntent.ClearAll -> apply(BrowseFilters())
 
             ExploreIntent.OpenFilters -> {
@@ -404,7 +409,8 @@ object FiltersSaver {
             query = h["${P}q"] ?: "",
             place = label?.let { PlaceFilter(it, h["${P}placeCity"], h["${P}placeLocality"], h["${P}placeState"]) },
             nearMe = if (lat != null && lng != null) NearMe(lat, lng, h["${P}radius"] ?: ExploreViewModel.DEFAULT_RADIUS_KM) else null,
-            listingType = h["${P}listingType"],
+            // An old saved "SALE" filter is dropped (rentals only).
+            listingType = h.get<String>("${P}listingType")?.takeIf { it.uppercase() in com.saferenttechnologies.android.domain.model.ListingTypes.RENTAL },
             category = h["${P}category"],
             propertyType = h["${P}propertyType"],
             minRent = h["${P}minRent"],

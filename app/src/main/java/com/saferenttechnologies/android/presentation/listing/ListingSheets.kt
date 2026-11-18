@@ -101,7 +101,7 @@ fun BottomBar(state: ListingDetailState, onIntent: (ListingDetailIntent) -> Unit
             else -> if (apartment) {
                 val flat = state.selectedUnit
                 Column(Modifier.weight(0.42f)) {
-                    val price = Money.inr(flat?.let { f -> f.monthlyRent.ifBlank { f.salePrice } })
+                    val price = Money.inr(flat?.monthlyRent)
                     Text(price.ifBlank { stringResource(R.string.apartment_rent_not_disclosed) }, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 17.ssp)
                     if (flat?.monthlyRent?.isNotBlank() == true) Text(stringResource(R.string.explore_per_month).trim(), color = AuthColors.Body, fontFamily = Inter, fontSize = 11.ssp)
                     Text(

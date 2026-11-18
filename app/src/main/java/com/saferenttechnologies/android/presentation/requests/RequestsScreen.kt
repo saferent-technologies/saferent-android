@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.requests
 
+import com.saferenttechnologies.android.presentation.common.SkeletonTrailing
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.horizontalScroll
 import com.saferenttechnologies.android.presentation.common.rememberIdleHint
@@ -76,7 +77,6 @@ import com.saferenttechnologies.android.domain.model.ServiceRequest
 import com.saferenttechnologies.android.presentation.auth.AuthColors
 import com.saferenttechnologies.android.presentation.auth.AuthPrimaryButton
 import com.saferenttechnologies.android.presentation.common.ListSkeleton
-import com.saferenttechnologies.android.presentation.common.DetailSkeleton
 import com.saferenttechnologies.android.presentation.explore.Amber
 import com.saferenttechnologies.android.presentation.manage.StatusPill
 import com.saferenttechnologies.android.presentation.manage.prettyDate
@@ -201,7 +201,7 @@ private fun ColumnScope.ListContent(state: RequestsState, onIntent: (RequestsInt
     }
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onIntent(RequestsIntent.Refresh) }, modifier = Modifier.fillMaxWidth().weight(1f)) {
         when {
-            state.loading && state.items.isEmpty() -> ListSkeleton(rows = 5, thumbnail = 44.sdp, roundThumb = true)
+            state.loading && state.items.isEmpty() -> ListSkeleton(rows = 5, thumbnail = 42.sdp, roundThumb = true, lines = 3, trailing = SkeletonTrailing.PILL)
             state.items.isEmpty() -> Text(
                 state.error ?: stringResource(R.string.req_empty),
                 color = AuthColors.Muted,
@@ -339,9 +339,10 @@ private fun ColumnScope.RaiseContent(state: RequestsState, onIntent: (RequestsIn
 
         Spacer(Modifier.height(10.sdp))
         Heading(stringResource(R.string.req_q_priority))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+        // Full words ("Medium", "Urgent"), no "…": scrolls sideways if they don't fit.
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
             (state.options?.priorities ?: listOf("LOW", "MEDIUM", "HIGH", "URGENT")).forEach { p ->
-                Chip(optionLabel(p), selected = f.priority == p, enabled = !state.busy, modifier = Modifier.weight(1f), maxLines = 1) { onIntent(RequestsIntent.RaisePriority(p)) }
+                Chip(optionLabel(p), selected = f.priority == p, enabled = !state.busy, modifier = Modifier.widthIn(min = 72.sdp), maxLines = 1) { onIntent(RequestsIntent.RaisePriority(p)) }
             }
         }
 
@@ -387,7 +388,7 @@ private fun FieldErr(text: String) {
 private fun ColumnScope.DetailContent(state: RequestsState, onIntent: (RequestsIntent) -> Unit) {
     val r = state.detail
     if (r == null) {
-        if (state.detailLoading) DetailSkeleton(hero = false)
+        if (state.detailLoading) com.saferenttechnologies.android.presentation.common.RequestDetailSkeleton()
         return
     }
     val urlOf = r.photos.associate { it.id to absoluteUrl(it.url) }
@@ -509,9 +510,9 @@ private fun UpdatePanel(state: RequestsState, r: ServiceRequest, onIntent: (Requ
     val picker = rememberPhotoPicker(RequestRules.MAX_PHOTOS - state.updPhotos.size) { onIntent(RequestsIntent.UpdAddPhotos(it)) }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp)).border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp)).padding(14.sdp)) {
         Heading(stringResource(R.string.req_update_title))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
             statuses.forEach { (key, label) ->
-                Chip(label, selected = selected == key, enabled = !state.busy, modifier = Modifier.weight(1f), maxLines = 1) { onIntent(RequestsIntent.UpdStatus(key)) }
+                Chip(label, selected = selected == key, enabled = !state.busy, modifier = Modifier.widthIn(min = 72.sdp), maxLines = 1) { onIntent(RequestsIntent.UpdStatus(key)) }
             }
         }
         Spacer(Modifier.height(10.sdp))

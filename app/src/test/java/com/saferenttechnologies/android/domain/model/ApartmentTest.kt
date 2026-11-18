@@ -9,11 +9,10 @@ import org.junit.Test
 class ApartmentTest {
     // ---------------- landlord wizard ----------------
 
-    @Test fun `apartment common charges never carry rent, deposit or sale price`() {
+    @Test fun `apartment common charges never carry rent or deposit`() {
         val keys = PropertyForms.pricingFor(apartment = true, listingType = "RENT", types = null).map { it.key }
         assertTrue(keys.none { it in PropertyForms.FLAT_PRICE_KEYS })
         assertTrue("lateFeePolicy" in keys && "noticePeriodDays" in keys && "agreementCharges" in keys && "rentDueDay" !in keys)
-        assertTrue(PropertyForms.pricingFor(apartment = true, listingType = "SALE", types = null).isEmpty())
     }
 
     @Test fun `other types keep today's pricing step`() {
@@ -21,18 +20,18 @@ class ApartmentTest {
         assertTrue("monthlyRent" in keys)
     }
 
-    @Test fun `flat form requires rent and deposit (RENT) or price (SALE)`() {
+    @Test fun `flat form requires rent and deposit`() {
         val rent = PropertyForms.flatPricing("RENT")
         val errors = FieldValidator.validate(rent, mapOf("monthlyRent" to "18000"))
         assertEquals(FieldError.Required, errors["securityDeposit"])
         assertNull(errors["monthlyRent"])
-        assertEquals(FieldError.Required, FieldValidator.validate(PropertyForms.flatPricing("SALE"), emptyMap())["salePrice"])
+        // Rentals only: never a sale price, whatever the listing type says.
+        assertTrue(PropertyForms.flatPricing("SALE").none { it.key == "salePrice" })
     }
 
     @Test fun `flat pricing body has only the price fields`() {
         val body = ApartmentRules.flatPricingBody(mapOf("monthlyRent" to " 18000 ", "securityDeposit" to "54000", "bhkType" to "2BHK", "salePrice" to "1"), "RENT")
         assertEquals(mapOf("monthlyRent" to "18000", "securityDeposit" to "54000"), body)
-        assertEquals(mapOf("salePrice" to "6500000"), ApartmentRules.flatPricingBody(mapOf("salePrice" to "6500000", "monthlyRent" to "1"), "SALE"))
     }
 
     @Test fun `flats without rent are flagged and rent problems open the Flats step`() {
@@ -89,5 +88,12 @@ class ApartmentTest {
         val house = listing.copy(propertyType = "INDEPENDENT_HOUSE")
         assertFalse(house.isUnitPriced)
         assertEquals(3, FlatSelection.photos(house, "u2").size)
+    }
+
+    @Test fun `listing types are rentals only`() {
+        assertEquals(listOf("RENT", "LEASE"), ListingTypes.rentalOnly(listOf("RENT", "LEASE", "SALE")))
+        assertEquals(listOf("RENT"), ListingTypes.rentalOnly(listOf("SALE")))
+        assertEquals("RENT", ListingTypes.safe("SALE"))
+        assertEquals("LEASE", ListingTypes.safe("lease"))
     }
 }

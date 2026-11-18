@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.tenant
 
+import com.saferenttechnologies.android.presentation.common.SkeletonTrailing
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import com.saferenttechnologies.android.presentation.common.ListSkeleton
@@ -76,7 +77,7 @@ fun MyApplicationsScreen(state: MyApplicationsState, onIntent: (MyApplicationsIn
                 }
             }
             when {
-                state.loading && state.items.isEmpty() -> ListSkeleton(rows = 4, thumbnail = null)
+                state.loading && state.items.isEmpty() -> ListSkeleton(rows = 4, thumbnail = null, lines = 3, trailing = SkeletonTrailing.PILL)
                 state.error != null && state.items.isEmpty() -> Text(state.error, color = AuthColors.Body, fontFamily = Inter, modifier = Modifier.padding(24.sdp))
                 state.items.isEmpty() -> Text(stringResource(R.string.applications_empty), color = AuthColors.Body, fontFamily = Inter, modifier = Modifier.padding(24.sdp))
                 else -> LazyColumn(contentPadding = PaddingValues(16.sdp), verticalArrangement = Arrangement.spacedBy(10.sdp)) {

@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.announcements
 
+import com.saferenttechnologies.android.presentation.common.SkeletonTrailing
 import com.saferenttechnologies.android.presentation.common.rememberIdleHint
 import com.saferenttechnologies.android.presentation.property.SelectField
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
@@ -70,7 +71,6 @@ import com.saferenttechnologies.android.domain.model.AnnouncementViewer
 import com.saferenttechnologies.android.domain.model.RelativeTime
 import com.saferenttechnologies.android.presentation.auth.AuthColors
 import com.saferenttechnologies.android.presentation.auth.AuthPrimaryButton
-import com.saferenttechnologies.android.presentation.common.DetailSkeleton
 import com.saferenttechnologies.android.presentation.common.ListSkeleton
 import com.saferenttechnologies.android.presentation.manage.StatusPill
 import com.saferenttechnologies.android.presentation.manage.prettyDate
@@ -166,7 +166,7 @@ private fun ColumnScope.ListContent(state: AnnouncementsState, onIntent: (Announ
     }
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onIntent(AnnouncementsIntent.Refresh) }, modifier = Modifier.fillMaxWidth().weight(1f)) {
         when {
-            state.loading && state.items.isEmpty() -> ListSkeleton(rows = 5, thumbnail = 44.sdp, roundThumb = true)
+            state.loading && state.items.isEmpty() -> ListSkeleton(rows = 5, thumbnail = 44.sdp, roundThumb = true, lines = 3, trailing = if (state.landlord) SkeletonTrailing.PILL else SkeletonTrailing.NONE)
             state.items.isEmpty() -> Text(
                 state.error ?: stringResource(if (state.landlord) R.string.ann_empty_landlord else R.string.ann_empty_tenant),
                 color = AuthColors.Muted,
@@ -436,7 +436,7 @@ private fun FieldErr(text: String) {
 private fun ColumnScope.DetailContent(state: AnnouncementsState, onIntent: (AnnouncementsIntent) -> Unit) {
     val a = state.detail
     if (a == null) {
-        if (state.detailLoading) DetailSkeleton(hero = true)
+        if (state.detailLoading) com.saferenttechnologies.android.presentation.common.AnnouncementDetailSkeleton()
         return
     }
     PullToRefreshBox(isRefreshing = state.detailLoading && state.detail != null, onRefresh = { onIntent(AnnouncementsIntent.Refresh) }, modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -494,7 +494,7 @@ private fun Viewers(state: AnnouncementsState, a: Announcement, onIntent: (Annou
     Spacer(Modifier.height(10.sdp))
     val rows = if (state.seenTab) state.seen else state.notSeen
     when {
-        state.viewersLoading && state.viewers.isEmpty() -> ListSkeleton(rows = 3, thumbnail = 36.sdp, roundThumb = true)
+        state.viewersLoading && state.viewers.isEmpty() -> ListSkeleton(outerPadding = 0.sdp, lines = 2, rows = 3, thumbnail = 36.sdp, roundThumb = true)
         rows.isEmpty() -> Text(
             stringResource(if (state.seenTab) R.string.ann_none_seen else R.string.ann_all_seen),
             color = AuthColors.Muted,

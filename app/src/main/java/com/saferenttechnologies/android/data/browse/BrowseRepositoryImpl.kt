@@ -184,7 +184,8 @@ object BrowseMapper {
             "STATE" -> "State"
             else -> where
         }
-        return LocationSuggestion(kind, name, filter.label, sub, o.int("listingCount", 0), filter)
+        fun num(k: String) = (o[k] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull()
+        return LocationSuggestion(kind, name, filter.label, sub, o.int("listingCount", 0), filter, num("latitude"), num("longitude"))
     }
 
     private fun breakdown(o: JsonObject?): CostBreakdown? = o?.let {
@@ -235,7 +236,6 @@ object BrowseMapper {
                 availabilityStatus = o.text("availabilityStatus"),
                 monthlyRent = pricing?.text("monthlyRent").orEmpty(),
                 securityDeposit = pricing?.text("securityDeposit").orEmpty(),
-                salePrice = pricing?.text("salePrice").orEmpty(),
                 breakdown = breakdown(pricing?.obj("breakdown")),
                 availableFrom = o.text("availableFrom"),
                 availabilityLabel = o.text("availabilityLabel"),

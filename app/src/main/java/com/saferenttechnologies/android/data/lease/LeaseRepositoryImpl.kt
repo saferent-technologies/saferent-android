@@ -46,6 +46,11 @@ class LeaseRepositoryImpl @Inject constructor(
     override suspend fun lease(leaseId: String): AppResult<LeaseSummary> =
         call("GET lease", { api.lease(leaseId) }) { data, _ -> (data as? JsonObject)?.let { LeaseExitMapper.lease(it, leaseId) } }
 
+    override suspend fun myLeases(): AppResult<List<LeaseSummary>> =
+        call("GET leases (tenant)", { api.mine() }) { data, _ ->
+            data.arrayAt("leases", "items").mapNotNull { (it as? JsonObject)?.let { o -> LeaseExitMapper.lease(o, "") } }.filter { it.id.isNotBlank() }
+        }
+
     override suspend fun exitState(leaseId: String): AppResult<LeaseExitState> =
         call("GET lease exit", { api.exit(leaseId) }) { data, _ -> (data as? JsonObject)?.let(LeaseExitMapper::state) }
 
@@ -171,6 +176,12 @@ object LeaseExitMapper {
             startDate = l.text("startDate"),
             endDate = l.text("endDate"),
             otherName = other?.text("fullName").orEmpty().ifBlank { other?.text("name").orEmpty() },
+            address = l.text("address").ifBlank {
+                listOf(prop?.text("addressLine").orEmpty(), prop?.text("locality").orEmpty(), prop?.text("city").orEmpty(), prop?.text("pincode").orEmpty())
+                    .filter { it.isNotBlank() }.joinToString(", ")
+            },
+            otherPhone = other?.text("phone").orEmpty(),
+            endedOn = l.text("endedAt").ifBlank { l.text("closedAt") }.ifBlank { l.text("exitDate") },
         )
     }
 

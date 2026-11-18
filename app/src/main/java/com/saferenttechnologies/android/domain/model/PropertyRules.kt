@@ -306,10 +306,9 @@ object ApartmentRules {
         PropertyForms.flatPricing(listingType).mapNotNull { f -> values[f.key]?.trim()?.takeIf { it.isNotEmpty() }?.let { f.key to it } }.toMap()
 
     /** Flats still missing their price (highlighted on the Flats step). */
-    fun flatsWithoutPrice(units: List<PropertyUnit>, listingType: String): List<PropertyUnit> {
-        val key = if (listingType == "SALE") "salePrice" else "monthlyRent"
-        return units.filter { u -> u.values[key]?.toDoubleOrNull()?.let { it > 0 } != true }
-    }
+    @Suppress("UNUSED_PARAMETER")
+    fun flatsWithoutPrice(units: List<PropertyUnit>, listingType: String): List<PropertyUnit> =
+        units.filter { u -> u.values["monthlyRent"]?.toDoubleOrNull()?.let { it > 0 } != true }
 
     /** PG rooms without a price: no rent per bed and no bed with its own rent. */
     fun roomsWithoutPrice(rooms: List<PropertyRoom>): List<PropertyRoom> = rooms.filter { r ->
@@ -418,4 +417,17 @@ object UnitAvailability {
 
     const val ERR_DATE = "@unit_date"
     const val ERR_REASON = "@unit_reason"
+}
+
+/** SafeRent is for rentals only (rent / lease) — never "for sale". */
+object ListingTypes {
+    const val DEFAULT = "RENT"
+    val RENTAL = listOf("RENT", "LEASE")
+
+    /** Server list without SALE (or anything not a rental); empty → just RENT. */
+    fun rentalOnly(types: List<String>?): List<String> =
+        types.orEmpty().map { it.uppercase() }.filter { it in RENTAL }.distinct().ifEmpty { listOf(DEFAULT) }
+
+    /** A saved / restored value that isn't a rental (e.g. old "SALE") → RENT / null. */
+    fun safe(type: String?): String = type?.uppercase()?.takeIf { it in RENTAL } ?: DEFAULT
 }

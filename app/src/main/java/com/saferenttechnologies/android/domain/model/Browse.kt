@@ -116,6 +116,9 @@ data class LocationSuggestion(
     val subLabel: String,
     val listingCount: Int,
     val filter: PlaceFilter,
+    /** Centre of the area when the server sends it. */
+    val latitude: Double? = null,
+    val longitude: Double? = null,
 )
 
 // ---------------- listing detail ----------------
@@ -140,7 +143,6 @@ data class UnitOption(
     val availabilityStatus: String = "",
     val monthlyRent: String = "",
     val securityDeposit: String = "",
-    val salePrice: String = "",
     val breakdown: CostBreakdown? = null,
     val availableFrom: String = "",
     /** Server text: "Available now" / "Available from 30 Nov 2026" / "Occupied". */

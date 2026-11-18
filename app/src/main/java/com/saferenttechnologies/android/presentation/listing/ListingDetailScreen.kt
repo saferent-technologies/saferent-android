@@ -635,10 +635,10 @@ private fun FlatChooserRow(state: ListingDetailState, d: ListingDetail, onIntent
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(6.sdp))
-                val price = Money.inr(u.monthlyRent.ifBlank { u.salePrice })
+                val price = Money.inr(u.monthlyRent)
                 Text(
                     if (price.isBlank()) stringResource(R.string.apartment_rent_not_disclosed)
-                    else if (u.monthlyRent.isNotBlank()) stringResource(R.string.apartment_per_month, price) else price,
+                    else stringResource(R.string.apartment_per_month, price),
                     color = if (price.isBlank()) Amber else AuthColors.Ink,
                     fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,

@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.explore
 
+import androidx.compose.foundation.border
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import androidx.activity.compose.BackHandler
@@ -77,42 +78,92 @@ import com.saferenttechnologies.android.ui.theme.PlusJakartaSans
 
 @Composable
 fun SearchScreen(state: ExploreState, onIntent: (ExploreIntent) -> Unit, onNearMe: () -> Unit) {
-    BackHandler { onIntent(ExploreIntent.CloseSearch) }
+    LocationSearchContent(
+        text = state.searchText,
+        onText = { onIntent(ExploreIntent.SearchTextChanged(it)) },
+        onBack = { onIntent(ExploreIntent.CloseSearch) },
+        onUseLocation = onNearMe,
+        suggestions = state.suggestions,
+        loading = state.suggestionsLoading,
+        onPick = { onIntent(ExploreIntent.PickSuggestion(it)) },
+        recent = state.recent,
+        onRecent = { onIntent(ExploreIntent.SubmitSearch(it)) },
+        onClearRecent = { onIntent(ExploreIntent.ClearRecent) },
+        onSubmit = { onIntent(ExploreIntent.SubmitSearch(it)) },
+    )
+}
+
+/**
+ * Full-screen place search (Explore search, home alerts …): back + rounded search box,
+ * "Use my current location", recent searches, our areas / cities with the typed part in bold
+ * and "N homes", and (when [onSubmit] is given) "Search for …".
+ */
+@Composable
+fun LocationSearchContent(
+    text: String,
+    onText: (String) -> Unit,
+    onBack: () -> Unit,
+    onUseLocation: () -> Unit,
+    suggestions: List<com.saferenttechnologies.android.domain.model.LocationSuggestion>,
+    loading: Boolean,
+    onPick: (com.saferenttechnologies.android.domain.model.LocationSuggestion) -> Unit,
+    recent: List<String> = emptyList(),
+    onRecent: (String) -> Unit = {},
+    onClearRecent: () -> Unit = {},
+    onSubmit: ((String) -> Unit)? = null,
+    hint: String = stringResource(R.string.explore_search_hint),
+    /** Shown when the search found nothing (null = nothing shown). */
+    emptyText: String? = null,
+) {
+    BackHandler(onBack = onBack)
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     Column(Modifier.fillMaxSize().background(AuthColors.Background).statusBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(12.sdp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button) { onIntent(ExploreIntent.CloseSearch) },
+                Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button, onClick = onBack),
                 contentAlignment = Alignment.Center,
             ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
             Spacer(Modifier.width(10.sdp))
-            OutlinedTextField(
-                value = state.searchText,
-                onValueChange = { onIntent(ExploreIntent.SearchTextChanged(it.take(80))) },
-                placeholder = { Text(stringResource(R.string.explore_search_hint), fontFamily = Inter) },
-                leadingIcon = { Icon(painterResource(R.drawable.ic_search), null, tint = AuthColors.Body, modifier = Modifier.size(20.sdp)) },
-                trailingIcon = if (state.searchText.isNotEmpty()) {
-                    @Composable {
-                        Icon(painterResource(R.drawable.ic_close), null, tint = AuthColors.Body, modifier = Modifier.size(18.sdp).clickable { onIntent(ExploreIntent.SearchTextChanged("")) })
-                    }
-                } else {
-                    null
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onIntent(ExploreIntent.SubmitSearch(state.searchText)) }),
-                shape = RoundedCornerShape(50),
-                colors = propertyFieldColors(),
-                modifier = Modifier.weight(1f).focusRequester(focus),
-            )
+            // Same size as the search bar on the Explore screen (not the tall form field).
+            Row(
+                Modifier.weight(1f).clip(RoundedCornerShape(50)).background(AuthColors.Card)
+                    .border(1.sdp, AuthColors.Orange, RoundedCornerShape(50))
+                    .padding(horizontal = 16.sdp, vertical = 14.sdp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(painterResource(R.drawable.ic_search), null, tint = AuthColors.OrangeText, modifier = Modifier.size(20.sdp))
+                Spacer(Modifier.width(10.sdp))
+                Box(Modifier.weight(1f)) {
+                    if (text.isEmpty()) Text(hint, color = AuthColors.Muted, fontFamily = Inter, fontSize = 15.ssp, maxLines = 1)
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = text,
+                        onValueChange = { onText(it.take(80)) },
+                        singleLine = true,
+                        textStyle = androidx.compose.ui.text.TextStyle(color = AuthColors.Ink, fontFamily = Inter, fontSize = 15.ssp),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(AuthColors.Orange),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { onSubmit?.invoke(text) }),
+                        modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                    )
+                }
+                if (text.isNotEmpty()) {
+                    Spacer(Modifier.width(8.sdp))
+                    Icon(
+                        painterResource(R.drawable.ic_close),
+                        stringResource(R.string.explore_clear),
+                        tint = AuthColors.Body,
+                        modifier = Modifier.size(20.sdp).clip(CircleShape).clickable { onText("") },
+                    )
+                }
+            }
         }
         LazyColumn(Modifier.fillMaxSize()) {
             item(key = "near") {
-                SearchRow(R.drawable.ic_my_location, AnnotatedString(stringResource(R.string.explore_use_location)), null, null, tint = AuthColors.OrangeText, onClick = onNearMe)
+                SearchRow(R.drawable.ic_my_location, AnnotatedString(stringResource(R.string.explore_use_location)), null, null, tint = AuthColors.OrangeText, onClick = onUseLocation)
             }
-            if (state.searchText.isBlank()) {
-                if (state.recent.isNotEmpty()) {
+            if (text.isBlank()) {
+                if (recent.isNotEmpty()) {
                     item(key = "recent") {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 20.sdp, vertical = 10.sdp), verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.explore_recent), color = AuthColors.Muted, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 12.ssp, modifier = Modifier.weight(1f))
@@ -121,33 +172,38 @@ fun SearchScreen(state: ExploreState, onIntent: (ExploreIntent) -> Unit, onNearM
                                 color = AuthColors.OrangeText,
                                 fontFamily = Inter,
                                 fontSize = 12.ssp,
-                                modifier = Modifier.clickable { onIntent(ExploreIntent.ClearRecent) }.padding(6.sdp),
+                                modifier = Modifier.clickable(onClick = onClearRecent).padding(6.sdp),
                             )
                         }
                     }
-                    items(state.recent, key = { "r-$it" }) { q ->
-                        SearchRow(R.drawable.ic_refresh, AnnotatedString(q), null, null) { onIntent(ExploreIntent.SubmitSearch(q)) }
+                    items(recent, key = { "r-$it" }) { q ->
+                        SearchRow(R.drawable.ic_refresh, AnnotatedString(q), null, null) { onRecent(q) }
                     }
                 }
             } else {
-                if (state.suggestionsLoading && state.suggestions.isEmpty()) {
+                if (loading && suggestions.isEmpty()) {
                     item(key = "loading") {
                         Box(Modifier.fillMaxWidth().padding(20.sdp), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(color = AuthColors.Orange, modifier = Modifier.size(24.sdp))
                         }
                     }
                 }
-                items(state.suggestions, key = { "${it.kind}-${it.label}" }) { s ->
+                items(suggestions, key = { "${it.kind}-${it.label}" }) { s ->
                     SearchRow(
                         icon = when (s.kind) { "CITY" -> R.drawable.ic_building; "STATE" -> R.drawable.ic_layers; else -> R.drawable.ic_location },
-                        title = boldMatch(s.name, state.searchText),
+                        title = boldMatch(s.name, text),
                         subtitle = s.subLabel,
                         trailing = stringResource(R.string.explore_n_homes, s.listingCount),
-                    ) { onIntent(ExploreIntent.PickSuggestion(s)) }
+                    ) { onPick(s) }
                 }
-                item(key = "free") {
-                    SearchRow(R.drawable.ic_search, AnnotatedString(stringResource(R.string.explore_search_for, state.searchText.trim())), null, null) {
-                        onIntent(ExploreIntent.SubmitSearch(state.searchText))
+                if (!loading && suggestions.isEmpty() && emptyText != null) {
+                    item(key = "empty") {
+                        Text(emptyText, color = AuthColors.Muted, fontFamily = Inter, fontSize = 13.ssp, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.sdp, vertical = 16.sdp))
+                    }
+                }
+                onSubmit?.let { submit ->
+                    item(key = "free") {
+                        SearchRow(R.drawable.ic_search, AnnotatedString(stringResource(R.string.explore_search_for, text.trim())), null, null) { submit(text) }
                     }
                 }
             }
@@ -206,7 +262,8 @@ fun FilterSheet(state: ExploreState, draft: BrowseFilters, onIntent: (ExploreInt
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.sdp)) {
                 Section(stringResource(R.string.explore_looking_for))
-                ChipGrid(listOf("RENT", "LEASE", "SALE"), columns = 3) { t, mod ->
+                // Rentals only (no "Buy").
+                ChipGrid(com.saferenttechnologies.android.domain.model.ListingTypes.RENTAL, columns = 2) { t, mod ->
                     Chip(listingLookingLabel(t), selected = draft.listingType == t, modifier = mod, maxLines = 1) {
                         change(draft.copy(listingType = if (draft.listingType == t) null else t))
                     }
@@ -322,7 +379,6 @@ private fun MoneyField(label: String, value: Int?, modifier: Modifier, onChange:
 fun listingLookingLabel(t: String) = stringResource(
     when (t) {
         "LEASE" -> R.string.explore_lease
-        "SALE" -> R.string.explore_buy
         else -> R.string.explore_rent
     },
 )

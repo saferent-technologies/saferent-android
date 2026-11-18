@@ -414,7 +414,6 @@ private fun localFieldLabel(key: String): Int? = when (key) {
     "acAvailable" -> R.string.prop_field_ac_available
     "rentPerBed" -> R.string.prop_field_rent_per_bed
     "securityDeposit" -> R.string.prop_field_security_deposit
-    "salePrice" -> R.string.prop_field_sale_price
     "monthlyRent" -> R.string.prop_field_monthly_rent
     "advanceRentMonths" -> R.string.prop_field_advance_rent_months
     "rentDueDay" -> R.string.prop_field_rent_due_day

@@ -1,8 +1,8 @@
 package com.saferenttechnologies.android.presentation.lease
 
+import com.saferenttechnologies.android.presentation.property.OutlineAction
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
-import com.saferenttechnologies.android.presentation.common.DetailSkeleton
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -87,6 +87,8 @@ fun LeaseDetailScreen(
     effects: Flow<LeaseDetailEffect>,
     onIntent: (LeaseDetailIntent) -> Unit,
     onChanged: () -> Unit,
+    /** Tenant: this lease's payments + receipts ([closed] → read-only). */
+    onOpenPayments: ((leaseId: String, title: String, closed: Boolean) -> Unit)? = null,
 ) {
     BackHandler { onIntent(LeaseDetailIntent.Close) }
     val context = LocalContext.current
@@ -112,7 +114,7 @@ fun LeaseDetailScreen(
                 Text(stringResource(R.string.lease_title), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 20.ssp)
             }
             when {
-                state.loading && exit == null -> DetailSkeleton(hero = false)
+                state.loading && exit == null -> com.saferenttechnologies.android.presentation.common.LeaseSkeleton()
                 else -> PullToRefreshBox(
                     isRefreshing = state.refreshing,
                     onRefresh = { onIntent(LeaseDetailIntent.Refresh) },
@@ -122,6 +124,15 @@ fun LeaseDetailScreen(
                         // The other side asked → their request goes first (needs my answer).
                         exit?.open?.takeIf { it.canRespond && it.isPending }?.let { RespondCard(it, state, onIntent); Spacer(Modifier.height(12.sdp)) }
                         LeaseHeader(state.summary, exit)
+                        // Tenant: rent paid / due + receipts for this lease (also for an ended one).
+                        if (onOpenPayments != null && exit?.isTenant != false && state.summary != null) {
+                            Spacer(Modifier.height(12.sdp))
+                            OutlineAction(stringResource(R.string.lease_payments), R.drawable.ic_document, modifier = Modifier.fillMaxWidth()) {
+                                state.summary?.let { s ->
+                                    onOpenPayments(s.id, listOf(s.propertyTitle, s.place).filter { it.isNotBlank() }.joinToString(" · "), exit?.isClosed == true || !s.isActive)
+                                }
+                            }
+                        }
                         DepositSection(state, onIntent)
                         if (exit == null && state.error != null) {
                             Spacer(Modifier.height(12.sdp))
@@ -183,6 +194,8 @@ private fun LeaseHeader(summary: LeaseSummary?, exit: LeaseExitState?) {
             summary?.monthlyRent?.takeIf { it.isNotBlank() }?.let { stringResource(R.string.lease_rent) to "${Money.inr(it)} ${stringResource(R.string.invitation_per_month)}" },
             summary?.securityDeposit?.takeIf { Money.inr(it).isNotBlank() }?.let { stringResource(R.string.invitation_deposit) to Money.inr(it) },
             summary?.rentDueDay?.let { stringResource(R.string.invitation_rent_due) to stringResource(R.string.lease_due_day, it) },
+            summary?.address?.takeIf { it.isNotBlank() }?.let { stringResource(R.string.lease_address) to it },
+            summary?.otherPhone?.takeIf { it.isNotBlank() && exit?.isTenant != false }?.let { stringResource(R.string.lease_landlord_phone) to it },
             summary?.startDate?.takeIf { it.isNotBlank() }?.let { stringResource(R.string.lease_started) to day(it) },
             (exit?.endDate ?: summary?.endDate)?.takeIf { it.isNotBlank() }?.let { stringResource(R.string.invitation_lease_ends) to day(it) },
             exit?.noticePeriodDays?.let { stringResource(R.string.invitation_notice) to stringResource(R.string.invitation_days, it) },

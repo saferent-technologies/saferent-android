@@ -134,7 +134,7 @@ fun NotificationsScreen(state: NotificationsState, onIntent: (NotificationsInten
                 modifier = Modifier.fillMaxWidth().weight(1f),
             ) {
                 when {
-                    state.items.isEmpty() && state.loading -> ListSkeleton(rows = 6, thumbnail = 40.sdp, roundThumb = true)
+                    state.items.isEmpty() && state.loading -> ListSkeleton(lines = 3, outerPadding = 16.sdp, rows = 6, thumbnail = 40.sdp, roundThumb = true)
                     state.items.isEmpty() && state.error != null -> Column(
                         Modifier.align(Alignment.Center).padding(24.sdp),
                         horizontalAlignment = Alignment.CenterHorizontally,

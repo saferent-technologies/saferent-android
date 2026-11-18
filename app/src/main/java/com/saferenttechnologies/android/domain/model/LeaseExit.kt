@@ -57,7 +57,25 @@ data class LeaseSummary(
     val endDate: String = "",
     /** Tenant sees the landlord, landlord sees the tenant. */
     val otherName: String = "",
-)
+    /** Full address of the rental ("Flat 302, Green Heights, Madhapur, Hyderabad 500081"). */
+    val address: String = "",
+    /** Other side's phone (only while the server allows it, e.g. active lease). */
+    val otherPhone: String = "",
+    /** When it ended (past leases). */
+    val endedOn: String = "",
+) {
+    val isActive: Boolean get() = status.isBlank() || status in setOf("ACTIVE", "CLOSE_REQUESTED", "NOTICE")
+}
+
+/** Tenant's "My leases": the active one on top, ended ones below (newest first). */
+object TenantLeases {
+    fun split(all: List<LeaseSummary>): Pair<LeaseSummary?, List<LeaseSummary>> {
+        val active = all.firstOrNull { it.isActive }
+        val past = all.filter { it !== active && !it.isActive }.sortedByDescending { it.endedOn.ifBlank { it.endDate }.ifBlank { it.startDate } }
+        return active to past
+    }
+}
+
 
 /** Review form from GET leases/{id}/review → data.form. */
 data class ReviewCategory(val key: String, val label: String, val required: Boolean = false)

@@ -95,6 +95,14 @@ fun ExploreScreen(
     onBack: (() -> Unit)? = null,
     /** Overflow menu (switch role, sign out) — Explore is the tenant's home. */
     menu: List<Pair<String, () -> Unit>> = emptyList(),
+    /** "Open to new homes" card: null = not loaded yet (shown as off). */
+    homeAlertOn: Boolean? = null,
+    homeAlertArea: String = "",
+    onOpenHomeAlert: (() -> Unit)? = null,
+    onToggleHomeAlert: ((Boolean) -> Unit)? = null,
+    homeAlertBusy: Boolean = false,
+    /** Tenant without an active lease: "Dashboard" button at the top left. */
+    onOpenDashboard: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -173,7 +181,7 @@ fun ExploreScreen(
                     modifier = Modifier.fillMaxSize().navigationBarsPadding(),
                 ) {
                     item(key = "header") {
-                        Header(state, firstName, unreadNotifications, onOpenNotifications, onIntent, pendingReviews, hasApplications, onOpenApplications, onBack, ::nearMe, menu)
+                        Header(state, firstName, unreadNotifications, onOpenNotifications, onIntent, pendingReviews, hasApplications, onOpenApplications, onBack, ::nearMe, menu, homeAlertOn, homeAlertArea, onOpenHomeAlert, onToggleHomeAlert, homeAlertBusy, onOpenDashboard)
                     }
                     when {
                         state.loading && state.items.isEmpty() -> items(3) { SkeletonCard() }
@@ -252,19 +260,38 @@ private fun Header(
     onBack: (() -> Unit)?,
     onNearMe: () -> Unit,
     menu: List<Pair<String, () -> Unit>>,
+    homeAlertOn: Boolean? = null,
+    homeAlertArea: String = "",
+    onOpenHomeAlert: (() -> Unit)? = null,
+    onToggleHomeAlert: ((Boolean) -> Unit)? = null,
+    homeAlertBusy: Boolean = false,
+    onOpenDashboard: (() -> Unit)? = null,
 ) {
     Column {
         Spacer(Modifier.height(12.sdp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            onBack?.let {
-                Box(
-                    Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button, onClick = it),
+            // No greeting here (it's on the dashboard): back / "Dashboard" on the left,
+            // "Open to homes" + bell on the right.
+            when {
+                onBack != null -> Box(
+                    Modifier.size(TOP_ICON).clip(CircleShape).background(AuthColors.Surface).clickable(role = Role.Button, onClick = onBack),
                     contentAlignment = Alignment.Center,
                 ) { Icon(painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
-                Spacer(Modifier.width(12.sdp))
+                onOpenDashboard != null -> Row(
+                    Modifier.height(TOP_ICON).clip(RoundedCornerShape(50)).background(AuthColors.Surface)
+                        .clickable(role = Role.Button, onClick = onOpenDashboard).padding(horizontal = 12.sdp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(painterResource(R.drawable.ic_home_outline), null, tint = AuthColors.Ink, modifier = Modifier.size(16.sdp))
+                    Spacer(Modifier.width(6.sdp))
+                    Text(stringResource(R.string.explore_go_dashboard), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 12.ssp)
+                }
             }
-            com.saferenttechnologies.android.presentation.common.Greeting(firstName, Modifier.weight(1f), subtitle = stringResource(R.string.explore_subtitle))
-            Spacer(Modifier.width(8.sdp))
+            Spacer(Modifier.weight(1f))
+            onOpenHomeAlert?.let {
+                com.saferenttechnologies.android.presentation.homealerts.OpenToHomesChip(homeAlertOn == true, it)
+                Spacer(Modifier.width(8.sdp))
+            }
             BellWithBadge(unread, onOpenNotifications)
             if (menu.isNotEmpty()) {
                 var open by remember { mutableStateOf(false) }
@@ -293,6 +320,8 @@ private fun Header(
             )
         }
         Spacer(Modifier.height(14.sdp))
+        Text(stringResource(R.string.explore_subtitle), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 20.ssp)
+        Spacer(Modifier.height(10.sdp))
         // Search bar → full-screen search
         Row(
             Modifier
@@ -316,12 +345,16 @@ private fun Header(
             )
         }
         Spacer(Modifier.height(12.sdp))
+        // "Near me" + the property types SafeRent actually has (from the server's types list).
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
-            items(QuickChip.entries) { chip ->
-                val on = QuickChips.isActive(chip, state.filters, state.types)
-                FilterPill(quickChipLabel(chip), on, icon = if (chip == QuickChip.NEAR_ME) R.drawable.ic_my_location else null) {
-                    if (chip == QuickChip.NEAR_ME && !on) onNearMe() else onIntent(ExploreIntent.ToggleChip(chip))
+            item(key = "near") {
+                val on = state.filters.nearMe != null
+                FilterPill(quickChipLabel(QuickChip.NEAR_ME), on, icon = R.drawable.ic_my_location) {
+                    if (!on) onNearMe() else onIntent(ExploreIntent.ToggleChip(QuickChip.NEAR_ME))
                 }
+            }
+            items(state.types, key = { "t-" + it.key }) { t ->
+                FilterPill(t.label, state.filters.propertyType == t.key) { onIntent(ExploreIntent.QuickType(t.key)) }
             }
         }
         Spacer(Modifier.height(10.sdp))
@@ -358,7 +391,8 @@ private fun Header(
                     }
                 }
             }
-            if (!state.filters.isEmpty) {
+            // "Near me" alone isn't something to clear (it has its own pill) → no "Clear all" for it.
+            if (!state.filters.copy(nearMe = null).isEmpty) {
                 Text(
                     stringResource(R.string.explore_clear_all),
                     color = AuthColors.OrangeText,

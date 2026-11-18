@@ -80,6 +80,38 @@ class FusedLocationProvider @Inject constructor(
         return address?.toGeoAddress()
     }
 
+    override suspend fun placeOf(query: String): GeoFix? {
+        val q = query.trim()
+        if (q.length < 3 || !Geocoder.isPresent()) return null
+        val geocoder = Geocoder(context, Locale.getDefault())
+        val address = withTimeoutOrNull(GEOCODE_TIMEOUT_MS) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                suspendCancellableCoroutine<Address?> { cont ->
+                    geocoder.getFromLocationName(
+                        q,
+                        1,
+                        object : Geocoder.GeocodeListener {
+                            override fun onGeocode(addresses: MutableList<Address>) {
+                                if (cont.isActive) cont.resume(addresses.firstOrNull())
+                            }
+
+                            override fun onError(errorMessage: String?) {
+                                if (cont.isActive) cont.resume(null)
+                            }
+                        },
+                    )
+                }
+            } else {
+                withContext(Dispatchers.IO) {
+                    @Suppress("DEPRECATION")
+                    runCatching { geocoder.getFromLocationName(q, 1)?.firstOrNull() }.getOrNull()
+                }
+            }
+        }
+        logger.d(TAG, "Device geocoder (name): ${if (address == null) "not found" else "found"}")
+        return address?.takeIf { it.hasLatitude() && it.hasLongitude() }?.let { GeoFix(it.latitude, it.longitude, 0f) }
+    }
+
     /** India-style: subLocality = area (Madhapur), locality = city (Hyderabad), adminArea = state. */
     private fun Address.toGeoAddress(): GeoAddress {
         val street = listOfNotNull(subThoroughfare, thoroughfare).joinToString(", ").ifBlank { premises.orEmpty() }

@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.rent
 
+import com.saferenttechnologies.android.presentation.common.SkeletonTrailing
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import android.widget.Toast
@@ -102,7 +103,7 @@ fun TransactionsScreen(state: TransactionsState, effects: Flow<RentEffect>, onIn
         }
         PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onIntent(TransactionsIntent.Refresh) }, modifier = Modifier.fillMaxWidth().weight(1f)) {
             when {
-                state.loading && state.items.isEmpty() -> ListSkeleton(rows = 6, thumbnail = 40.sdp, roundThumb = true)
+                state.loading && state.items.isEmpty() -> ListSkeleton(rows = 6, thumbnail = 40.sdp, roundThumb = true, lines = 2, trailing = SkeletonTrailing.AMOUNT)
                 state.items.isEmpty() -> Text(
                     state.error ?: stringResource(R.string.transactions_empty),
                     color = AuthColors.Muted,

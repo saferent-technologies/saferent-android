@@ -41,8 +41,16 @@ data class TenantHomeUiState(
     /** Ended leases still to review → the review screen comes before Explore / the dashboard. */
     val reviewQueue: List<PendingReview> = emptyList(),
     val gate: ReviewGate = ReviewGate(),
+    /** No active lease: Explore is the start screen; "Dashboard" opens this. */
+    val dashboardOpen: Boolean = false,
+    /** Lease ending (close requested / accepted, move-out date set) → notice period. */
+    val inNotice: Boolean = false,
 ) : UiState {
-    val showExplore: Boolean get() = home == TenantHomeState.Explore || exploring
+    val hasActiveLease: Boolean get() = home is TenantHomeState.Linked
+    /** First login / no active lease → Explore; with a lease → dashboard. */
+    val showExplore: Boolean get() = (home == TenantHomeState.Explore && !dashboardOpen) || exploring
+    /** "Open to homes" matters in the notice period or with no lease; with an active lease it asks first. */
+    val homeAlertNeedsConfirm: Boolean get() = hasActiveLease && !inNotice
 }
 
 sealed interface TenantHomeIntent : UiIntent {
@@ -51,6 +59,9 @@ sealed interface TenantHomeIntent : UiIntent {
     data object Refresh : TenantHomeIntent
     data object OpenExplore : TenantHomeIntent
     data object CloseExplore : TenantHomeIntent
+    /** No-lease tenant: Explore → dashboard, and back. */
+    data object OpenDashboard : TenantHomeIntent
+    data object CloseDashboard : TenantHomeIntent
     data class GateRate(val key: String, val stars: Int) : TenantHomeIntent
     data class GateText(val text: String) : TenantHomeIntent
     data class GateTag(val tag: String) : TenantHomeIntent
@@ -94,8 +105,11 @@ class TenantHomeViewModel @Inject constructor(
         when (intent) {
             TenantHomeIntent.Start -> if (currentState.home == null && !currentState.loading) load()
             TenantHomeIntent.Refresh -> { com.saferenttechnologies.android.data.remote.ApiCache.clear(); load() }
-            TenantHomeIntent.OpenExplore -> setState { copy(exploring = true) }
+            // No lease: Explore is the start screen (leave the dashboard); with a lease: Explore on top.
+            TenantHomeIntent.OpenExplore -> setState { if (home == TenantHomeState.Explore) copy(dashboardOpen = false) else copy(exploring = true) }
             TenantHomeIntent.CloseExplore -> setState { copy(exploring = false) }
+            TenantHomeIntent.OpenDashboard -> setState { copy(dashboardOpen = true, exploring = false) }
+            TenantHomeIntent.CloseDashboard -> setState { copy(dashboardOpen = false) }
             is TenantHomeIntent.GateRate -> setState { copy(gate = gate.copy(draft = gate.draft.copy(ratings = gate.draft.ratings + (intent.key to intent.stars.coerceIn(1, 5))))) }
             is TenantHomeIntent.GateText -> setState { copy(gate = gate.copy(draft = gate.draft.copy(text = intent.text.take(ReviewDraft.MAX_TEXT)))) }
             is TenantHomeIntent.GateTag -> setState { copy(gate = gate.copy(draft = gate.draft.toggleTag(intent.tag))) }
@@ -124,8 +138,11 @@ class TenantHomeViewModel @Inject constructor(
                 if (leaseId != null) viewModelScope.launch {
                     (rent.tenantPayments(leaseId) as? AppResult.Success)?.let { p -> setState { copy(payments = p.data) } }
                 }
-                val asked = leaseId != null && (leases.exitState(leaseId) as? AppResult.Success)?.data?.needsMyResponse == true
-                setState { copy(closeRequested = asked) }
+                val exit = if (leaseId != null) (leases.exitState(leaseId) as? AppResult.Success)?.data else null
+                val asked = exit?.needsMyResponse == true
+                // A close asked / agreed (move-out date set) = notice period.
+                val notice = exit?.open?.status?.uppercase() in setOf("PENDING", "ACCEPTED")
+                setState { copy(closeRequested = asked, inNotice = notice) }
             }
             is AppResult.Failure -> setState { copy(loading = false, error = r.error.takeUnless { it is AppError.AccountBlocked }?.message) }
         }

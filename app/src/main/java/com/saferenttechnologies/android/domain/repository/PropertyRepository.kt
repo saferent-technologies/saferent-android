@@ -32,7 +32,7 @@ data class PropertyPatch(
     val building: TypedValues? = null,
 )
 
-/** PUT pricing (property or one unit). SALE → [TypedValues] holds "salePrice" instead of monthlyRent. */
+/** PUT pricing (property or one unit): rent, deposit and terms (rentals only). */
 data class PricingInput(val values: TypedValues, val charges: List<Charge>)
 
 /** A duplex floor (PUT units/{id}/floors). */
@@ -84,6 +84,9 @@ interface LocationProvider {
 
     /** Address for the pin via the device Geocoder. Null = not available → type it by hand. */
     suspend fun addressOf(latitude: Double, longitude: Double): GeoAddress?
+
+    /** Typed place ("Madhapur, Hyderabad") → its spot, via the device Geocoder. Null = not found. */
+    suspend fun placeOf(query: String): GeoFix? = null
 }
 
 /** Draft id kept so "Save & exit" / process death resumes the same draft. */
@@ -118,4 +121,15 @@ interface PhotoUploadQueue {
 
     /** Re-queue a failed upload (its old entry is dropped). */
     fun retry(propertyId: String, upload: PhotoUpload)
+}
+
+/**
+ * Keeps the user's AREA on the server (for search / "homes near you"), only when location is
+ * already allowed — never asks for permission itself. Sends at most once a day or after a move.
+ */
+interface UserLocationSync {
+    /** true = sent now. */
+    suspend fun sync(role: String?): Boolean
+    /** Signed out → forget what was sent (next user starts fresh). */
+    fun reset()
 }

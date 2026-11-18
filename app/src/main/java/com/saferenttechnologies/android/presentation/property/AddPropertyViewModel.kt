@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.property
 
+import com.saferenttechnologies.android.domain.model.ListingTypes
 import com.saferenttechnologies.android.domain.model.SimpleDate
 import com.saferenttechnologies.android.domain.model.UnitAvailability
 import com.saferenttechnologies.android.domain.model.FormVisibility
@@ -125,12 +126,12 @@ class AddPropertyViewModel @Inject constructor(
                 setState {
                     copy(
                         selectedTypeKey = intent.key,
-                        listingType = type?.listingTypes?.firstOrNull { it == listingType } ?: type?.listingTypes?.firstOrNull() ?: listingType,
+                        listingType = ListingTypes.rentalOnly(type?.listingTypes).let { ok -> ok.firstOrNull { it == listingType } ?: ok.first() },
                         fieldErrors = emptyMap(),
                     )
                 }
             }
-            is AddPropertyIntent.SelectListingType -> setState { copy(listingType = intent.value) }
+            is AddPropertyIntent.SelectListingType -> setState { copy(listingType = ListingTypes.safe(intent.value)) }
             is AddPropertyIntent.FieldChanged -> fieldChanged(intent)
 
             AddPropertyIntent.UseMyLocation -> useMyLocation()
@@ -297,7 +298,7 @@ class AddPropertyViewModel @Inject constructor(
             copy(
                 property = p,
                 selectedTypeKey = p.propertyType,
-                listingType = p.listingType,
+                listingType = ListingTypes.safe(p.listingType),
                 step = if (resume) p.wizardStep.coerceIn(WizardStep.CATEGORY, WizardStep.LAST) else step,
                 basic = mapOf("title" to p.title, "description" to p.description),
                 address = mapOf(

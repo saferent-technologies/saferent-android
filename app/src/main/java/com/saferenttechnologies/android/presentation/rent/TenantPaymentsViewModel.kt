@@ -23,6 +23,7 @@ data class TenantPaymentsState(
     val isOpen: Boolean = false,
     val leaseId: String? = null,
     val title: String = "",
+    val readOnly: Boolean = false,
     val data: TenantPayments? = null,
     val loading: Boolean = false,
     val refreshing: Boolean = false,
@@ -51,7 +52,8 @@ data class TenantPaymentsState(
 }
 
 sealed interface TenantPaymentsIntent : UiIntent {
-    data class Open(val leaseId: String, val title: String) : TenantPaymentsIntent
+    /** [readOnly] = ended lease: history + receipts only, no paying. */
+    data class Open(val leaseId: String, val title: String, val readOnly: Boolean = false) : TenantPaymentsIntent
     data object Close : TenantPaymentsIntent
     data object Refresh : TenantPaymentsIntent
     data class ShowReceipt(val receipt: RentReceipt, val forWhat: String) : TenantPaymentsIntent
@@ -87,7 +89,7 @@ class TenantPaymentsViewModel @Inject constructor(
     override suspend fun handleIntent(intent: TenantPaymentsIntent) {
         when (intent) {
             is TenantPaymentsIntent.Open -> {
-                setState { TenantPaymentsState(isOpen = true, leaseId = intent.leaseId, title = intent.title) }
+                setState { TenantPaymentsState(isOpen = true, leaseId = intent.leaseId, title = intent.title, readOnly = intent.readOnly) }
                 val online = runCatching { config.getPayments().enabled }.getOrDefault(false)
                 setState { copy(onlineEnabled = online) }
                 load(refreshing = false)

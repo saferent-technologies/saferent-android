@@ -57,7 +57,7 @@ sealed interface NavRoute {
         get() = this is PropertyDetail || this is ListingDetail || this == MyProperties || this == Explore ||
             this == Applications || this == Notifications || this == Home || this is Invitation ||
             this is LeaseDetail || this == Leases || this == Rent || this == RentRequests ||
-            this == Maintenance || this is RequestDetail || this is Announcements
+            this == Maintenance || this is RequestDetail || this is Announcements || this == MyDocuments
 }
 
 /**

@@ -61,15 +61,22 @@ class HomeViewModel @Inject constructor(
     private val signOut: SignOutUseCase,
     private val syncFcmToken: SyncFcmTokenUseCase,
     private val manageProperties: ManagePropertyRepository,
+    private val userLocation: com.saferenttechnologies.android.domain.repository.UserLocationSync,
     private val logger: AppLogger,
     sessionEvents: SessionEvents,
 ) : MviViewModel<HomeState, HomeIntent, HomeEffect>(HomeState()) {
 
     private var tokenJob: Job? = null
+    private var areaJob: Job? = null
 
     init {
         viewModelScope.launch {
-            sessionEvents.events.collect { if (it == SessionEvent.SignedOut) setState { HomeState() } }
+            sessionEvents.events.collect {
+                if (it == SessionEvent.SignedOut) {
+                    userLocation.reset()
+                    setState { HomeState() }
+                }
+            }
         }
     }
 
@@ -88,6 +95,11 @@ class HomeViewModel @Inject constructor(
                     }
                 }
                 loadSummary()
+                // Location already allowed → keep the user's area on the server (search, homes near you).
+                // Never asks for permission here; GPS at most every 6 h, sent only after a day or a move.
+                if (areaJob?.isActive != true) {
+                    areaJob = viewModelScope.launch { userLocation.sync(currentState.activeRole?.name) }
+                }
             }
             HomeIntent.RefreshSummary -> loadSummary()
             is HomeIntent.SwitchRole -> {

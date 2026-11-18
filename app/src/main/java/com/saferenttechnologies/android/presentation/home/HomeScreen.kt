@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.offset
 import com.saferenttechnologies.android.presentation.common.AutoSizeText
 import androidx.compose.foundation.border
 import com.saferenttechnologies.android.domain.model.RentBucket
-import com.saferenttechnologies.android.presentation.common.Bone
 import com.saferenttechnologies.android.presentation.common.ShimmerHost
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -90,6 +89,18 @@ fun HomeScreen(
     /** Pull down → load everything on the dashboard again (otherwise it's served from memory). */
     refreshing: Boolean = false,
     onRefresh: () -> Unit = {},
+    /** Tenant: my ID documents. */
+    onOpenDocuments: () -> Unit = {},
+    /** Tenant: "Open to new homes" alert (null = not loaded). */
+    homeAlertOn: Boolean? = null,
+    onOpenHomeAlert: () -> Unit = {},
+    homeAlertArea: String = "",
+    homeAlertBusy: Boolean = false,
+    onToggleHomeAlert: ((Boolean) -> Unit)? = null,
+    /** Tenant: "My leases" (active + past). */
+    onOpenLeases: () -> Unit = {},
+    /** Tenant's lease is ending (notice period) → show "Open to homes". */
+    tenantInNotice: Boolean = false,
 ) {
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().background(AuthColors.Background)) {
     Column(
@@ -128,8 +139,19 @@ fun HomeScreen(
                 onOpenAnnouncements = onOpenAnnouncements,
             )
         } else if (tenantLease != null) {
-            TenantLeaseCard(tenantLease, leaseCloseRequested, onExploreHomes, onOpenLease)
+            TenantLeaseCard(tenantLease, leaseCloseRequested, onExploreHomes, onOpenLease, onOpenLeases)
             Spacer(Modifier.height(12.sdp))
+            // "Open to new homes" only matters while the lease is ending (notice period).
+            if (tenantInNotice) {
+                com.saferenttechnologies.android.presentation.homealerts.HomeAlertBanner(
+                    homeAlertOn,
+                    homeAlertArea,
+                    onOpenHomeAlert,
+                    busy = homeAlertBusy,
+                    onToggle = onToggleHomeAlert,
+                )
+                Spacer(Modifier.height(12.sdp))
+            }
             TenantActions(
                 tenantPayments,
                 onOpenPayments = { onOpenPayments(tenantLease) },
@@ -137,6 +159,33 @@ fun HomeScreen(
                 onRaiseRequest = { onRaiseRequest(tenantLease) },
                 onOpenRequests = onOpenRequests,
                 onOpenAnnouncements = onOpenAnnouncements,
+                onOpenDocuments = onOpenDocuments,
+            )
+        } else if (state.activeRole == UserRole.TENANT) {
+            // No active lease: what's left for a tenant (explore, past leases, alerts, documents …).
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.sdp)).background(AuthColors.Surface).padding(18.sdp)) {
+                Text(stringResource(R.string.tenant_no_lease_title), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 17.ssp)
+                Spacer(Modifier.height(6.sdp))
+                Text(stringResource(R.string.tenant_no_lease_body), color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp)
+                Spacer(Modifier.height(14.sdp))
+                OutlineAction(stringResource(R.string.tenant_explore_homes), R.drawable.ic_search, modifier = Modifier.fillMaxWidth(), onClick = onExploreHomes)
+                Spacer(Modifier.height(8.sdp))
+                OutlineAction(stringResource(R.string.tenant_my_leases), R.drawable.ic_document, modifier = Modifier.fillMaxWidth(), onClick = onOpenLeases)
+            }
+            Spacer(Modifier.height(12.sdp))
+            com.saferenttechnologies.android.presentation.homealerts.HomeAlertBanner(
+                homeAlertOn,
+                homeAlertArea,
+                onOpenHomeAlert,
+                busy = homeAlertBusy,
+                onToggle = onToggleHomeAlert,
+            )
+            Spacer(Modifier.height(12.sdp))
+            ActionGrid(
+                listOf(
+                    DashboardAction(R.drawable.ic_lock, stringResource(R.string.docs_title), stringResource(R.string.docs_box_tenant), primary = false, onClick = onOpenDocuments),
+                    DashboardAction(R.drawable.ic_campaign, stringResource(R.string.ann_title), stringResource(R.string.ann_box_tenant), primary = false, onClick = onOpenAnnouncements),
+                ),
             )
         } else Column(
             modifier = Modifier
@@ -173,7 +222,7 @@ fun HomeScreen(
 
 /** Tenant linked to a home (placeholder until the tenant dashboard design). */
 @Composable
-private fun TenantLeaseCard(lease: TenantLease, closeRequested: Boolean, onExploreHomes: () -> Unit, onOpenLease: (TenantLease) -> Unit) {
+private fun TenantLeaseCard(lease: TenantLease, closeRequested: Boolean, onExploreHomes: () -> Unit, onOpenLease: (TenantLease) -> Unit, onOpenLeases: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -204,7 +253,8 @@ private fun TenantLeaseCard(lease: TenantLease, closeRequested: Boolean, onExplo
             Text(stringResource(R.string.tenant_landlord, lease.landlordName), color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp)
         }
         Spacer(Modifier.height(14.sdp))
-        OutlineAction(stringResource(R.string.lease_view), R.drawable.ic_document, modifier = Modifier.fillMaxWidth()) { onOpenLease(lease) }
+        // Active + past leases (tap the card itself for this lease).
+        OutlineAction(stringResource(R.string.lease_view), R.drawable.ic_document, modifier = Modifier.fillMaxWidth(), onClick = onOpenLeases)
         Spacer(Modifier.height(8.sdp))
         OutlineAction(stringResource(R.string.tenant_explore_homes), R.drawable.ic_search, modifier = Modifier.fillMaxWidth(), onClick = onExploreHomes)
     }
@@ -213,18 +263,13 @@ private fun TenantLeaseCard(lease: TenantLease, closeRequested: Boolean, onExplo
 /** Landlord dashboard while GET properties/summary loads: number cards, rent card, shortcut boxes. */
 @Composable
 private fun LandlordDashboardSkeleton() {
+    // Same blocks as the loaded dashboard: "Your properties" (7 boxes), rent (3 boxes), 5 shortcut boxes.
     ShimmerHost {
         Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {
-            // Properties card (3 rows of boxes), like the real card.
-            Bone(Modifier.fillMaxWidth().height(200.sdp), RoundedCornerShape(14.sdp))
-            Bone(Modifier.fillMaxWidth().height(78.sdp), RoundedCornerShape(14.sdp))
+            com.saferenttechnologies.android.presentation.common.FigureCardSkeleton(7)
+            com.saferenttechnologies.android.presentation.common.FigureCardSkeleton(3)
             Spacer(Modifier.height(6.sdp))
-            // Shortcut boxes: 3 rows of 2 (the first two + four more below).
-            repeat(3) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.sdp)) {
-                    repeat(2) { Bone(Modifier.weight(1f).height(120.sdp), RoundedCornerShape(16.sdp)) }
-                }
-            }
+            com.saferenttechnologies.android.presentation.common.ActionGridSkeleton(5)
         }
     }
 }
@@ -241,6 +286,7 @@ private fun TenantActions(
     onRaiseRequest: () -> Unit = {},
     onOpenRequests: () -> Unit = {},
     onOpenAnnouncements: () -> Unit = {},
+    onOpenDocuments: () -> Unit = {},
 ) {
     val pending = payments?.pending.orEmpty()
     val body = when {
@@ -262,6 +308,7 @@ private fun TenantActions(
             badge = myOpenRequests,
         ),
         DashboardAction(R.drawable.ic_campaign, stringResource(R.string.ann_title), stringResource(R.string.ann_box_tenant), primary = false, onClick = onOpenAnnouncements),
+        DashboardAction(R.drawable.ic_lock, stringResource(R.string.docs_title), stringResource(R.string.docs_box_tenant), primary = false, onClick = onOpenDocuments),
     )
     Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {
         actions.chunked(2).forEach { row ->
@@ -544,4 +591,16 @@ private fun HomePreview() {
         ),
         onIntent = {},
     )
+}
+
+/** Dashboard boxes, 2 per row (a lone last box fills its row). */
+@Composable
+private fun ActionGrid(actions: List<DashboardAction>) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {
+        actions.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.sdp)) {
+                row.forEach { ActionBox(it, Modifier.weight(1f).fillMaxHeight()) }
+            }
+        }
+    }
 }

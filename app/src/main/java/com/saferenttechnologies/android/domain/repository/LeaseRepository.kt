@@ -12,6 +12,8 @@ data class LeaseActionResult(val message: String, val closed: Boolean = false)
 
 interface LeaseRepository {
     suspend fun lease(leaseId: String): AppResult<LeaseSummary>
+    /** Tenant: active + past leases. */
+    suspend fun myLeases(): AppResult<List<LeaseSummary>>
     suspend fun exitState(leaseId: String): AppResult<LeaseExitState>
     suspend fun requestExit(leaseId: String, reason: String, moveOut: SimpleDate, review: ReviewDraft?): AppResult<LeaseActionResult>
     suspend fun acceptExit(leaseId: String, note: String, review: ReviewDraft?): AppResult<LeaseActionResult>

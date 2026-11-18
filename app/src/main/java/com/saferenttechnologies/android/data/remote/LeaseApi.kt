@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.data.remote
 
+import retrofit2.http.Query
 import com.saferenttechnologies.android.data.remote.dto.ApiEnvelope
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -11,6 +12,10 @@ import retrofit2.http.Path
 
 /** One lease (tenant or landlord): detail, mutual close ("exit") requests, review. */
 interface LeaseApi {
+    /** Tenant: all my leases (active + ended), newest first. */
+    @GET("api/v1/leases")
+    suspend fun mine(@Query("role") role: String = "tenant"): Response<ApiEnvelope<JsonElement>>
+
     @GET("api/v1/leases/{id}")
     suspend fun lease(@Path("id") id: String): Response<ApiEnvelope<JsonElement>>
 

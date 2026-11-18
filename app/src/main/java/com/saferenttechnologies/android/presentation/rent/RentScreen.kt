@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.rent
 
+import com.saferenttechnologies.android.presentation.common.SkeletonTrailing
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import com.saferenttechnologies.android.presentation.property.propertyFieldColors
@@ -170,7 +171,7 @@ fun RentScreen(state: RentState, effects: Flow<RentEffect>, onIntent: (RentInten
             )
             PullToRefreshBox(isRefreshing = false, onRefresh = { onIntent(RentIntent.Refresh) }, modifier = Modifier.fillMaxWidth().weight(1f)) {
                 when {
-                    state.requestsLoading && state.requests.isEmpty() -> ListSkeleton(rows = 3, thumbnail = 44.sdp, roundThumb = true)
+                    state.requestsLoading && state.requests.isEmpty() -> ListSkeleton(rows = 3, thumbnail = 44.sdp, roundThumb = true, trailing = SkeletonTrailing.AMOUNT, actions = 2)
                     state.requests.isEmpty() -> Text(
                         stringResource(R.string.rent_requests_empty),
                         color = AuthColors.Muted,
@@ -193,7 +194,7 @@ fun RentScreen(state: RentState, effects: Flow<RentEffect>, onIntent: (RentInten
         }
         if (!state.showRequests) PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onIntent(RentIntent.Refresh) }, modifier = Modifier.fillMaxWidth().weight(1f)) {
             when {
-                state.loading && state.items.isEmpty() -> ListSkeleton(rows = 5, thumbnail = 44.sdp, roundThumb = true)
+                state.loading && state.items.isEmpty() -> ListSkeleton(rows = 5, thumbnail = 44.sdp, roundThumb = true, lines = 2, trailing = SkeletonTrailing.AMOUNT)
                 state.items.isEmpty() -> Text(
                     state.error ?: stringResource(emptyText(state.bucket)),
                     color = AuthColors.Muted,

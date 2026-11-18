@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.property
 
+import com.saferenttechnologies.android.domain.model.ListingTypes
 import com.saferenttechnologies.android.domain.model.FieldError
 import com.saferenttechnologies.android.domain.model.SimpleDate
 import com.saferenttechnologies.android.domain.model.UnitAvailability
@@ -273,8 +274,9 @@ fun CategoryStep(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit)
         }
         Spacer(Modifier.height(18.sdp))
     }
-    val listing = state.type?.listingTypes?.ifEmpty { null } ?: types.enum("listingTypes", listOf("RENT", "LEASE", "SALE"))
-    if (state.selectedTypeKey != null || state.property != null) {
+    // Rentals only: Rent / Lease (never "Sale"). Only one option → nothing to choose.
+    val listing = ListingTypes.rentalOnly(state.type?.listingTypes?.ifEmpty { null } ?: types.enum("listingTypes", ListingTypes.RENTAL))
+    if ((state.selectedTypeKey != null || state.property != null) && listing.size > 1) {
         SectionTitle(stringResource(R.string.add_property_listing_type))
         Spacer(Modifier.height(10.sdp))
         ChipRows(listing) { option ->
@@ -511,7 +513,7 @@ private fun UnitEditor(state: AddPropertyState, unitLabel: String, onIntent: (Ad
     if (state.isUnitPriced) {
         // The flat's own price (tenants pay this + the building's common charges).
         Spacer(Modifier.height(18.sdp))
-        SectionTitle(stringResource(if (state.listingType == "SALE") R.string.apartment_flat_price else R.string.apartment_flat_rent, unitLabel.lowercase()))
+        SectionTitle(stringResource(R.string.apartment_flat_rent, unitLabel.lowercase()))
         Spacer(Modifier.height(10.sdp))
         DynamicFieldForm(
             PropertyForms.flatPricing(state.listingType),
@@ -877,12 +879,12 @@ fun nextFieldActions(): KeyboardActions {
 /** "2BHK · Floor 1 · ₹18,000 / month" or "Rent missing". */
 @Composable
 private fun flatSubtitle(unit: com.saferenttechnologies.android.domain.model.PropertyUnit, listingType: String, noPrice: Boolean): String {
-    val price = if (listingType == "SALE") unit.values["salePrice"] else unit.values["monthlyRent"]
+    val price = unit.values["monthlyRent"]
     return listOfNotNull(
         unit.values["bhkType"]?.ifBlank { null },
         unit.values["floorNumber"]?.ifBlank { null }?.let { stringResource(R.string.add_property_floor_n, it) },
         if (noPrice) stringResource(R.string.apartment_rent_missing)
-        else com.saferenttechnologies.android.domain.model.Money.inr(price).let { if (listingType == "SALE") it else stringResource(R.string.apartment_per_month, it) },
+        else stringResource(R.string.apartment_per_month, com.saferenttechnologies.android.domain.model.Money.inr(price)),
         unit.values["availabilityLabel"]?.ifBlank { null } ?: unit.values["availabilityStatus"]?.ifBlank { null }?.let { optionLabel(it) },
     ).joinToString(" · ")
 }

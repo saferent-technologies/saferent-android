@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.rent
 
+import com.saferenttechnologies.android.presentation.common.SkeletonTrailing
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import com.saferenttechnologies.android.presentation.property.propertyFieldColors
@@ -121,7 +122,16 @@ fun TenantPaymentsScreen(state: TenantPaymentsState, effects: Flow<RentEffect>, 
         }
         PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onIntent(TenantPaymentsIntent.Refresh) }, modifier = Modifier.fillMaxWidth().weight(1f)) {
             when {
-                state.loading && data == null -> ListSkeleton(rows = 5, thumbnail = 40.sdp, roundThumb = true)
+                state.loading && data == null -> androidx.compose.foundation.layout.Column {
+                    // Deposit card on top, then the month rows (icon, month, amount).
+                    com.saferenttechnologies.android.presentation.common.ShimmerHost {
+                        com.saferenttechnologies.android.presentation.common.Bone(
+                            Modifier.fillMaxWidth().padding(start = 16.sdp, end = 16.sdp, top = 16.sdp).height(96.sdp),
+                            RoundedCornerShape(16.sdp),
+                        )
+                    }
+                    ListSkeleton(rows = 4, thumbnail = 40.sdp, roundThumb = true, lines = 2, trailing = SkeletonTrailing.AMOUNT)
+                }
                 data == null -> Text(
                     state.error ?: stringResource(R.string.add_property_error_generic),
                     color = AuthColors.Muted,
@@ -140,7 +150,7 @@ fun TenantPaymentsScreen(state: TenantPaymentsState, effects: Flow<RentEffect>, 
                     if (data.pending.isEmpty()) {
                         item(key = "none-pending") { Note(stringResource(R.string.pay_all_clear)) }
                     }
-                    items(data.pending, key = { "p-" + it.id }) { due -> DueRow(due, null, onPay = { onIntent(TenantPaymentsIntent.StartPay(due.id)) }) }
+                    items(data.pending, key = { "p-" + it.id }) { due -> DueRow(due, null, onPay = if (state.readOnly) null else ({ onIntent(TenantPaymentsIntent.StartPay(due.id)) })) }
                     item(key = "h-paid") { Section(stringResource(R.string.pay_history)) }
                     if (data.paid.isEmpty()) {
                         item(key = "none-paid") { Note(stringResource(R.string.pay_no_history)) }

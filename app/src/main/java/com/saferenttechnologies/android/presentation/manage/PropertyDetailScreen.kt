@@ -15,7 +15,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.AnimatedVisibility
 import com.saferenttechnologies.android.domain.model.BuildingPhotos
-import com.saferenttechnologies.android.presentation.common.DetailSkeleton
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -213,7 +212,7 @@ fun PropertyDetailScreen(
         }
         // First load: the page's shape shimmers (covers the empty header / tabs).
         if (state.detail == null && state.loading) {
-            DetailSkeleton(Modifier.fillMaxSize().background(AuthColors.Background).statusBarsPadding().padding(top = 56.sdp))
+            com.saferenttechnologies.android.presentation.common.PropertyDetailSkeleton(Modifier.fillMaxSize().background(AuthColors.Background).statusBarsPadding().padding(top = 56.sdp))
         }
         if (state.busy) LinearProgressIndicator(color = AuthColors.Orange, trackColor = Color.Transparent, modifier = Modifier.fillMaxWidth().statusBarsPadding())
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.sdp))

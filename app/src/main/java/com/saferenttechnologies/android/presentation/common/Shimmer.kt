@@ -88,29 +88,101 @@ fun BoneLine(fraction: Float = 1f, height: Dp = 12.sdp) {
 
 // ---------------- ready-made skeletons ----------------
 
-/** List of cards: thumbnail + 3 lines (properties, applications, notifications …). */
+/** What sits at the right end of a list card (matches the real card). */
+enum class SkeletonTrailing { NONE, PILL, AMOUNT }
+
+/**
+ * List of cards drawn like the real ones: card background + border, thumbnail, text lines and the
+ * right-end pill / amount. Pick the numbers per screen so the shimmer and the loaded list line up.
+ */
 @Composable
 fun ListSkeleton(
     modifier: Modifier = Modifier,
     rows: Int = 5,
     thumbnail: Dp? = 64.sdp,
     roundThumb: Boolean = false,
+    lines: Int = 3,
+    trailing: SkeletonTrailing = SkeletonTrailing.NONE,
+    /** Real list's outer padding (LazyColumn contentPadding). */
+    outerPadding: Dp = 16.sdp,
+    /** Buttons row under the text (e.g. View / Share). */
+    actions: Int = 0,
 ) {
     ShimmerHost {
-        Column(modifier.fillMaxWidth().padding(16.sdp), verticalArrangement = Arrangement.spacedBy(10.sdp)) {
+        Column(modifier.fillMaxWidth().padding(outerPadding), verticalArrangement = Arrangement.spacedBy(10.sdp)) {
             repeat(rows) {
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp)).border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp)).padding(12.sdp),
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp)).background(AuthColors.Card)
+                        .border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp)).padding(12.sdp),
                 ) {
-                    thumbnail?.let {
-                        Bone(Modifier.size(it), if (roundThumb) CircleShape else RoundedCornerShape(10.sdp))
-                        Spacer(Modifier.width(12.sdp))
+                    Row(Modifier.fillMaxWidth()) {
+                        thumbnail?.let {
+                            Bone(Modifier.size(it), if (roundThumb) CircleShape else RoundedCornerShape(10.sdp))
+                            Spacer(Modifier.width(12.sdp))
+                        }
+                        Column(Modifier.weight(1f).padding(top = 2.sdp), verticalArrangement = Arrangement.spacedBy(7.sdp)) {
+                            BoneLine(0.7f, 14.sdp)
+                            if (lines >= 2) BoneLine(0.5f)
+                            if (lines >= 3) BoneLine(0.32f, 10.sdp)
+                        }
+                        when (trailing) {
+                            SkeletonTrailing.PILL -> { Spacer(Modifier.width(8.sdp)); Bone(Modifier.width(64.sdp).height(22.sdp), RoundedCornerShape(50)) }
+                            SkeletonTrailing.AMOUNT -> { Spacer(Modifier.width(8.sdp)); Bone(Modifier.width(70.sdp).height(16.sdp), RoundedCornerShape(6.sdp)) }
+                            SkeletonTrailing.NONE -> Unit
+                        }
                     }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.sdp)) {
-                        BoneLine(0.75f, 14.sdp)
-                        BoneLine(0.5f)
-                        BoneLine(0.35f)
+                    if (actions > 0) {
+                        Spacer(Modifier.height(10.sdp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+                            repeat(actions) { Bone(Modifier.weight(1f).height(44.sdp), RoundedCornerShape(12.sdp)) }
+                        }
                     }
+                }
+            }
+        }
+    }
+}
+
+/** Dashboard shortcut boxes (icon square, title, body) — 2 per row, a lone last box fills its row. */
+@Composable
+fun ActionGridSkeleton(count: Int) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {
+        (0 until count).chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.sdp)) {
+                row.forEach {
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(16.sdp)).background(AuthColors.Surface).padding(14.sdp)) {
+                        Bone(Modifier.size(42.sdp), RoundedCornerShape(12.sdp))
+                        Spacer(Modifier.height(12.sdp))
+                        BoneLine(0.6f, 15.sdp)
+                        Spacer(Modifier.height(6.sdp))
+                        BoneLine(0.85f, 10.sdp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A card of small number boxes, 3 per row (dashboard "Your properties" / rent). */
+@Composable
+fun FigureCardSkeleton(boxes: Int) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp)).background(AuthColors.Surface).padding(12.sdp)) {
+        Box(Modifier.padding(start = 2.sdp)) { BoneLine(0.3f, 10.sdp) }
+        Spacer(Modifier.height(10.sdp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.sdp)) {
+            (0 until boxes).chunked(3).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+                    row.forEach {
+                        Column(
+                            Modifier.weight(1f).clip(RoundedCornerShape(12.sdp)).background(AuthColors.Card)
+                                .border(1.sdp, AuthColors.Border, RoundedCornerShape(12.sdp)).padding(10.sdp),
+                        ) {
+                            BoneLine(0.55f, 15.sdp)
+                            Spacer(Modifier.height(6.sdp))
+                            BoneLine(0.8f, 9.sdp)
+                        }
+                    }
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
@@ -165,25 +237,140 @@ fun FormSkeleton(modifier: Modifier = Modifier, fields: Int = 5) {
     }
 }
 
-/** Tenant / landlord dashboard while it loads: greeting, big card, two small cards. */
+/** Tenant dashboard while it loads: greeting + bell, lease card (2 buttons), shortcut boxes. */
 @Composable
-fun HomeSkeleton(modifier: Modifier = Modifier) {
+fun HomeSkeleton(modifier: Modifier = Modifier, actions: Int = 5) {
     ShimmerHost {
-        Column(modifier.fillMaxSize().background(AuthColors.Background).padding(20.sdp), verticalArrangement = Arrangement.spacedBy(12.sdp)) {
-            Row {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.sdp)) {
-                    BoneLine(0.4f)
-                    BoneLine(0.65f, 22.sdp)
+        Column(modifier.fillMaxSize().background(AuthColors.Background).padding(24.sdp)) {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.sdp)) {
+                    BoneLine(0.3f, 11.sdp)
+                    BoneLine(0.55f, 19.sdp)
                 }
-                Bone(Modifier.size(44.sdp), CircleShape)
+                Spacer(Modifier.width(8.sdp))
+                Bone(Modifier.size(TOP_ICON), CircleShape)
             }
+            Spacer(Modifier.height(16.sdp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.sdp)).background(AuthColors.Surface).padding(18.sdp)) {
+                BoneLine(0.8f, 17.sdp)
+                Spacer(Modifier.height(8.sdp))
+                BoneLine(0.55f, 12.sdp)
+                Spacer(Modifier.height(6.sdp))
+                BoneLine(0.4f, 11.sdp)
+                Spacer(Modifier.height(14.sdp))
+                Bone(Modifier.fillMaxWidth().height(44.sdp), RoundedCornerShape(12.sdp))
+                Spacer(Modifier.height(8.sdp))
+                Bone(Modifier.fillMaxWidth().height(44.sdp), RoundedCornerShape(12.sdp))
+            }
+            Spacer(Modifier.height(12.sdp))
+            ActionGridSkeleton(actions)
+        }
+    }
+}
+
+/** Landlord property screen: full-width 4:3 gallery, title + status, tab chips, flat cards. */
+@Composable
+fun PropertyDetailSkeleton(modifier: Modifier = Modifier) {
+    ShimmerHost {
+        Column(modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth()) {
+            Bone(Modifier.fillMaxWidth().aspectRatio(4f / 3f), RoundedCornerShape(0.sdp))
+            Column(Modifier.padding(16.sdp), verticalArrangement = Arrangement.spacedBy(8.sdp)) {
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { BoneLine(0.7f, 20.sdp) }
+                    Bone(Modifier.width(72.sdp).height(22.sdp), RoundedCornerShape(50))
+                }
+                BoneLine(0.5f)
+                Spacer(Modifier.height(4.sdp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+                    repeat(4) { Bone(Modifier.weight(1f).height(36.sdp), RoundedCornerShape(50)) }
+                }
+            }
+        }
+        ListSkeleton(rows = 3, thumbnail = 72.sdp, lines = 2, trailing = SkeletonTrailing.PILL, outerPadding = 16.sdp)
+        }
+    }
+}
+
+/** Lease screen: bordered header (title, place, status, info rows), deposit card, action button. */
+@Composable
+fun LeaseSkeleton(modifier: Modifier = Modifier) {
+    ShimmerHost {
+        Column(modifier.fillMaxWidth().padding(16.sdp)) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.sdp)).border(1.sdp, AuthColors.Border, RoundedCornerShape(16.sdp)).padding(16.sdp)) {
+                Row {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.sdp)) {
+                        BoneLine(0.7f, 18.sdp)
+                        BoneLine(0.4f, 12.sdp)
+                    }
+                    Bone(Modifier.width(60.sdp).height(22.sdp), RoundedCornerShape(50))
+                }
+                Spacer(Modifier.height(10.sdp))
+                BoneLine(0.5f, 13.sdp)
+                Spacer(Modifier.height(10.sdp))
+                repeat(5) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 5.sdp)) {
+                        Box(Modifier.weight(1f)) { BoneLine(0.5f, 11.sdp) }
+                        Box(Modifier.weight(1f)) { BoneLine(0.75f, 11.sdp) }
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.sdp))
+            Bone(Modifier.fillMaxWidth().height(84.sdp), RoundedCornerShape(14.sdp))
+            Spacer(Modifier.height(16.sdp))
+            Bone(Modifier.fillMaxWidth().height(48.sdp), RoundedCornerShape(12.sdp))
+        }
+    }
+}
+
+/** Request detail: icon + title + status, info lines, description box, timeline dots. */
+@Composable
+fun RequestDetailSkeleton(modifier: Modifier = Modifier) {
+    ShimmerHost {
+        Column(modifier.fillMaxWidth().padding(horizontal = 16.sdp)) {
+            Row {
+                Bone(Modifier.size(46.sdp), CircleShape)
+                Spacer(Modifier.width(12.sdp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.sdp)) {
+                    BoneLine(0.7f, 19.sdp)
+                    BoneLine(0.45f, 12.sdp)
+                }
+                Bone(Modifier.width(64.sdp).height(22.sdp), RoundedCornerShape(50))
+            }
+            Spacer(Modifier.height(12.sdp))
+            BoneLine(0.6f, 12.sdp)
             Spacer(Modifier.height(6.sdp))
-            Bone(Modifier.fillMaxWidth().height(150.sdp), RoundedCornerShape(16.sdp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.sdp)) {
-                Bone(Modifier.weight(1f).height(84.sdp), RoundedCornerShape(14.sdp))
-                Bone(Modifier.weight(1f).height(84.sdp), RoundedCornerShape(14.sdp))
+            BoneLine(0.75f, 12.sdp)
+            Spacer(Modifier.height(14.sdp))
+            Bone(Modifier.fillMaxWidth().height(80.sdp), RoundedCornerShape(12.sdp))
+            Spacer(Modifier.height(18.sdp))
+            BoneLine(0.25f, 16.sdp)
+            Spacer(Modifier.height(10.sdp))
+            repeat(3) {
+                Row(Modifier.padding(bottom = 14.sdp)) {
+                    Bone(Modifier.size(10.sdp), CircleShape)
+                    Spacer(Modifier.width(14.sdp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.sdp)) {
+                        BoneLine(0.6f, 12.sdp)
+                        BoneLine(0.8f, 11.sdp)
+                    }
+                }
             }
-            Bone(Modifier.fillMaxWidth().height(52.sdp), RoundedCornerShape(14.sdp))
+        }
+    }
+}
+
+/** Announcement detail: rounded 4:3 image, title, meta, body lines. */
+@Composable
+fun AnnouncementDetailSkeleton(modifier: Modifier = Modifier) {
+    ShimmerHost {
+        Column(modifier.fillMaxWidth().padding(horizontal = 16.sdp), verticalArrangement = Arrangement.spacedBy(8.sdp)) {
+            Bone(Modifier.fillMaxWidth().aspectRatio(4f / 3f), RoundedCornerShape(14.sdp))
+            Spacer(Modifier.height(6.sdp))
+            BoneLine(0.75f, 20.sdp)
+            BoneLine(0.45f, 12.sdp)
+            Spacer(Modifier.height(8.sdp))
+            repeat(4) { BoneLine(if (it == 3) 0.6f else 1f, 13.sdp) }
         }
     }
 }
