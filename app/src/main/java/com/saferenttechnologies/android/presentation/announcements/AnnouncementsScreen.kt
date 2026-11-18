@@ -56,7 +56,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
@@ -214,21 +213,19 @@ private fun AnnouncementCard(a: Announcement, landlord: Boolean, onClick: () -> 
         Spacer(Modifier.width(12.sdp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(a.title, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text(a.title, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, modifier = Modifier.weight(1f, fill = false))
                 if (unread) {
                     Spacer(Modifier.width(6.sdp))
                     Box(Modifier.size(8.sdp).clip(CircleShape).background(AuthColors.Orange))
                 }
             }
-            Text(a.body, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(a.body, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
             Spacer(Modifier.height(4.sdp))
             Text(
                 listOf(if (landlord) a.audienceLabel else a.fromName, ago(a.createdAt)).filter { it.isNotBlank() }.joinToString(" · "),
                 color = AuthColors.Muted,
                 fontFamily = Inter,
                 fontSize = 11.ssp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
         if (landlord) {
@@ -393,9 +390,9 @@ private fun TargetRow(t: AnnouncementTarget, property: Boolean, checked: Boolean
         ) { if (checked) Icon(painterResource(R.drawable.ic_check), null, tint = Color.White, modifier = Modifier.size(16.sdp)) }
         Spacer(Modifier.width(12.sdp))
         Column(Modifier.weight(1f)) {
-            Text(t.title, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 14.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(t.title, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 14.ssp)
             val sub = if (property) t.subtitle.toIntOrNull()?.let { pluralStringResource(R.plurals.ann_tenants_n, it, it) }.orEmpty() else t.subtitle
-            if (sub.isNotBlank()) Text(sub, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (sub.isNotBlank()) Text(sub, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
         }
     }
 }
@@ -520,8 +517,8 @@ private fun ViewerRow(v: AnnouncementViewer) {
         }
         Spacer(Modifier.width(10.sdp))
         Column(Modifier.weight(1f)) {
-            Text(v.name.ifBlank { stringResource(R.string.word_tenant) }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 14.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (v.place.isNotBlank()) Text(v.place, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(v.name.ifBlank { stringResource(R.string.word_tenant) }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 14.ssp)
+            if (v.place.isNotBlank()) Text(v.place, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
         }
         if (v.seen) Text(ago(v.viewedAt), color = AuthColors.Muted, fontFamily = Inter, fontSize = 11.ssp)
     }

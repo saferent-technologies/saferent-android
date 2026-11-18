@@ -27,6 +27,9 @@ enum class FormScope { BASIC, ADDRESS, BUILDING, UNIT, ROOM, PRICING, UTILITIES,
 
 enum class CameraMode { PHOTO, DOCUMENT }
 
+/** Whose 360 photo is being taken: a flat / portion / shop (unitId), a PG room (roomId), or the building. */
+data class PanoramaTarget(val unitId: String? = null, val roomId: String? = null)
+
 /** Why the GPS step needs the user's attention. */
 enum class LocationNote { LOW_ACCURACY, NO_FIX, LOOKUP_UNAVAILABLE }
 
@@ -34,6 +37,7 @@ enum class LocationNote { LOW_ACCURACY, NO_FIX, LOOKUP_UNAVAILABLE }
 enum class AddPropertyMessage {
     NETWORK_OR_SERVER, VERSION_CONFLICT, MAX_PHOTOS, UNITS_LIMIT, PHOTO_REQUIRED, UNIT_REQUIRED, PIN_INVALID,
     REQUIRED_PHOTOS_MISSING, WAIT_FOR_UPLOADS, CHANGES_LOCKED, UNIT_OCCUPIED,
+    NOT_PANORAMA, PANORAMA_UNREADABLE,
 }
 
 /** Add / edit one flat (units) or room (PG). */
@@ -127,6 +131,8 @@ data class AddPropertyState(
     val uploadingDocument: Boolean = false,
 
     val camera: CameraMode? = null,
+    /** SafeRent 360 camera open for this flat / room (both null = the whole building). */
+    val panoramaFor: PanoramaTarget? = null,
     val completeness: Completeness? = null,
     /** Submit 412: problem → step. */
     val problems: List<Pair<String, Int>> = emptyList(),
@@ -209,6 +215,12 @@ sealed interface AddPropertyIntent : UiIntent {
 
     data class SelectType(val key: String) : AddPropertyIntent
     data class SelectListingType(val value: String) : AddPropertyIntent
+    /** A 360 / panorama photo picked from the gallery (taken with the camera's Panorama mode). */
+    data class AddPanorama(val uri: String) : AddPropertyIntent
+    /** Open SafeRent's 360 camera (straight into panorama capture) for this flat / room / building. */
+    data class OpenPanoramaCamera(val target: PanoramaTarget) : AddPropertyIntent
+    data class PanoramaCaptured(val filePath: String) : AddPropertyIntent
+    data object ClosePanoramaCamera : AddPropertyIntent
     data class FieldChanged(val scope: FormScope, val key: String, val value: String) : AddPropertyIntent
 
     data object UseMyLocation : AddPropertyIntent

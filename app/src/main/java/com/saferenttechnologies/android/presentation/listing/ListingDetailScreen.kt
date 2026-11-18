@@ -65,7 +65,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import coil3.compose.AsyncImage
 import com.saferenttechnologies.android.R
 import com.saferenttechnologies.android.core.ui.sdp
@@ -139,7 +138,11 @@ fun ListingDetailScreen(
             else -> Column(Modifier.fillMaxSize()) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     // Apartment: the pager restarts at the first photo when the flat changes.
-                    key(state.selectedUnitId) { PhotoHeader(d, state.photos, onIntent) }
+                    var view360 by remember { mutableStateOf(false) }
+                    key(state.selectedUnitId) { PhotoHeader(d, state.photos, onIntent, has360 = state.panoramas.isNotEmpty()) { view360 = true } }
+                    if (view360) {
+                        com.saferenttechnologies.android.presentation.panorama.PanoramaViewer(state.panoramas.map { absoluteUrl(it.url) }) { view360 = false }
+                    }
                     Column(Modifier.padding(horizontal = 18.sdp)) {
                         TitleBlock(d)
                         if (d.isUnitPriced) {
@@ -187,7 +190,13 @@ fun ListingDetailScreen(
 // ---------------- header ----------------
 
 @Composable
-private fun PhotoHeader(d: ListingDetail, photos: List<com.saferenttechnologies.android.domain.model.ListingPhoto>, onIntent: (ListingDetailIntent) -> Unit) {
+private fun PhotoHeader(
+    d: ListingDetail,
+    photos: List<com.saferenttechnologies.android.domain.model.ListingPhoto>,
+    onIntent: (ListingDetailIntent) -> Unit,
+    has360: Boolean = false,
+    on360: () -> Unit = {},
+) {
     Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f)) {
         if (photos.isEmpty()) {
             ListingCover(null, Modifier.fillMaxSize())
@@ -209,6 +218,18 @@ private fun PhotoHeader(d: ListingDetail, photos: List<com.saferenttechnologies.
                 repeat(photos.size.coerceAtMost(8)) { i ->
                     Box(Modifier.size(if (i == pager.currentPage) 8.sdp else 6.sdp).clip(CircleShape).background(Color.White.copy(alpha = if (i == pager.currentPage) 1f else 0.6f)))
                 }
+            }
+        }
+        // "360° view" (unique to SafeRent): look around the room.
+        if (has360) {
+            Row(
+                Modifier.align(Alignment.BottomEnd).padding(12.sdp).clip(RoundedCornerShape(50)).background(AuthColors.Orange)
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = on360).padding(horizontal = 12.sdp, vertical = 7.sdp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(painterResource(R.drawable.ic_my_location), null, tint = Color.White, modifier = Modifier.size(16.sdp))
+                Spacer(Modifier.width(6.sdp))
+                Text(stringResource(R.string.pano_button), color = Color.White, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 12.ssp)
             }
         }
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(12.sdp)) {
@@ -234,7 +255,7 @@ private fun TitleBlock(d: ListingDetail) {
     Spacer(Modifier.height(16.sdp))
     Row(horizontalArrangement = Arrangement.spacedBy(6.sdp)) {
         if (d.verified) Badge(stringResource(R.string.explore_verified), R.drawable.ic_shield_check, background = AuthColors.GreenBg, content = AuthColors.GreenText)
-        if (d.ownerVerified) Badge(stringResource(R.string.explore_owner_verified), background = AuthColors.Surface)
+        if (d.ownerVerified) Badge(stringResource(R.string.explore_owner_verified), R.drawable.ic_check, background = AuthColors.Surface, content = AuthColors.Ink, iconTint = AuthColors.GreenText)
     }
     Spacer(Modifier.height(8.sdp))
     Text(d.title, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 22.ssp)
@@ -408,7 +429,7 @@ private fun Highlights(state: ListingDetailState, d: ListingDetail) {
                     Icon(painterResource(icon), null, tint = AuthColors.OrangeText, modifier = Modifier.size(20.sdp))
                     Spacer(Modifier.height(4.sdp))
                     val shown = if (label == R.string.listing_h_furnishing) furnishingLabel(value) else optionLabel(value)
-                    Text(shown, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(shown, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.ssp)
                     Text(stringResource(label), color = AuthColors.Body, fontFamily = Inter, fontSize = 11.ssp)
                 }
             }
@@ -419,19 +440,8 @@ private fun Highlights(state: ListingDetailState, d: ListingDetail) {
 
 @Composable
 private fun About(text: String) {
-    var more by remember { mutableStateOf(false) }
     SectionTitle(stringResource(R.string.listing_about))
-    Text(text, color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp, maxLines = if (more) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.animateContentSize())
-    if (text.length > 180) {
-        Text(
-            stringResource(if (more) R.string.listing_read_less else R.string.listing_read_more),
-            color = AuthColors.OrangeText,
-            fontFamily = Inter,
-            fontWeight = FontWeight.Medium,
-            fontSize = 13.ssp,
-            modifier = Modifier.clickable { more = !more }.padding(vertical = 6.sdp),
-        )
-    }
+    Text(text, color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
 }
 
 @Composable
@@ -445,7 +455,7 @@ private fun Amenities(list: List<Disclosure>, title: String) {
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     Icon(painterResource(R.drawable.ic_check_circle), null, tint = AuthColors.Green, modifier = Modifier.size(16.sdp))
                     Spacer(Modifier.width(6.sdp))
-                    Text(a.label, color = AuthColors.Ink, fontFamily = Inter, fontSize = 13.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(a.label, color = AuthColors.Ink, fontFamily = Inter, fontSize = 13.ssp)
                 }
             }
             if (row.size == 1) Spacer(Modifier.weight(1f))
@@ -569,7 +579,7 @@ fun OutlineButton(text: String, modifier: Modifier = Modifier, enabled: Boolean 
             .padding(horizontal = 16.sdp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = if (enabled) AuthColors.OrangeText else AuthColors.Muted, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 15.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, color = if (enabled) AuthColors.OrangeText else AuthColors.Muted, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 15.ssp)
     }
 }
 
@@ -631,8 +641,6 @@ private fun FlatChooserRow(state: ListingDetailState, d: ListingDetail, onIntent
                     color = AuthColors.Body,
                     fontFamily = Inter,
                     fontSize = 12.ssp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(6.sdp))
                 val price = Money.inr(u.monthlyRent)

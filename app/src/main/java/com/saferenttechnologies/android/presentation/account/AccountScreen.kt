@@ -62,6 +62,8 @@ fun AccountScreen(
     onSwitchRole: (UserRole) -> Unit,
     onSignOut: () -> Unit,
     shortcuts: List<AccountLink>,
+    /** Help & support tickets to SafeRent. */
+    onOpenSupport: () -> Unit = {},
 ) {
     BackHandler { onIntent(AccountIntent.Close) }
     val context = LocalContext.current
@@ -113,6 +115,7 @@ fun AccountScreen(
             // Help
             val s = state.support
             val help = buildList {
+                add(AccountLink(R.drawable.ic_help, stringResource(R.string.sup_title), onOpenSupport))
                 if (s.phone.isNotBlank()) add(AccountLink(R.drawable.ic_call, stringResource(R.string.account_call_support), { open("tel:${s.phone}") }))
                 if (s.whatsapp.isNotBlank()) add(AccountLink(R.drawable.ic_chat, stringResource(R.string.account_whatsapp_support), { open("https://wa.me/${s.whatsapp.filter { it.isDigit() }}") }))
                 if (s.email.isNotBlank()) add(AccountLink(R.drawable.ic_mail, stringResource(R.string.account_email_support), { open("mailto:${s.email}") }))

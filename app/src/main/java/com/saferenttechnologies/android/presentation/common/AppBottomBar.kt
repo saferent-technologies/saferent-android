@@ -83,13 +83,12 @@ fun AppBottomBar(tabs: List<AppTab>, selected: AppTab, onSelect: (AppTab) -> Uni
                         }
                     }
                     Spacer(Modifier.height(2.sdp))
-                    Text(
+                    AutoSizeText(
                         stringResource(tab.label),
                         color = if (on) AuthColors.OrangeText else AuthColors.Body,
+                        fontSize = 11.ssp,
                         fontFamily = Inter,
                         fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium,
-                        fontSize = 11.ssp,
-                        maxLines = 1,
                     )
                 }
             }

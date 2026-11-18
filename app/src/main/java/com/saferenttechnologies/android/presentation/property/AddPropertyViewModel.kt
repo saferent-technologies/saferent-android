@@ -66,6 +66,7 @@ class AddPropertyViewModel @Inject constructor(
     private val draftStore: PropertyDraftStore,
     private val manage: ManagePropertyRepository,
     private val logger: AppLogger,
+    private val panoramas: com.saferenttechnologies.android.domain.repository.PanoramaFiles,
     sessionEvents: SessionEvents,
 ) : MviViewModel<AddPropertyState, AddPropertyIntent, AddPropertyEffect>(AddPropertyState()) {
 
@@ -131,6 +132,12 @@ class AddPropertyViewModel @Inject constructor(
                     )
                 }
             }
+            is AddPropertyIntent.AddPanorama -> addPanorama(intent.uri)
+            is AddPropertyIntent.OpenPanoramaCamera -> if (currentState.imageCount < currentState.maxImages) {
+                setState { copy(panoramaFor = intent.target) }
+            } else banner(AddPropertyMessage.MAX_PHOTOS)
+            AddPropertyIntent.ClosePanoramaCamera -> setState { copy(panoramaFor = null) }
+            is AddPropertyIntent.PanoramaCaptured -> panoramaCaptured(intent.filePath)
             is AddPropertyIntent.SelectListingType -> setState { copy(listingType = ListingTypes.safe(intent.value)) }
             is AddPropertyIntent.FieldChanged -> fieldChanged(intent)
 
@@ -738,6 +745,40 @@ class AddPropertyViewModel @Inject constructor(
     }
 
     // ---------------- photos / documents ----------------
+
+    /** 360 / panorama from the gallery → scaled JPEG (no EXIF) → same upload queue as photos. */
+    private suspend fun addPanorama(uri: String) {
+        val state = currentState
+        val id = state.property?.id ?: return
+        val prep = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { panoramas.prepare(uri) }
+        when (prep) {
+            com.saferenttechnologies.android.domain.repository.PanoramaPrep.NotPanorama -> banner(AddPropertyMessage.NOT_PANORAMA)
+            com.saferenttechnologies.android.domain.repository.PanoramaPrep.Unreadable -> banner(AddPropertyMessage.PANORAMA_UNREADABLE)
+            is com.saferenttechnologies.android.domain.repository.PanoramaPrep.Ok -> {
+                val queued = uploadPhoto(id, state.imageCount, prep.filePath, com.saferenttechnologies.android.domain.model.PanoramaRules.CATEGORY, null, null, null)
+                if (!queued) {
+                    File(prep.filePath).delete()
+                    banner(AddPropertyMessage.MAX_PHOTOS)
+                } else {
+                    // Shows in the upload progress / photo list like other photos.
+                    logger.d(TAG, "panorama queued (${prep.width}x${prep.height})")
+                }
+            }
+        }
+    }
+
+    /** Our 360 camera's photo → upload as PANORAMA_360 with that flat's unitId / room's roomId. */
+    private suspend fun panoramaCaptured(filePath: String) {
+        val state = currentState
+        val target = state.panoramaFor ?: PanoramaTarget()
+        setState { copy(panoramaFor = null) }
+        val id = state.property?.id ?: run { File(filePath).delete(); return }
+        val queued = uploadPhoto(id, state.imageCount, filePath, com.saferenttechnologies.android.domain.model.PanoramaRules.CATEGORY, null, target.unitId, target.roomId)
+        if (!queued) {
+            File(filePath).delete()
+            banner(AddPropertyMessage.MAX_PHOTOS)
+        }
+    }
 
     private suspend fun captured(filePath: String) {
         val state = currentState

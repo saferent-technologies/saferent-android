@@ -103,22 +103,21 @@ fun Hint(text: String, modifier: Modifier = Modifier) {
 /** Small selectable chip. */
 @Composable
 fun Chip(text: String, selected: Boolean, enabled: Boolean = true, modifier: Modifier = Modifier, maxLines: Int = Int.MAX_VALUE, onClick: () -> Unit) {
-    Text(
-        text,
-        color = if (selected) AuthColors.OrangeText else AuthColors.Ink,
-        fontFamily = Inter,
-        fontWeight = FontWeight.Medium,
-        fontSize = 13.ssp,
-        textAlign = TextAlign.Center,
-        maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis,
-        modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (selected) AuthColors.OtpFilled else AuthColors.Field)
-            .border(1.sdp, if (selected) AuthColors.Orange else AuthColors.Border, RoundedCornerShape(50))
-            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
-            .padding(horizontal = 14.sdp, vertical = 9.sdp),
-    )
+    // Full text always (no "…"): one line → the font shrinks to fit; otherwise it wraps.
+    val color = if (selected) AuthColors.OrangeText else AuthColors.Ink
+    val chip = modifier
+        .clip(RoundedCornerShape(50))
+        .background(if (selected) AuthColors.OtpFilled else AuthColors.Field)
+        .border(1.sdp, if (selected) AuthColors.Orange else AuthColors.Border, RoundedCornerShape(50))
+        .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+        .padding(horizontal = 14.sdp, vertical = 9.sdp)
+    if (maxLines == 1) {
+        androidx.compose.foundation.layout.Box(chip, contentAlignment = androidx.compose.ui.Alignment.Center) {
+            com.saferenttechnologies.android.presentation.common.AutoSizeText(text, color, 13.ssp, fontFamily = Inter, fontWeight = FontWeight.Medium)
+        }
+    } else {
+        Text(text, color = color, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.ssp, textAlign = TextAlign.Center, modifier = chip)
+    }
 }
 
 /**
@@ -956,6 +955,10 @@ private fun FlatPanelSection(state: AddPropertyState, unitLabel: String, onInten
         loading = state.saving,
         onClick = { onIntent(AddPropertyIntent.SaveFlatAmenities) },
     )
+
+    // 360° view of this flat / room (optional; opens the 360 camera directly).
+    Spacer(Modifier.height(24.sdp))
+    PanoramaSection(state, onIntent, PanoramaTarget(unitId = panel.unitId, roomId = panel.roomId))
 
     // Photos of this flat
     Spacer(Modifier.height(24.sdp))

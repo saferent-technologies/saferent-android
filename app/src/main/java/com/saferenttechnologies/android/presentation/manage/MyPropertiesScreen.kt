@@ -54,7 +54,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import coil3.compose.AsyncImage
 import com.saferenttechnologies.android.R
 import com.saferenttechnologies.android.core.ui.sdp
@@ -238,15 +237,13 @@ private fun PropertyCard(item: PropertyListItem, onEdit: () -> Unit, onClick: ()
             }
         }
         Column(Modifier.padding(14.sdp)) {
-            Text(item.title.ifBlank { item.name.ifBlank { item.code } }, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 16.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(item.title.ifBlank { item.name.ifBlank { item.code } }, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 16.ssp)
             Text(
                 listOf(item.code, item.propertyTypeLabel, listOf(item.locality, item.city).filter { it.isNotBlank() }.joinToString(", "))
                     .filter { it.isNotBlank() }.joinToString(" · "),
                 color = AuthColors.Body,
                 fontFamily = Inter,
                 fontSize = 12.ssp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(8.sdp))
             Row(verticalAlignment = Alignment.CenterVertically) {

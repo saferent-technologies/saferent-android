@@ -66,6 +66,12 @@ data class ListingDetailState(
     /** Pager photos: apartment → the selected flat's, then the building's. */
     val photos: List<com.saferenttechnologies.android.domain.model.ListingPhoto>
         get() = detail?.let { FlatSelection.photos(it, selectedUnitId) }.orEmpty()
+            .filterNot { com.saferenttechnologies.android.domain.model.PanoramaRules.isPanoramaCategory(it.category) }
+
+    /** 360° photos (360 viewer, not the 4:3 pager): apartment → the selected flat's, then the building's. */
+    val panoramas: List<com.saferenttechnologies.android.domain.model.ListingPhoto>
+        get() = detail?.let { FlatSelection.photos(it, selectedUnitId) }.orEmpty()
+            .filter { com.saferenttechnologies.android.domain.model.PanoramaRules.isPanoramaCategory(it.category) }
 }
 
 sealed interface ListingDetailIntent : UiIntent {

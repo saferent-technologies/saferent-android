@@ -117,7 +117,10 @@ class PropertyDetailViewModel @Inject constructor(
                 loadActiveLeases()
             }
             PropertyDetailIntent.CloseUnit -> setState { copy(openUnitId = null) }
-            is PropertyDetailIntent.ReviewTenant -> sendEffect(PropertyDetailEffect.ReviewLease(intent.leaseId))
+            is PropertyDetailIntent.ReviewTenant -> {
+                setState { copy(reviewPrompt = null) }
+                sendEffect(PropertyDetailEffect.ReviewLease(intent.leaseId))
+            }
             PropertyDetailIntent.AddUnit -> currentState.propertyId?.takeIf { currentState.canEdit }?.let {
                 sendEffect(PropertyDetailEffect.OpenEditor(it, WizardStep.UNITS, newUnit = true))
             }
@@ -142,12 +145,15 @@ class PropertyDetailViewModel @Inject constructor(
             }
             is PropertyDetailIntent.WhatsAppTenant -> sendEffect(PropertyDetailEffect.WhatsApp(intent.phone))
 
-            // A closed lease of this property not reviewed yet → no new tenant until the landlord reviews.
-            is PropertyDetailIntent.StartInvite -> if (currentState.reviewsDue.isNotEmpty()) {
-                sendEffect(PropertyDetailEffect.ReviewFirst(currentState.reviewsDue.first().otherName))
-            } else if (!InviteLocks.isLocked(currentState.pendingInvites, intent.unitId, intent.bedId)) setState {
+            // The last tenant of THIS flat / bed not reviewed yet → popup; other flats invite normally.
+            is PropertyDetailIntent.StartInvite -> {
+                val due = com.saferenttechnologies.android.domain.model.ReviewLocks.dueFor(currentState.reviewsDue, intent.unitId, intent.bedId)
+                if (due != null) setState { copy(reviewPrompt = due) }
+                else if (!InviteLocks.isLocked(currentState.pendingInvites, intent.unitId, intent.bedId)) setState {
                 copy(inviteForm = InviteForm(unitId = intent.unitId, bedId = intent.bedId, target = intent.target, monthlyRent = intent.rent.substringBefore('.')))
+                }
             }
+            PropertyDetailIntent.DismissReviewPrompt -> setState { copy(reviewPrompt = null) }
             is PropertyDetailIntent.InviteChanged -> setState { copy(inviteForm = intent.form.copy(error = null)) }
             PropertyDetailIntent.CancelInvite -> setState { copy(inviteForm = null) }
             PropertyDetailIntent.SendInvite -> sendInvite()

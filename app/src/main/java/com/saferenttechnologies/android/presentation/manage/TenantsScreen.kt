@@ -50,7 +50,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import com.saferenttechnologies.android.R
 import com.saferenttechnologies.android.core.ui.sdp
 import com.saferenttechnologies.android.core.ui.ssp
@@ -197,14 +196,12 @@ private fun TenantCard(lease: Lease, closeRequested: Boolean, onClick: () -> Uni
         Avatar(lease.tenantName, 44)
         Spacer(Modifier.width(12.sdp))
         Column(Modifier.weight(1f)) {
-            Text(lease.tenantName.ifBlank { stringResource(R.string.word_tenant) }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(lease.tenantName.ifBlank { stringResource(R.string.word_tenant) }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
             Text(
                 listOf(lease.propertyTitle, lease.place).filter { it.isNotBlank() }.joinToString(" · "),
                 color = AuthColors.Body,
                 fontFamily = Inter,
                 fontSize = 12.ssp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 listOfNotNull(

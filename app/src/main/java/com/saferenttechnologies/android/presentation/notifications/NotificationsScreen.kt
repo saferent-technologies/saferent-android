@@ -56,7 +56,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import com.saferenttechnologies.android.R
 import com.saferenttechnologies.android.core.ui.sdp
 import com.saferenttechnologies.android.core.ui.ssp
@@ -251,7 +250,7 @@ private fun NotificationRow(n: AppNotification, now: Long, startOfToday: Long, o
             }
             if (n.body.isNotBlank()) {
                 Spacer(Modifier.height(2.sdp))
-                Text(n.body, color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(n.body, color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp)
             }
         }
     }
@@ -371,8 +370,7 @@ fun InAppPushBanner(push: IncomingPush?, onOpen: () -> Unit, onDismiss: () -> Un
                 fontFamily = Inter,
                 fontWeight = FontWeight.Medium,
                 fontSize = 13.ssp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                
                 modifier = Modifier.weight(1f),
             )
         }

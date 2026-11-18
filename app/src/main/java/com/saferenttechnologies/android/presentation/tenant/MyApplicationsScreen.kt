@@ -1,5 +1,8 @@
 package com.saferenttechnologies.android.presentation.tenant
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import com.saferenttechnologies.android.presentation.common.SkeletonTrailing
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
@@ -47,7 +50,6 @@ import com.saferenttechnologies.android.core.ui.ssp
 import com.saferenttechnologies.android.presentation.auth.AuthColors
 import com.saferenttechnologies.android.presentation.manage.prettyDate
 import com.saferenttechnologies.android.presentation.property.Chip
-import com.saferenttechnologies.android.presentation.property.ChipGrid
 import com.saferenttechnologies.android.presentation.property.optionLabel
 import com.saferenttechnologies.android.ui.theme.Inter
 import com.saferenttechnologies.android.ui.theme.PlusJakartaSans
@@ -71,9 +73,13 @@ fun MyApplicationsScreen(state: MyApplicationsState, onIntent: (MyApplicationsIn
                 Spacer(Modifier.width(12.sdp))
                 Text(stringResource(R.string.explore_my_applications), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 20.ssp)
             }
-            Box(Modifier.padding(horizontal = 16.sdp)) {
-                ChipGrid(MyApplicationsViewModel.STATUSES, columns = 4) { s, mod ->
-                    Chip(optionLabel(s), selected = state.status == s, modifier = mod, maxLines = 1) { onIntent(MyApplicationsIntent.SelectStatus(s)) }
+            // Full status names in one row that scrolls sideways (no squeezed "…" tabs).
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.sdp),
+                horizontalArrangement = Arrangement.spacedBy(8.sdp),
+            ) {
+                MyApplicationsViewModel.STATUSES.forEach { s ->
+                    Chip(optionLabel(s), selected = state.status == s, modifier = Modifier.widthIn(min = 72.sdp), maxLines = 1) { onIntent(MyApplicationsIntent.SelectStatus(s)) }
                 }
             }
             when {

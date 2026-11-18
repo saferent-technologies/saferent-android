@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.manage
 
+import com.saferenttechnologies.android.presentation.support.ReportProblemLink
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import androidx.compose.foundation.layout.aspectRatio
@@ -100,6 +101,8 @@ fun PropertyDetailScreen(
     onNotFound: () -> Unit = {},
     onOpenLease: (leaseId: String, preview: com.saferenttechnologies.android.domain.model.LeaseSummary) -> Unit = { _, _ -> },
     onReviewLease: (leaseId: String) -> Unit = {},
+    /** "Report a problem" → support ticket (PROPERTY, this property). */
+    onReportProblem: ((propertyId: String?) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -181,8 +184,27 @@ fun PropertyDetailScreen(
                         enter = expandVertically(tween(260), expandFrom = Alignment.Top) + fadeIn(tween(260)),
                         exit = shrinkVertically(tween(220), shrinkTowards = Alignment.Top) + fadeOut(tween(180)),
                     ) {
-                        HorizontalPager(pager, Modifier.fillMaxWidth().aspectRatio(4f / 3f).background(AuthColors.Surface)) { page ->
-                            AsyncImage(model = absoluteUrl(images[page].url), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        Box {
+                            HorizontalPager(pager, Modifier.fillMaxWidth().aspectRatio(4f / 3f).background(AuthColors.Surface)) { page ->
+                                AsyncImage(model = absoluteUrl(images[page].url), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            }
+                            // 360° views of this property → the 360 viewer.
+                            val panos = state.detail?.property?.images.orEmpty().filter { com.saferenttechnologies.android.domain.model.PanoramaRules.isPanoramaCategory(it.category) }
+                            var view360 by remember { mutableStateOf(false) }
+                            if (panos.isNotEmpty()) {
+                                Row(
+                                    Modifier.align(Alignment.BottomEnd).padding(12.sdp).clip(RoundedCornerShape(50)).background(AuthColors.Orange)
+                                        .clickable(role = androidx.compose.ui.semantics.Role.Button) { view360 = true }.padding(horizontal = 12.sdp, vertical = 7.sdp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(painterResource(R.drawable.ic_my_location), null, tint = Color.White, modifier = Modifier.size(16.sdp))
+                                    Spacer(Modifier.width(6.sdp))
+                                    Text(stringResource(R.string.pano_button), color = Color.White, fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 12.ssp)
+                                }
+                            }
+                            if (view360) {
+                                com.saferenttechnologies.android.presentation.panorama.PanoramaViewer(panos.map { absoluteUrl(it.url) }) { view360 = false }
+                            }
                         }
                     }
                     Column(Modifier.fillMaxSize().nestedScroll(hideOnScroll).verticalScroll(rememberScrollState())) {
@@ -205,6 +227,10 @@ fun PropertyDetailScreen(
                             DetailTab.HISTORY -> HistoryTab(state, onIntent)
                         }
                     }
+                    onReportProblem?.let { report ->
+                        Spacer(Modifier.height(16.sdp))
+                        ReportProblemLink({ report(state.propertyId) }, Modifier.align(Alignment.CenterHorizontally))
+                    }
                     Spacer(Modifier.height(32.sdp))
                     }
                 }
@@ -222,6 +248,7 @@ fun PropertyDetailScreen(
     if (state.confirmDiscard) DiscardChangesDialog(onIntent)
     state.changeProblems?.let { ChangeProblemsSheet(it, onIntent) }
     state.inviteForm?.let { InviteDialog(state, it, onIntent) }
+    state.reviewPrompt?.let { ReviewFirstDialog(it, onIntent) }
     state.openUnitId?.let { id -> state.detail?.property?.units?.firstOrNull { it.id == id }?.let { FlatSheet(state, it, onIntent) } }
     state.decision?.let { DecisionDialog(state, it, onIntent) }
 }
@@ -274,6 +301,7 @@ private const val GALLERY_SCROLL_SLOP = 6f
 private fun galleryImages(state: PropertyDetailState): List<com.saferenttechnologies.android.domain.model.PropertyImage> {
     val property = state.detail?.property ?: return emptyList()
     return (if (state.isUnitPriced || property.structure.usesRooms) BuildingPhotos.of(property) else property.images)
+        .filterNot { com.saferenttechnologies.android.domain.model.PanoramaRules.isPanoramaCategory(it.category) }
         .sortedBy { it.displayOrder ?: Int.MAX_VALUE }
 }
 
@@ -334,7 +362,7 @@ private fun Banners(state: PropertyDetailState, onIntent: (PropertyDetailIntent)
         state.reviewsDue.firstOrNull()?.let { due ->
             Banner(
                 stringResource(R.string.manage_review_tenant_title, due.otherName.ifBlank { stringResource(R.string.lease_the_tenant) }),
-                stringResource(R.string.manage_review_tenant_note),
+                if (due.place.isNotBlank()) stringResource(R.string.manage_review_tenant_note_place, due.place) else stringResource(R.string.manage_review_tenant_note),
                 com.saferenttechnologies.android.presentation.explore.Amber,
                 stringResource(R.string.lease_write_review),
             ) { onIntent(PropertyDetailIntent.ReviewTenant(due.leaseId)) }
@@ -401,6 +429,29 @@ private fun Banner(title: String, note: String?, color: Color, action: String?, 
             )
         }
     }
+}
+
+/** Invite tapped on a flat / bed whose last tenant isn't reviewed yet. Only that flat; others invite normally. */
+@Composable
+private fun ReviewFirstDialog(due: com.saferenttechnologies.android.domain.model.PendingReview, onIntent: (PropertyDetailIntent) -> Unit) {
+    val name = due.otherName.ifBlank { stringResource(R.string.lease_the_tenant) }
+    AlertDialog(
+        onDismissRequest = { onIntent(PropertyDetailIntent.DismissReviewPrompt) },
+        title = { Text(stringResource(R.string.manage_review_tenant_title, name), fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Text(
+                if (due.place.isNotBlank()) stringResource(R.string.manage_review_first_place, name, due.place) else stringResource(R.string.manage_review_first, name),
+                fontFamily = Inter,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onIntent(PropertyDetailIntent.ReviewTenant(due.leaseId)) }) {
+                Text(stringResource(R.string.lease_write_review), color = AuthColors.OrangeText, fontFamily = Inter, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = { TextButton(onClick = { onIntent(PropertyDetailIntent.DismissReviewPrompt) }) { Text(stringResource(R.string.manage_later), color = AuthColors.Body, fontFamily = Inter) } },
+        containerColor = AuthColors.Card,
+    )
 }
 
 @Composable

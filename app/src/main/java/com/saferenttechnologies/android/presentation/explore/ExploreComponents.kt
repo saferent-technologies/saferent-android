@@ -42,7 +42,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import coil3.compose.AsyncImage
 import com.saferenttechnologies.android.R
 import com.saferenttechnologies.android.core.ui.sdp
@@ -70,14 +69,24 @@ fun ListingCover(imageId: String?, modifier: Modifier = Modifier) {
     }
 }
 
+/** Bright green that reads on the dark glass badge (photo overlay only; theme colours unchanged). */
+private val VerifiedGreen = Color(0xFF4ADE80)
+
 @Composable
-fun Badge(text: String, icon: Int? = null, background: Color = Color.White.copy(alpha = 0.92f), content: Color = AuthColors.Ink) {
+fun Badge(
+    text: String,
+    icon: Int? = null,
+    // Default = dark glass for badges ON A PHOTO: reads on bright and dark photos, light and dark theme.
+    background: Color = Color.Black.copy(alpha = 0.55f),
+    content: Color = Color.White,
+    iconTint: Color = content,
+) {
     Row(
         Modifier.clip(RoundedCornerShape(50)).background(background).padding(horizontal = 9.sdp, vertical = 4.sdp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         icon?.let {
-            Icon(painterResource(it), null, tint = content, modifier = Modifier.size(13.sdp))
+            Icon(painterResource(it), null, tint = iconTint, modifier = Modifier.size(13.sdp))
             Spacer(Modifier.width(4.sdp))
         }
         Text(text, color = content, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.ssp)
@@ -103,22 +112,21 @@ fun ListingCard(item: Listing, onClick: () -> Unit, onLongClick: () -> Unit) {
                     .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.45f))),
             )
             Row(Modifier.align(Alignment.TopStart).padding(10.sdp), horizontalArrangement = Arrangement.spacedBy(6.sdp)) {
-                if (item.verified) Badge(stringResource(R.string.explore_verified), R.drawable.ic_shield_check, content = AuthColors.GreenText)
-                if (item.ownerVerified) Badge(stringResource(R.string.explore_owner_verified))
+                // Same glass pill for both; a green shield marks SafeRent verified, a check marks the owner's KYC.
+                if (item.verified) Badge(stringResource(R.string.explore_verified), R.drawable.ic_shield_check, iconTint = VerifiedGreen)
+                if (item.ownerVerified) Badge(stringResource(R.string.explore_owner_verified), R.drawable.ic_check, iconTint = VerifiedGreen)
             }
             Box(Modifier.align(Alignment.BottomStart).padding(10.sdp)) {
                 Badge(listingTypeLabel(item.listingType), background = AuthColors.Orange, content = Color.White)
             }
         }
         Spacer(Modifier.height(10.sdp))
-        Text(item.title, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 16.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(item.title, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.SemiBold, fontSize = 16.ssp)
         Text(
             listOf(item.propertyTypeLabel, listOf(item.locality, item.city).filter { it.isNotBlank() }.joinToString(", ")).filter { it.isNotBlank() }.joinToString(" · "),
             color = AuthColors.Body,
             fontFamily = Inter,
             fontSize = 13.ssp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
         item.distanceKm?.let {
             Text(stringResource(R.string.explore_km_away, Money.distance(it)), color = AuthColors.OrangeText, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 12.ssp)

@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.property
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import com.saferenttechnologies.android.presentation.common.ListSkeleton
 import com.saferenttechnologies.android.domain.model.WizardStep
 import com.saferenttechnologies.android.domain.model.RequiredPhoto
@@ -234,6 +236,10 @@ fun PhotosStep(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
         }
     }
 
+    // 360° view of the whole building (optional). Each flat / PG room has its own in its panel.
+    Spacer(Modifier.height(18.sdp))
+    PanoramaSection(state, onIntent)
+
     // Uploaded photos grouped by category (PENDING until SafeRent verifies the property).
     val sorted = property.images.sortedBy { it.displayOrder ?: Int.MAX_VALUE }
     val coverId = sorted.firstOrNull()?.id
@@ -248,6 +254,49 @@ fun PhotosStep(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
             }
             Spacer(Modifier.height(8.sdp))
         }
+    }
+}
+
+/**
+ * "360° view" of one flat / PG room (or, optionally, the whole building): "Open camera" goes straight
+ * into SafeRent's 360 camera. Phones without a gyroscope can't take one → the card is disabled.
+ */
+@Composable
+internal fun PanoramaSection(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit, target: PanoramaTarget = PanoramaTarget()) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val supported = androidx.compose.runtime.remember { com.saferenttechnologies.android.presentation.panorama.PanoramaSupport.isSupported(context) }
+    val camera = com.saferenttechnologies.android.presentation.permission.rememberPermissionRequester(com.saferenttechnologies.android.domain.model.AppPermission.CAMERA)
+    val panos = state.property?.images.orEmpty().filter {
+        com.saferenttechnologies.android.domain.model.PanoramaRules.isPanoramaCategory(it.category) && it.unitId == target.unitId && it.roomId == target.roomId
+    }
+    var viewing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp)).border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp)).padding(14.sdp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.pano_title), color = if (supported) AuthColors.Ink else AuthColors.Muted, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.pano_optional), color = AuthColors.Muted, fontFamily = Inter, fontSize = 12.ssp)
+        }
+        Spacer(Modifier.height(4.sdp))
+        Text(stringResource(if (supported) R.string.pano_hint else R.string.pano_unsupported), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+        Spacer(Modifier.height(10.sdp))
+        OutlineAction(
+            stringResource(R.string.pano_open_camera),
+            R.drawable.ic_camera,
+            enabled = supported && !state.busy && state.imageCount < state.maxImages,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            camera.request { granted -> if (granted) onIntent(AddPropertyIntent.OpenPanoramaCamera(target)) }
+        }
+        if (panos.isNotEmpty()) {
+            Spacer(Modifier.height(10.sdp))
+            OutlineAction(
+                androidx.compose.ui.res.pluralStringResource(R.plurals.pano_view_n, panos.size, panos.size),
+                R.drawable.ic_my_location,
+                modifier = Modifier.fillMaxWidth(),
+            ) { viewing = true }
+        }
+    }
+    if (viewing) {
+        com.saferenttechnologies.android.presentation.panorama.PanoramaViewer(panos.map { absoluteUrl(it.url) }) { viewing = false }
     }
 }
 

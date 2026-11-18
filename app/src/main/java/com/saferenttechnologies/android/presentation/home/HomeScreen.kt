@@ -420,9 +420,9 @@ private fun ActionBox(action: DashboardAction, modifier: Modifier) {
             }
         }
         Spacer(Modifier.height(12.sdp))
-        Text(action.title, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 15.ssp, maxLines = 2)
+        Text(action.title, color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 15.ssp)
         Spacer(Modifier.height(2.sdp))
-        Text(action.body, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, maxLines = 2)
+        Text(action.body, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
     }
 }
 
@@ -530,7 +530,7 @@ private fun RentFigure(label: String, value: String, color: Color, modifier: Mod
         // Big amounts ("₹12,45,000") shrink to fit the box instead of wrapping.
         AutoSizeText(value, color = color, fontSize = 15.ssp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold)
         Spacer(Modifier.height(2.sdp))
-        Text(label, color = AuthColors.Body, fontFamily = Inter, fontSize = 11.ssp, maxLines = 2, lineHeight = 13.ssp)
+        Text(label, color = AuthColors.Body, fontFamily = Inter, fontSize = 11.ssp, lineHeight = 13.ssp)
     }
 }
 

@@ -160,7 +160,6 @@ private fun HomeAlertSheet(state: HomeAlertState, onIntent: (HomeAlertIntent) ->
                         color = if (d.areaLabel.isBlank()) AuthColors.Muted else AuthColors.Ink,
                         fontFamily = Inter,
                         fontSize = 14.ssp,
-                        maxLines = 1,
                         modifier = Modifier.weight(1f),
                     )
                     if (state.locating || (state.areaSearching && !state.searchOpen)) {
@@ -301,7 +300,6 @@ fun HomeAlertBanner(
                 color = AuthColors.Body,
                 fontFamily = Inter,
                 fontSize = 12.ssp,
-                maxLines = 2,
             )
         }
         Spacer(Modifier.width(8.sdp))

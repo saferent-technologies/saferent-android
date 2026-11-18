@@ -7,7 +7,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import com.saferenttechnologies.android.R
 import com.saferenttechnologies.android.core.ui.ssp
 import com.saferenttechnologies.android.presentation.auth.AuthColors
@@ -34,8 +33,6 @@ fun Greeting(fullName: String, modifier: Modifier = Modifier, subtitle: String? 
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.ExtraBold,
             fontSize = 19.ssp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
         subtitle?.let { Text(it, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp) }
     }

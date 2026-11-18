@@ -133,3 +133,15 @@ interface UserLocationSync {
     /** Signed out → forget what was sent (next user starts fresh). */
     fun reset()
 }
+
+/** Picked panorama → a JPEG ready to upload (scaled, no EXIF / location). */
+interface PanoramaFiles {
+    fun prepare(uri: String): PanoramaPrep
+}
+
+sealed interface PanoramaPrep {
+    data class Ok(val filePath: String, val width: Int, val height: Int) : PanoramaPrep
+    /** Not wide enough to be a 360 / panorama photo. */
+    data object NotPanorama : PanoramaPrep
+    data object Unreadable : PanoramaPrep
+}

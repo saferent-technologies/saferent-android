@@ -322,7 +322,7 @@ private fun UploadSheet(state: DocumentsState, onIntent: (DocumentsIntent) -> Un
                     ) {
                         Icon(painterResource(R.drawable.ic_document), null, tint = AuthColors.OrangeText, modifier = Modifier.size(22.sdp))
                         Spacer(Modifier.width(10.sdp))
-                        Text(f.pdfName.ifBlank { stringResource(R.string.docs_pdf) }, color = AuthColors.Ink, fontFamily = Inter, fontSize = 14.ssp, maxLines = 1, modifier = Modifier.weight(1f))
+                        Text(f.pdfName.ifBlank { stringResource(R.string.docs_pdf) }, color = AuthColors.Ink, fontFamily = Inter, fontSize = 14.ssp, modifier = Modifier.weight(1f))
                         Box(
                             Modifier.size(32.sdp).clip(CircleShape).clickable(enabled = !state.busy, role = Role.Button) { onIntent(DocumentsIntent.RemovePdf) },
                             contentAlignment = Alignment.Center,

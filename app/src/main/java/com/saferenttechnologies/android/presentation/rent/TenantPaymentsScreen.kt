@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.rent
 
+import com.saferenttechnologies.android.presentation.support.ReportProblemLink
 import com.saferenttechnologies.android.presentation.common.SkeletonTrailing
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
@@ -80,7 +81,13 @@ private fun day(iso: String): String = if (iso.isBlank()) "" else prettyDate(iso
 /** Tenant → deposit card, then pending dues (top), then paid months (below). Paid → receipt. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TenantPaymentsScreen(state: TenantPaymentsState, effects: Flow<RentEffect>, onIntent: (TenantPaymentsIntent) -> Unit) {
+fun TenantPaymentsScreen(
+    state: TenantPaymentsState,
+    effects: Flow<RentEffect>,
+    onIntent: (TenantPaymentsIntent) -> Unit,
+    /** "Report a problem" → support ticket (PAYMENT). */
+    onReportProblem: (() -> Unit)? = null,
+) {
     BackHandler { onIntent(TenantPaymentsIntent.Close) }
     val context = LocalContext.current
     val noApp = stringResource(R.string.rent_no_pdf_app)
@@ -119,6 +126,8 @@ fun TenantPaymentsScreen(state: TenantPaymentsState, effects: Flow<RentEffect>, 
                 Text(stringResource(R.string.pay_title), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 20.ssp)
                 if (state.title.isNotBlank()) Text(state.title, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
             }
+            Spacer(Modifier.weight(1f))
+            onReportProblem?.let { ReportProblemLink(it) }
         }
         PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = { onIntent(TenantPaymentsIntent.Refresh) }, modifier = Modifier.fillMaxWidth().weight(1f)) {
             when {

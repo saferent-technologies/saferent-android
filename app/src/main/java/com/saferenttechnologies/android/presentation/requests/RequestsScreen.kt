@@ -62,7 +62,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
@@ -242,17 +241,15 @@ private fun RequestCard(r: ServiceRequest, landlord: Boolean, onClick: () -> Uni
         }
         Spacer(Modifier.width(12.sdp))
         Column(Modifier.weight(1f)) {
-            Text(r.title.ifBlank { r.categoryLabel }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(r.title.ifBlank { r.categoryLabel }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
             Text(
                 listOf(if (landlord) r.raisedByName else "", r.propertyTitle, r.place).filter { it.isNotBlank() }.joinToString(" · "),
                 color = AuthColors.Body,
                 fontFamily = Inter,
                 fontSize = 12.ssp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             if (r.lastRemark.isNotBlank()) {
-                Text("“${r.lastRemark}”", color = AuthColors.Ink, fontFamily = Inter, fontSize = 12.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("“${r.lastRemark}”", color = AuthColors.Ink, fontFamily = Inter, fontSize = 12.ssp)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.req_updated, ago(r.updatedAt.ifBlank { r.createdAt })), color = AuthColors.Muted, fontFamily = Inter, fontSize = 11.ssp)

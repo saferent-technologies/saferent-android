@@ -144,6 +144,10 @@ data class PendingReview(
     val propertyId: String = "",
     val propertyTitle: String = "",
     val place: String = "",
+    /** Flat / portion / room of that lease (null = whole property). */
+    val unitId: String? = null,
+    /** PG bed of that lease. */
+    val bedId: String? = null,
     /** Landlord sees the tenant, tenant sees the landlord. */
     val otherName: String = "",
     val endedAt: String = "",
@@ -152,6 +156,17 @@ data class PendingReview(
 ) {
     /** Ask "was the deposit refunded?" only when there was a deposit (> ₹0). */
     val asksDeposit: Boolean get() = depositAmount.toBigDecimalOrNull()?.let { it.signum() > 0 } == true
+}
+
+/** Landlord: an unreviewed past tenant blocks new invites ONLY for that same flat / bed, not the rest. */
+object ReviewLocks {
+    fun dueFor(reviews: List<PendingReview>, unitId: String?, bedId: String?): PendingReview? = reviews.firstOrNull { r ->
+        when {
+            r.bedId != null -> r.bedId == bedId
+            r.unitId != null -> r.unitId == unitId
+            else -> unitId == null && bedId == null // whole-property lease → whole-property invite
+        }
+    }
 }
 
 /** Tenant's answer to "Did your landlord refund your deposit?" */

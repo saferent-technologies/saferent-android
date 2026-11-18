@@ -3,9 +3,6 @@ package com.saferenttechnologies.android.presentation.explore
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenu
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -59,7 +56,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import com.saferenttechnologies.android.R
 import com.saferenttechnologies.android.core.ui.sdp
 import com.saferenttechnologies.android.core.ui.ssp
@@ -93,8 +89,6 @@ fun ExploreScreen(
     hasApplications: Boolean = false,
     onOpenApplications: () -> Unit = {},
     onBack: (() -> Unit)? = null,
-    /** Overflow menu (switch role, sign out) — Explore is the tenant's home. */
-    menu: List<Pair<String, () -> Unit>> = emptyList(),
     /** "Open to new homes" card: null = not loaded yet (shown as off). */
     homeAlertOn: Boolean? = null,
     homeAlertArea: String = "",
@@ -181,7 +175,7 @@ fun ExploreScreen(
                     modifier = Modifier.fillMaxSize().navigationBarsPadding(),
                 ) {
                     item(key = "header") {
-                        Header(state, firstName, unreadNotifications, onOpenNotifications, onIntent, pendingReviews, hasApplications, onOpenApplications, onBack, ::nearMe, menu, homeAlertOn, homeAlertArea, onOpenHomeAlert, onToggleHomeAlert, homeAlertBusy, onOpenDashboard)
+                        Header(state, firstName, unreadNotifications, onOpenNotifications, onIntent, pendingReviews, hasApplications, onOpenApplications, onBack, ::nearMe, homeAlertOn, homeAlertArea, onOpenHomeAlert, onToggleHomeAlert, homeAlertBusy, onOpenDashboard)
                     }
                     when {
                         state.loading && state.items.isEmpty() -> items(3) { SkeletonCard() }
@@ -259,7 +253,6 @@ private fun Header(
     onOpenApplications: () -> Unit,
     onBack: (() -> Unit)?,
     onNearMe: () -> Unit,
-    menu: List<Pair<String, () -> Unit>>,
     homeAlertOn: Boolean? = null,
     homeAlertArea: String = "",
     onOpenHomeAlert: (() -> Unit)? = null,
@@ -293,20 +286,6 @@ private fun Header(
                 Spacer(Modifier.width(8.sdp))
             }
             BellWithBadge(unread, onOpenNotifications)
-            if (menu.isNotEmpty()) {
-                var open by remember { mutableStateOf(false) }
-                Box {
-                    Box(
-                        Modifier.padding(start = 6.sdp).size(TOP_ICON).clip(CircleShape).clickable(role = Role.Button) { open = true },
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(painterResource(R.drawable.ic_more_vert), stringResource(R.string.explore_menu), tint = AuthColors.Ink, modifier = Modifier.size(TOP_ICON_GLYPH)) }
-                    DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = AuthColors.Card) {
-                        menu.forEach { (label, action) ->
-                            DropdownMenuItem(text = { Text(label, fontFamily = Inter, color = AuthColors.Ink) }, onClick = { open = false; action() })
-                        }
-                    }
-                }
-            }
         }
         if (pendingReviews > 0) {
             Spacer(Modifier.height(12.sdp))
@@ -340,8 +319,6 @@ private fun Header(
                 color = if (state.searchLabel.isBlank()) AuthColors.Muted else AuthColors.Ink,
                 fontFamily = Inter,
                 fontSize = 15.ssp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
         Spacer(Modifier.height(12.sdp))

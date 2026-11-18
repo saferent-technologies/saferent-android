@@ -48,7 +48,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import com.saferenttechnologies.android.R
 import com.saferenttechnologies.android.core.ui.sdp
 import com.saferenttechnologies.android.core.ui.ssp
@@ -147,14 +146,12 @@ private fun InvitationContent(inv: TenantInvitation, onOpenHome: (String) -> Uni
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 19.ssp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
             )
             if (inv.place.isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(painterResource(R.drawable.ic_location), null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(13.sdp))
                     Spacer(Modifier.width(4.sdp))
-                    Text(inv.place, color = Color.White.copy(alpha = 0.9f), fontFamily = Inter, fontSize = 12.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(inv.place, color = Color.White.copy(alpha = 0.9f), fontFamily = Inter, fontSize = 12.ssp)
                 }
             }
         }
@@ -278,7 +275,7 @@ private fun LandlordRow(inv: TenantInvitation) {
         }
         Spacer(Modifier.width(12.sdp))
         Column(Modifier.weight(1f)) {
-            Text(inv.landlordName, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(inv.landlordName, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
             Text(stringResource(R.string.invitation_landlord), color = AuthColors.Muted, fontFamily = Inter, fontSize = 12.ssp)
         }
         if (inv.landlordVerified) Badge(stringResource(R.string.explore_verified), R.drawable.ic_shield_check, background = AuthColors.GreenBg, content = AuthColors.GreenText)
@@ -313,7 +310,7 @@ private fun RentCard(inv: TenantInvitation) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.sdp)) {
                 figures.forEachIndexed { i, (label, value) ->
                     Column(Modifier.weight(1f)) {
-                        Text(stringResource(label), color = AuthColors.Muted, fontFamily = Inter, fontSize = 11.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(stringResource(label), color = AuthColors.Muted, fontFamily = Inter, fontSize = 11.ssp)
                         Text(
                             value,
                             color = if (i == figures.lastIndex && label == R.string.invitation_move_in_total) AuthColors.OrangeText else AuthColors.Ink,
@@ -510,8 +507,8 @@ private fun OutcomeContent(state: InvitationState, inv: TenantInvitation, onDone
                 ListingCover(inv.coverImageId, Modifier.size(56.sdp).clip(RoundedCornerShape(10.sdp)))
                 Spacer(Modifier.width(12.sdp))
                 Column(Modifier.weight(1f)) {
-                    Text(inv.propertyTitle, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(listOf(inv.target, inv.place).filter { it.isNotBlank() }.joinToString(" · "), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(inv.propertyTitle, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.ssp)
+                    Text(listOf(inv.target, inv.place).filter { it.isNotBlank() }.joinToString(" · "), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
                     if (inv.monthlyRent.isNotBlank()) {
                         Text("${Money.inr(inv.monthlyRent)} ${stringResource(R.string.invitation_per_month)}", color = AuthColors.OrangeText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.ssp)
                     }

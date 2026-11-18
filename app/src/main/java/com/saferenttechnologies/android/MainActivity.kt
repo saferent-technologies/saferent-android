@@ -1,5 +1,8 @@
 package com.saferenttechnologies.android
 
+import com.saferenttechnologies.android.presentation.support.SupportViewModel
+import com.saferenttechnologies.android.presentation.support.SupportScreen
+import com.saferenttechnologies.android.presentation.support.SupportIntent
 import com.saferenttechnologies.android.presentation.account.AccountLink
 import com.saferenttechnologies.android.presentation.account.AccountIntent
 import com.saferenttechnologies.android.presentation.account.AccountViewModel
@@ -173,6 +176,7 @@ class MainActivity : ComponentActivity() {
     private val homeAlertViewModel: HomeAlertViewModel by viewModels()
     private val tenantLeasesViewModel: TenantLeasesViewModel by viewModels()
     private val accountViewModel: AccountViewModel by viewModels()
+    private val supportViewModel: SupportViewModel by viewModels()
 
     @Inject
     lateinit var permissionManager: PermissionManager
@@ -224,6 +228,13 @@ class MainActivity : ComponentActivity() {
                     val homeAlertState by homeAlertViewModel.state.collectAsState()
                     val tenantLeasesState by tenantLeasesViewModel.state.collectAsState()
                     val accountState by accountViewModel.state.collectAsState()
+                    val supportState by supportViewModel.state.collectAsState()
+                    // "Report a problem" / Help & support → tickets to SafeRent.
+                    val supportLandlord = homeState.activeRole != UserRole.TENANT
+                    val supportMe = homeState.user?.id.orEmpty()
+                    val reportProblem: (category: String, propertyId: String?) -> Unit = { category, propertyId ->
+                        supportViewModel.onIntent(SupportIntent.OpenNew(supportLandlord, supportMe, category, propertyId))
+                    }
                     // Notification links → screens (only property detail exists today).
                     LaunchedEffect(Unit) {
                         notificationsViewModel.effect.collect { effect ->
@@ -259,6 +270,14 @@ class MainActivity : ComponentActivity() {
                                         RequestsIntent.OpenDetail(route.id, landlord = homeViewModel.state.value.activeRole != UserRole.TENANT),
                                     )
                                     NavRoute.MyDocuments -> documentsViewModel.onIntent(DocumentsIntent.OpenMine)
+                                    // "/support/{id}" → that ticket's chat; "/support" → the list.
+                                    is NavRoute.SupportTicket -> {
+                                        val landlord = homeViewModel.state.value.activeRole != UserRole.TENANT
+                                        val me = homeViewModel.state.value.user?.id.orEmpty()
+                                        supportViewModel.onIntent(
+                                            route.ticketId?.let { SupportIntent.OpenDetail(it, landlord, me) } ?: SupportIntent.Open(landlord, me),
+                                        )
+                                    }
                                     is NavRoute.Announcements -> {
                                         val landlord = homeViewModel.state.value.activeRole != UserRole.TENANT
                                         announcementsViewModel.onIntent(
@@ -368,7 +387,7 @@ class MainActivity : ComponentActivity() {
                     val atAppLevel = !showSplash && blockedInfo == null && onboardingState.isFinished && authState.isSignedIn &&
                         postLoginState.error == null && postLoginState.destination != null && homeState.user != null &&
                         !(postLoginState.destination is PostLoginDestination.UserProfile && userProfileState.dashboard == null)
-                    val overlayOpen = addPropertyState.isOpen || leaseDetailState.isOpen || tenantPaymentsState.isOpen ||
+                    val overlayOpen = addPropertyState.isOpen || supportState.isOpen || leaseDetailState.isOpen || tenantPaymentsState.isOpen ||
                         tenantLeasesState.isOpen || rentState.isOpen || announcementsState.isOpen || transactionsState.isOpen ||
                         propertyDetailState.isOpen || listingDetailState.isOpen || invitationState.isOpen ||
                         myApplicationsState.isOpen || notificationsState.isOpen ||
@@ -465,12 +484,16 @@ class MainActivity : ComponentActivity() {
                             onIntent = addPropertyViewModel::onIntent,
                         )
 
+                        // Help & support: above the screens that open it (lease, rent, property, profile).
+                        supportState.isOpen -> SupportScreen(state = supportState, effects = supportViewModel.effect, onIntent = supportViewModel::onIntent)
+
                         // Above the property screen: a tenant card opens the lease on top, Back returns.
                         // Tenant → deposit + rent history (also opened from a lease, so it sits above it).
                         tenantPaymentsState.isOpen -> TenantPaymentsScreen(
                             state = tenantPaymentsState,
                             effects = tenantPaymentsViewModel.effect,
                             onIntent = tenantPaymentsViewModel::onIntent,
+                            onReportProblem = { reportProblem("PAYMENT", null) },
                         )
 
                         leaseDetailState.isOpen -> LeaseDetailScreen(
@@ -486,6 +509,7 @@ class MainActivity : ComponentActivity() {
                             onOpenPayments = { id, title, closed ->
                                 tenantPaymentsViewModel.onIntent(TenantPaymentsIntent.Open(id, title, readOnly = closed))
                             },
+                            onReportProblem = { tenantSide -> reportProblem(if (tenantSide) "LANDLORD_COMPLAINT" else "TENANT_COMPLAINT", null) },
                         )
 
                         // Tenant → "My leases": active + past (each opens the lease above).
@@ -496,7 +520,12 @@ class MainActivity : ComponentActivity() {
                         )
 
                         // Landlord → this month's rent (Expected / Collected / Overdue).
-                        rentState.isOpen -> RentScreen(state = rentState, effects = rentViewModel.effect, onIntent = rentViewModel::onIntent)
+                        rentState.isOpen -> RentScreen(
+                            state = rentState,
+                            effects = rentViewModel.effect,
+                            onIntent = rentViewModel::onIntent,
+                            onReportProblem = { reportProblem("PAYMENT", null) },
+                        )
 
                         // Requests (maintenance / service / complaint): tenant raises, landlord updates.
                         // ID documents: tenant's encrypted vault / what a tenant shared with this landlord.
@@ -555,6 +584,7 @@ class MainActivity : ComponentActivity() {
                             onIntent = propertyDetailViewModel::onIntent,
                             onOpenEditor = { id, step, newUnit -> addPropertyViewModel.onIntent(AddPropertyIntent.Edit(id, step, newUnit)) },
                             onChanged = onPropertyChanged,
+                            onReportProblem = { pid -> reportProblem("PROPERTY", pid) },
                             onNotFound = {
                                 propertyDetailViewModel.onIntent(PropertyDetailIntent.Close)
                                 // App link → stay home with a note; notification → back to the list.
@@ -616,6 +646,7 @@ class MainActivity : ComponentActivity() {
                             onIntent = accountViewModel::onIntent,
                             onSwitchRole = { homeViewModel.onIntent(HomeIntent.SwitchRole(it)) },
                             onSignOut = { homeViewModel.onIntent(HomeIntent.SignOut) },
+                            onOpenSupport = { supportViewModel.onIntent(SupportIntent.Open(supportLandlord, supportMe)) },
                             shortcuts = if (homeState.activeRole == UserRole.TENANT) listOf(
                                 AccountLink(R.drawable.ic_document, getString(R.string.tenant_my_leases), { tenantLeasesViewModel.onIntent(TenantLeasesIntent.Open) }),
                                 AccountLink(R.drawable.ic_home_outline, getString(R.string.explore_my_applications), { myApplicationsViewModel.onIntent(MyApplicationsIntent.Open) }),
@@ -661,12 +692,7 @@ class MainActivity : ComponentActivity() {
                                 onOpenHomeAlert = { homeAlertViewModel.onIntent(HomeAlertIntent.Open) },
                                 onToggleHomeAlert = { homeAlertViewModel.onIntent(HomeAlertIntent.QuickToggle(it)) },
                                 homeAlertBusy = homeAlertState.saving,
-                                menu = if (linked) emptyList() else buildList<Pair<String, () -> Unit>> {
-                                    homeState.roles.filter { it != homeState.activeRole }.forEach { role ->
-                                        add(getString(R.string.explore_switch_to, roleName(role)) to { homeViewModel.onIntent(HomeIntent.SwitchRole(role)) })
-                                    }
-                                    add(getString(R.string.explore_sign_out) to { homeViewModel.onIntent(HomeIntent.SignOut) })
-                                },
+                                // No overflow menu: switch role + sign out live in the Profile tab.
                             )
                             LaunchPermissionsHost(launchPermissionsViewModel)
                             LifecycleResumeEffect(Unit) {
@@ -746,7 +772,12 @@ class MainActivity : ComponentActivity() {
                     }
                     currentTab?.let { tab ->
                         AppBottomBar(
-                            tabs = if (landlordRole) AppTab.LANDLORD else AppTab.TENANT,
+                            // Tenant without an active lease has nothing to raise requests against → no Requests tab.
+                            tabs = when {
+                                landlordRole -> AppTab.LANDLORD
+                                tenantHomeState.hasActiveLease -> AppTab.TENANT
+                                else -> AppTab.TENANT - AppTab.REQUESTS
+                            },
                             selected = tab,
                             onSelect = selectTab,
                             badges = mapOf(AppTab.REQUESTS to if (landlordRole) requestsState.summary.needsAction else requestsState.summary.myOpen),
@@ -820,6 +851,3 @@ private fun LoadingScreen() {
         CircularProgressIndicator(color = AuthColors.Orange, strokeWidth = 3.sdp, modifier = Modifier.size(36.sdp))
     }
 }
-
-private fun android.content.Context.roleName(role: UserRole): String =
-    getString(if (role == UserRole.LANDLORD) R.string.role_landlord else R.string.role_tenant)

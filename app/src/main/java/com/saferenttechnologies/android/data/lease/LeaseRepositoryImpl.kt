@@ -220,6 +220,8 @@ object LeaseExitMapper {
             propertyId = o.text("propertyId").ifBlank { prop?.text("id").orEmpty() },
             propertyTitle = prop?.text("title").orEmpty(),
             place = o.text("place").ifBlank { lease?.text("place").orEmpty() },
+            unitId = o.text("unitId").ifBlank { lease?.text("unitId").orEmpty() }.ifBlank { o.obj("unit")?.text("id").orEmpty() }.ifBlank { null },
+            bedId = o.text("bedId").ifBlank { lease?.text("bedId").orEmpty() }.ifBlank { o.obj("bed")?.text("id").orEmpty() }.ifBlank { null },
             otherName = other?.text("fullName").orEmpty().ifBlank { o.text("otherName") },
             endedAt = o.text("endedAt").ifBlank { lease?.text("endDate").orEmpty() },
             depositAmount = o.text("securityDeposit").ifBlank { lease?.text("securityDeposit").orEmpty() },

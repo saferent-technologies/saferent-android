@@ -95,6 +95,8 @@ data class PropertyDetailState(
     val activeLeasesLoading: Boolean = false,
     /** Past tenants of this property still to review → no new invites until done. */
     val reviewsDue: List<com.saferenttechnologies.android.domain.model.PendingReview> = emptyList(),
+    /** "Review the last tenant of this flat first" popup (Invite tapped on that flat). */
+    val reviewPrompt: com.saferenttechnologies.android.domain.model.PendingReview? = null,
     val inviteForm: InviteForm? = null,
     val applications: List<RentalApplication> = emptyList(),
     val decision: DecisionForm? = null,
@@ -153,6 +155,7 @@ sealed interface PropertyDetailIntent : UiIntent {
     data class WhatsAppTenant(val phone: String) : PropertyDetailIntent
 
     data class StartInvite(val unitId: String?, val bedId: String?, val target: String, val rent: String) : PropertyDetailIntent
+    data object DismissReviewPrompt : PropertyDetailIntent
     data class InviteChanged(val form: InviteForm) : PropertyDetailIntent
     data object SendInvite : PropertyDetailIntent
     data object CancelInvite : PropertyDetailIntent

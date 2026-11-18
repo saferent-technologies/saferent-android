@@ -306,7 +306,7 @@ private fun ChannelRow(channel: SupportChannel, support: SupportContact?, onClic
         Spacer(Modifier.width(14.sdp))
         Column {
             Text(stringResource(label), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 15.ssp)
-            value?.let { Text(it, color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp, maxLines = 1) }
+            value?.let { Text(it, color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp) }
         }
     }
 }

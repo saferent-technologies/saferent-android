@@ -67,6 +67,13 @@ fun AddPropertyScreen(state: AddPropertyState, onIntent: (AddPropertyIntent) -> 
         )
         return
     }
+    if (state.panoramaFor != null) {
+        com.saferenttechnologies.android.presentation.panorama.PanoramaCaptureScreen(
+            onCaptured = { onIntent(AddPropertyIntent.PanoramaCaptured(it)) },
+            onClose = { onIntent(AddPropertyIntent.ClosePanoramaCamera) },
+        )
+        return
+    }
     if (state.submitted) {
         SubmittedContent(liveChanges = state.isLiveEdit, onDone = { onIntent(AddPropertyIntent.Done) })
         return
@@ -289,6 +296,8 @@ private fun AddPropertyMessage.res(): Int = when (this) {
     AddPropertyMessage.CHANGES_LOCKED -> R.string.changes_wizard_locked
     AddPropertyMessage.UNITS_LIMIT -> R.string.add_property_error_units_limit
     AddPropertyMessage.UNIT_OCCUPIED -> R.string.add_property_error_occupied
+    AddPropertyMessage.NOT_PANORAMA -> R.string.pano_not_panorama
+    AddPropertyMessage.PANORAMA_UNREADABLE -> R.string.pano_unreadable
     AddPropertyMessage.PHOTO_REQUIRED -> R.string.add_property_error_photo_required
     AddPropertyMessage.UNIT_REQUIRED -> R.string.add_property_error_unit_required
     AddPropertyMessage.PIN_INVALID -> R.string.add_property_error_pin

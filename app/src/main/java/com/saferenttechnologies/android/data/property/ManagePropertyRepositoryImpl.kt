@@ -183,8 +183,34 @@ class ManagePropertyRepositoryImpl @Inject constructor(
 
     override suspend fun allLeases(active: Boolean): AppResult<List<Lease>> = leaseList(null, active)
 
-    private suspend fun leaseList(propertyId: String?, active: Boolean): AppResult<List<Lease>> =
-        call("GET leases", { api.leases(propertyId, if (active) "ACTIVE" else "ENDED", 1) }) { data, _ ->
+    /**
+     * Current = ACTIVE. Past = every closed lease: ENDED (term over / exit done) AND TERMINATED
+     * (closed early). Only asking for ENDED page 1 missed terminated leases and anything after page 1.
+     */
+    private suspend fun leaseList(propertyId: String?, active: Boolean): AppResult<List<Lease>> {
+        val statuses = if (active) listOf("ACTIVE") else listOf("ENDED", "TERMINATED")
+        val all = mutableListOf<Lease>()
+        for (status in statuses) {
+            var page = 1
+            while (true) {
+                when (val r = leasePage(propertyId, status, page)) {
+                    is AppResult.Failure -> if (all.isEmpty() && status == statuses.first()) return AppResult.Failure(r.error) else break
+                    is AppResult.Success -> {
+                        all += r.data.first
+                        if (page >= r.data.second || r.data.first.isEmpty() || page >= MAX_LEASE_PAGES) break
+                        page++
+                    }
+                }
+            }
+        }
+        val unique = all.distinctBy { it.id }
+        return AppResult.Success(if (active) unique else unique.sortedByDescending { it.exitDate ?: it.endDate })
+    }
+
+    /** One page of leases + totalPages. */
+    private suspend fun leasePage(propertyId: String?, status: String, page: Int): AppResult<Pair<List<Lease>, Int>> =
+        call("GET leases", { api.leases(propertyId, status, page) }) { data, meta ->
+            val pages = (meta as? JsonObject)?.int("totalPages", page) ?: page
             data.arrayAt("items", "leases").mapNotNull { e ->
                 val o = e as? JsonObject ?: return@mapNotNull null
                 val tenant = o["tenant"] as? JsonObject
@@ -210,7 +236,7 @@ class ManagePropertyRepositoryImpl @Inject constructor(
                     propertyType = property?.text("propertyType").orEmpty().ifBlank { o.text("propertyType") }.uppercase(),
                     propertyTypeLabel = property?.text("propertyTypeLabel").orEmpty().ifBlank { o.text("propertyTypeLabel") },
                 )
-            }
+            } to pages
         }
 
     override suspend fun invitations(propertyId: String, status: String): AppResult<List<Invitation>> =
@@ -352,6 +378,7 @@ class ManagePropertyRepositoryImpl @Inject constructor(
     }
 
     private companion object {
+        const val MAX_LEASE_PAGES = 10
         const val PAGE_SIZE = 20
 
         /** { id, status, changedSections[], createdAt, submittedAt, decidedAt, moderationNote } | null. */

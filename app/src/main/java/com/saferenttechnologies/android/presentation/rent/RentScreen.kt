@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.rent
 
+import com.saferenttechnologies.android.presentation.support.ReportProblemLink
 import com.saferenttechnologies.android.presentation.common.SkeletonTrailing
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
@@ -68,7 +69,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import com.saferenttechnologies.android.R
 import com.saferenttechnologies.android.core.ui.sdp
 import com.saferenttechnologies.android.core.ui.ssp
@@ -100,7 +100,13 @@ fun bucketColor(b: RentBucket): Color = when (b) {
 /** Landlord rent: Expected / Collected / Overdue → tenant cards; collected → receipt; overdue → reminder. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RentScreen(state: RentState, effects: Flow<RentEffect>, onIntent: (RentIntent) -> Unit) {
+fun RentScreen(
+    state: RentState,
+    effects: Flow<RentEffect>,
+    onIntent: (RentIntent) -> Unit,
+    /** "Report a problem" → support ticket (PAYMENT). */
+    onReportProblem: (() -> Unit)? = null,
+) {
     BackHandler { onIntent(RentIntent.Close) }
     val context = LocalContext.current
     val noApp = stringResource(R.string.rent_no_pdf_app)
@@ -127,6 +133,8 @@ fun RentScreen(state: RentState, effects: Flow<RentEffect>, onIntent: (RentInten
                 Text(stringResource(R.string.rent_title), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 20.ssp)
                 state.period?.let { Text(it, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp) }
             }
+            Spacer(Modifier.weight(1f))
+            onReportProblem?.let { ReportProblemLink(it) }
         }
         // Tenants' "I paid" proofs waiting → banner on top (tap = review them).
         if (!state.showRequests && state.requests.isNotEmpty()) {
@@ -245,8 +253,8 @@ private fun RequestCard(r: com.saferenttechnologies.android.domain.model.Payment
             }
             Spacer(Modifier.width(12.sdp))
             Column(Modifier.weight(1f)) {
-                Text(r.tenantName.ifBlank { stringResource(R.string.word_tenant) }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(listOf(r.propertyTitle, r.place).filter { it.isNotBlank() }.joinToString(" · "), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(r.tenantName.ifBlank { stringResource(R.string.word_tenant) }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
+                Text(listOf(r.propertyTitle, r.place).filter { it.isNotBlank() }.joinToString(" · "), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
                 Text(listOf(r.period, if (r.createdAt.isBlank()) "" else stringResource(R.string.rent_sent_on, day(r.createdAt))).filter { it.isNotBlank() }.joinToString(" · "), color = AuthColors.Muted, fontFamily = Inter, fontSize = 12.ssp)
             }
             Column(horizontalAlignment = Alignment.End) {
@@ -428,14 +436,12 @@ private fun DueCard(due: RentDue, state: RentState, onIntent: (RentIntent) -> Un
             }
             Spacer(Modifier.width(12.sdp))
             Column(Modifier.weight(1f)) {
-                Text(due.tenantName.ifBlank { stringResource(R.string.word_tenant) }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(due.tenantName.ifBlank { stringResource(R.string.word_tenant) }, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
                 Text(
                     listOf(due.propertyTitle, due.place).filter { it.isNotBlank() }.joinToString(" · "),
                     color = AuthColors.Body,
                     fontFamily = Inter,
                     fontSize = 12.ssp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     when (state.bucket) {

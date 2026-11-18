@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.lease
 
+import com.saferenttechnologies.android.presentation.support.ReportProblemLink
 import com.saferenttechnologies.android.presentation.property.OutlineAction
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
@@ -89,6 +90,8 @@ fun LeaseDetailScreen(
     onChanged: () -> Unit,
     /** Tenant: this lease's payments + receipts ([closed] → read-only). */
     onOpenPayments: ((leaseId: String, title: String, closed: Boolean) -> Unit)? = null,
+    /** "Report a problem" → support ticket; [tenantSide] picks Landlord / Tenant complaint. */
+    onReportProblem: ((tenantSide: Boolean) -> Unit)? = null,
 ) {
     BackHandler { onIntent(LeaseDetailIntent.Close) }
     val context = LocalContext.current
@@ -139,6 +142,10 @@ fun LeaseDetailScreen(
                             Text(state.error, color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
                         }
                         if (exit != null && exit.side != null) ExitSection(state, exit, onIntent)
+                        onReportProblem?.let { report ->
+                            Spacer(Modifier.height(12.sdp))
+                            ReportProblemLink({ report(exit?.isTenant != false) }, Modifier.align(Alignment.CenterHorizontally))
+                        }
                         Spacer(Modifier.height(24.sdp))
                     }
                 }

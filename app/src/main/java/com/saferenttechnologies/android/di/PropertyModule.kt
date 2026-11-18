@@ -30,6 +30,10 @@ abstract class PropertyModule {
     @Binds @Singleton
     abstract fun bindLocationProvider(impl: FusedLocationProvider): LocationProvider
 
+    @Binds
+    @Singleton
+    abstract fun bindPanoramaFiles(impl: com.saferenttechnologies.android.data.property.PanoramaFilesImpl): com.saferenttechnologies.android.domain.repository.PanoramaFiles
+
     @Binds @Singleton
     abstract fun bindDraftStore(impl: PropertyDraftStoreImpl): PropertyDraftStore
 

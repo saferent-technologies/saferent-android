@@ -185,14 +185,12 @@ internal fun AuthPrimaryButton(
                     Icon(painterResource(it), null, tint = content, modifier = Modifier.size(20.sdp))
                     Spacer(Modifier.width(10.sdp))
                 }
-                Text(
+                com.saferenttechnologies.android.presentation.common.AutoSizeText(
                     text,
                     color = content,
+                    fontSize = fontSize,
                     fontFamily = Inter,
                     fontWeight = FontWeight.Medium,
-                    fontSize = fontSize,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 trailingIcon?.let {

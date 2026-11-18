@@ -51,7 +51,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import com.saferenttechnologies.android.R
 import com.saferenttechnologies.android.core.ui.sdp
 import com.saferenttechnologies.android.core.ui.ssp
@@ -211,16 +210,12 @@ private fun TransactionCard(t: RentTransaction, onClick: () -> Unit) {
                 fontFamily = Inter,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.ssp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 listOf(optionLabel(t.kind.ifBlank { "RENT" }), t.propertyTitle, t.place).filter { it.isNotBlank() }.joinToString(" · "),
                 color = AuthColors.Body,
                 fontFamily = Inter,
                 fontSize = 12.ssp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 listOf(if (t.at.isBlank()) "" else prettyDate(t.at), t.mode.takeIf { it.isNotBlank() }?.let { optionLabel(it) }.orEmpty()).filter { it.isNotBlank() }.joinToString(" · "),
