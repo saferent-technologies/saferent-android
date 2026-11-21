@@ -50,6 +50,10 @@ sealed interface AppError {
     data class InvalidState(
         override val message: String,
         val problems: List<String> = emptyList(),
+        /** Server errorCode (e.g. OWNER_NOT_VERIFIED, OWNERSHIP_PROOF_REQUIRED, VIDEO_REQUIRED). */
+        val errorCode: String? = null,
+        /** details.unitIds (VIDEO_REQUIRED: flats without a video). */
+        val unitIds: List<String> = emptyList(),
     ) : AppError
 
     /** 409 EMAIL_IN_USE — another account already uses this email. */

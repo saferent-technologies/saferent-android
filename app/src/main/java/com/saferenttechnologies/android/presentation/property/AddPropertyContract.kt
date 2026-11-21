@@ -37,7 +37,7 @@ enum class LocationNote { LOW_ACCURACY, NO_FIX, LOOKUP_UNAVAILABLE }
 enum class AddPropertyMessage {
     NETWORK_OR_SERVER, VERSION_CONFLICT, MAX_PHOTOS, UNITS_LIMIT, PHOTO_REQUIRED, UNIT_REQUIRED, PIN_INVALID,
     REQUIRED_PHOTOS_MISSING, WAIT_FOR_UPLOADS, CHANGES_LOCKED, UNIT_OCCUPIED,
-    NOT_PANORAMA, PANORAMA_UNREADABLE,
+    NOT_PANORAMA, PANORAMA_UNREADABLE, VIDEO_REQUIRED,
 }
 
 /** Add / edit one flat (units) or room (PG). */
@@ -133,12 +133,34 @@ data class AddPropertyState(
     val camera: CameraMode? = null,
     /** SafeRent 360 camera open for this flat / room (both null = the whole building). */
     val panoramaFor: PanoramaTarget? = null,
+    /** Video recorder open for this flat / room / building. */
+    val videoFor: PanoramaTarget? = null,
+    /** Submit for review tapped but the owner isn't verified → "Verify identity / Contact support" sheet. */
+    val verifyOwnerSheet: Boolean = false,
+    /** Submit tapped while the owner's verification is under review → "In review" sheet (can still submit). */
+    val ownerInReviewSheet: Boolean = false,
+    /** Recorded videos on their way to the server (uploading / uploaded / failed). */
+    val videoUploads: List<com.saferenttechnologies.android.domain.repository.VideoUpload> = emptyList(),
+    /** Flats still without a video tour (submit blocked): numbers for the banner. */
+    val missingVideoUnits: List<String> = emptyList(),
+    /** Same flats by id (from the app's check or the server's 412 VIDEO_REQUIRED) → their video slots turn red. */
+    val missingVideoUnitIds: Set<String> = emptySet(),
+    /** "Delete this video tour?" for this video id. */
+    val deleteVideoId: String? = null,
+    /** Flat panel "Furniture & appliances" tapped → the host opens the register for this place. */
+    val openFurniture: PanoramaTarget? = null,
     val completeness: Completeness? = null,
     /** Submit 412: problem → step. */
     val problems: List<Pair<String, Int>> = emptyList(),
     val submitted: Boolean = false,
     /** "Are you sure you want to submit?" popup. */
     val confirmSubmit: Boolean = false,
+    /** Ownership declaration not made (or the text changed) → shown before submitting. */
+    val declaration: com.saferenttechnologies.android.domain.model.OwnershipDeclaration? = null,
+    val declareAgree: Boolean = false,
+    val declaring: Boolean = false,
+    /** 403: a manager can't declare → "Waiting for the owner". */
+    val declarationOwnerOnly: Boolean = false,
     /** Change request of a live listing (from GET property detail). */
     val revision: PropertyRevision? = null,
     /** Change is being verified → wizard is read-only. */
@@ -221,6 +243,19 @@ sealed interface AddPropertyIntent : UiIntent {
     data class OpenPanoramaCamera(val target: PanoramaTarget) : AddPropertyIntent
     data class PanoramaCaptured(val filePath: String) : AddPropertyIntent
     data object ClosePanoramaCamera : AddPropertyIntent
+    /** Record a video tour of this flat / room / building (in-app, watermarked). */
+    data class OpenVideoCamera(val target: PanoramaTarget) : AddPropertyIntent
+    data class VideoRecorded(val filePath: String, val durationSec: Int) : AddPropertyIntent
+    data object CloseVideoCamera : AddPropertyIntent
+    data object DismissVerifyOwner : AddPropertyIntent
+    /** "In review" sheet → submit anyway. */
+    data object SubmitWhileInReview : AddPropertyIntent
+    data class RetryVideo(val upload: com.saferenttechnologies.android.domain.repository.VideoUpload) : AddPropertyIntent
+    data class AskDeleteVideo(val videoId: String) : AddPropertyIntent
+    data object ConfirmDeleteVideo : AddPropertyIntent
+    data object DismissDeleteVideo : AddPropertyIntent
+    data class OpenFurniture(val target: PanoramaTarget) : AddPropertyIntent
+    data object FurnitureOpened : AddPropertyIntent
     data class FieldChanged(val scope: FormScope, val key: String, val value: String) : AddPropertyIntent
 
     data object UseMyLocation : AddPropertyIntent
@@ -280,6 +315,10 @@ sealed interface AddPropertyIntent : UiIntent {
     /** Last step button → checks, then the confirm popup. */
     data object Submit : AddPropertyIntent
     data object ConfirmSubmit : AddPropertyIntent
+    data class DeclarationAgree(val agree: Boolean) : AddPropertyIntent
+    /** POST ownership-declaration, then submit. */
+    data object Declare : AddPropertyIntent
+    data object DismissDeclaration : AddPropertyIntent
     data object DismissSubmit : AddPropertyIntent
     data object Done : AddPropertyIntent
 }

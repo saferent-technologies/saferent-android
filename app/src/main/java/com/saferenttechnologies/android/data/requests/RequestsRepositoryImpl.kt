@@ -19,7 +19,22 @@ import com.saferenttechnologies.android.domain.model.RequestPhoto
 import com.saferenttechnologies.android.domain.model.RequestSummary
 import com.saferenttechnologies.android.domain.model.RequestType
 import com.saferenttechnologies.android.domain.model.ServiceRequest
+import com.saferenttechnologies.android.domain.repository.ReceiptFiles
 import com.saferenttechnologies.android.domain.repository.RequestResult
+import com.saferenttechnologies.android.domain.repository.RequestUpdate
+import com.saferenttechnologies.android.domain.repository.UploadFile
+import com.saferenttechnologies.android.domain.model.RequestInvoice
+import com.saferenttechnologies.android.domain.model.RequestTechnician
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.doubleOrNull
+import okhttp3.RequestBody.Companion.asRequestBody
+import okio.BufferedSink
+import okio.ForwardingSink
+import okio.Buffer
+import okio.buffer
+import java.io.File
+import java.io.IOException
 import com.saferenttechnologies.android.domain.repository.RequestsRepository
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -41,6 +56,7 @@ class RequestsRepositoryImpl @Inject constructor(
     private val api: RequestsApi,
     private val safeApiCall: SafeApiCall,
     private val logger: AppLogger,
+    private val receiptFiles: ReceiptFiles,
 ) : RequestsRepository {
 
     @Volatile private var cachedOptions: RequestOptions? = null
@@ -51,10 +67,10 @@ class RequestsRepositoryImpl @Inject constructor(
             .also { if (it is AppResult.Success) cachedOptions = it.data }
     }
 
-    override suspend fun create(type: String, category: String, description: String, priority: String, leaseId: String?, photos: List<ByteArray>): AppResult<RequestResult> {
-        logger.d(TAG, "raise request (type=$type, photos=${photos.size})")
+    override suspend fun create(type: String, category: String, description: String, priority: String, leaseId: String?, files: List<UploadFile>, onProgress: (Int) -> Unit): AppResult<RequestResult> {
+        logger.d(TAG, "raise request (type=$type, files=${files.size})")
         return action("POST requests") {
-            api.create(type.text(), category.text(), description.trim().text(), priority.text(), leaseId?.text(), photos.parts())
+            api.create(type.text(), category.text(), description.trim().text(), priority.text(), leaseId?.text(), files.parts(onProgress))
         }
     }
 
@@ -69,29 +85,76 @@ class RequestsRepositoryImpl @Inject constructor(
 
     override suspend fun remind(id: String) = action("POST request/remind") { api.remind(id, buildJsonObject { }) }
 
-    override suspend fun resolve(id: String, remark: String) =
-        action("POST request/resolve") { api.resolve(id, buildJsonObject { if (remark.isNotBlank()) put("remark", remark.trim()) }) }
+    override suspend fun resolve(id: String, paidBy: String, actualCost: Double?, remark: String, receipts: List<UploadFile>, onProgress: (Int) -> Unit): AppResult<RequestResult> {
+        // No amounts in logs.
+        logger.d(TAG, "resolve (receipts=${receipts.size})")
+        return if (receipts.isEmpty()) {
+            action("POST request/resolve") { api.resolve(id, RequestsMapper.resolveBody(paidBy, actualCost, remark)) }
+        } else {
+            val fields = buildMap {
+                put("paidBy", paidBy.text())
+                actualCost?.let { put("actualCost", RequestsMapper.number(it).text()) }
+                remark.trim().takeIf { it.isNotEmpty() }?.let { put("remark", it.text()) }
+            }
+            action("POST request/resolve") { api.resolveWithFiles(id, fields, receipts.parts(onProgress)) }
+        }
+    }
 
     override suspend fun cancel(id: String, remark: String) =
         action("POST request/cancel") { api.cancel(id, buildJsonObject { if (remark.isNotBlank()) put("remark", remark.trim()) }) }
 
-    override suspend fun reopen(id: String, remark: String, photos: List<ByteArray>) =
-        action("POST request/reopen") { api.reopen(id, remark.trim().text(), photos.parts()) }
+    override suspend fun reopen(id: String, remark: String, files: List<UploadFile>, onProgress: (Int) -> Unit) =
+        action("POST request/reopen") { api.reopen(id, remark.trim().text(), files.parts(onProgress)) }
 
-    override suspend fun addPhotos(id: String, photos: List<ByteArray>) =
-        action("POST request/photos") { api.addPhotos(id, photos.parts()) }
+    override suspend fun addPhotos(id: String, files: List<UploadFile>, onProgress: (Int) -> Unit) =
+        action("POST request/photos") { api.addPhotos(id, files.parts(onProgress)) }
 
-    override suspend fun update(id: String, status: String?, remark: String, photos: List<ByteArray>): AppResult<RequestResult> {
-        logger.d(TAG, "landlord update (status=$status, remark=${remark.isNotBlank()}, photos=${photos.size})")
-        return action("POST request/update") { api.update(id, status?.text(), remark.trim().takeIf { it.isNotEmpty() }?.text(), photos.parts()) }
+    override suspend fun update(id: String, update: RequestUpdate, files: List<UploadFile>, onProgress: (Int) -> Unit): AppResult<RequestResult> {
+        logger.d(TAG, "landlord update (status=${update.status}, remark=${update.remark.isNotBlank()}, work=${update.sendWork}, files=${files.size})")
+        return if (files.isEmpty()) {
+            action("POST request/update") { api.update(id, RequestsMapper.updateBody(update)) }
+        } else {
+            // Multipart can't carry null: cleared fields go as "" (only when files are attached).
+            val fields = RequestsMapper.updateBody(update).mapValues { (_, v) -> ((v as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content ?: "").text() }
+            action("POST request/update") { api.updateWithFiles(id, fields, files.parts(onProgress)) }
+        }
+    }
+
+    override suspend fun addInvoice(id: String, files: List<UploadFile>, onProgress: (Int) -> Unit): AppResult<RequestResult> {
+        logger.d(TAG, "add invoice (files=${files.size})")
+        return action("POST request/invoice") { api.addInvoice(id, files.parts(onProgress)) }
+    }
+
+    override suspend fun invoicePdf(url: String): AppResult<String> = withContext(Dispatchers.IO) {
+        try {
+            val res = api.file(url)
+            val body = res.body()
+            if (res.isSuccessful && body != null) {
+                val bytes = body.use { it.bytes() }
+                AppResult.Success(receiptFiles.cache("invoice-${url.substringAfterLast('/').filter { it.isLetterOrDigit() }.take(40)}.pdf", bytes))
+            } else {
+                AppResult.Failure(AppError.Server(res.code(), message = "Couldn't open the invoice. Please try again."))
+            }
+        } catch (e: IOException) {
+            AppResult.Failure(AppError.Network())
+        }
     }
 
     // ---------------- plumbing ----------------
 
     private fun String.text(): RequestBody = toRequestBody("text/plain".toMediaType())
 
-    private fun List<ByteArray>.parts(): List<MultipartBody.Part> = mapIndexed { i, bytes ->
-        MultipartBody.Part.createFormData("files", "photo-$i.jpg", bytes.toRequestBody("image/jpeg".toMediaType()))
+    /** "files" parts; progress 0..100 over all bytes sent. */
+    private fun List<UploadFile>.parts(onProgress: (Int) -> Unit = {}): List<MultipartBody.Part> {
+        val bodies = mapIndexed { i, f ->
+            when (f) {
+                is UploadFile.Jpeg -> "photo-$i.jpg" to f.bytes.toRequestBody("image/jpeg".toMediaType())
+                is UploadFile.Pdf -> "receipt-$i.pdf" to f.bytes.toRequestBody("application/pdf".toMediaType())
+                is UploadFile.Mp4 -> "video-$i.mp4" to File(f.path).asRequestBody("video/mp4".toMediaType())
+            }
+        }
+        val tracker = UploadProgress(bodies.sumOf { it.second.contentLength().coerceAtLeast(0) }, onProgress)
+        return bodies.map { (name, body) -> MultipartBody.Part.createFormData("files", name, CountingBody(body, tracker)) }
     }
 
     private suspend fun <R> call(
@@ -190,8 +253,24 @@ object RequestsMapper {
             photos = o.arrayAt("photos").mapNotNull { p ->
                 val po = p as? JsonObject ?: return@mapNotNull null
                 val id = po.text("id").ifBlank { return@mapNotNull null }
-                RequestPhoto(id, po.text("url").ifBlank { "/api/v1/files/maintenance-photos/$id" }, po.text("updateId").ifBlank { null }, po.flag("byTenant"), po.text("createdAt"))
+                RequestPhoto(
+                    id, po.text("url").ifBlank { "/api/v1/files/maintenance-photos/$id" }, po.text("updateId").ifBlank { null }, po.flag("byTenant"), po.text("createdAt"),
+                    kind = po.text("kind").ifBlank { "PHOTO" }.uppercase(), mimeType = po.text("mimeType").lowercase(),
+                )
             },
+            invoices = o.arrayAt("invoices").mapNotNull { p ->
+                val po = p as? JsonObject ?: return@mapNotNull null
+                val id = po.text("id").ifBlank { return@mapNotNull null }
+                RequestInvoice(id, po.text("url").ifBlank { "/api/v1/files/maintenance-photos/$id" }, po.text("mimeType").lowercase(), po.flag("byTenant"), po.text("createdAt"))
+            },
+            technician = (o["technician"] as? JsonObject)?.let { t ->
+                t.text("name").ifBlank { null }?.let { RequestTechnician(it, t.text("phone").ifBlank { null }, t.flag("onSafeRent")) }
+            },
+            estimatedCost = num(o["estimatedCost"]),
+            actualCost = num(o["actualCost"]),
+            paidBy = o.text("paidBy").uppercase().ifBlank { null },
+            workStartedAt = o.text("workStartedAt").ifBlank { null },
+            completedAt = o.text("completedAt").ifBlank { null },
             timeline = o.arrayAt("timeline").mapNotNull { e ->
                 val eo = e as? JsonObject ?: return@mapNotNull null
                 val by = eo["by"] as? JsonObject
@@ -210,7 +289,67 @@ object RequestsMapper {
             updatedAt = o.text("updatedAt"),
             lastReminderAt = o.text("lastReminderAt").ifBlank { null },
             needsAction = o.flag("needsAction"),
-            can = RequestCan(can.flag("update"), can.flag("remind"), can.flag("resolve"), can.flag("reopen"), can.flag("cancel"), can.flag("addPhotos")),
+            can = RequestCan(can.flag("update"), can.flag("remind"), can.flag("resolve"), can.flag("reopen"), can.flag("cancel"), can.flag("addPhotos"), can.flag("addInvoice")),
         )
+    }
+
+    private fun num(e: JsonElement?): Double? = (e as? JsonPrimitive)?.takeUnless { it is JsonNull }?.let { it.doubleOrNull ?: it.content.toDoubleOrNull() }
+
+    /** 1500.0 → "1500", 1500.5 → "1500.5". */
+    fun number(v: Double): String = if (v % 1.0 == 0.0) v.toLong().toString() else java.math.BigDecimal(v).setScale(2, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+
+    private fun numberJson(v: Double): JsonPrimitive = if (v % 1.0 == 0.0) JsonPrimitive(v.toLong()) else JsonPrimitive(java.math.BigDecimal(v).setScale(2, java.math.RoundingMode.HALF_UP).toDouble())
+
+    fun resolveBody(paidBy: String, actualCost: Double?, remark: String): JsonObject = buildJsonObject {
+        put("paidBy", paidBy)
+        actualCost?.let { put("actualCost", numberJson(it)) }
+        remark.trim().takeIf { it.isNotEmpty() }?.let { put("remark", it) }
+    }
+
+    /** Only what's set; work details (when [RequestUpdate.sendWork]) with null for cleared ones. */
+    fun updateBody(u: RequestUpdate): JsonObject = buildJsonObject {
+        u.status?.let { put("status", it) }
+        u.remark.trim().takeIf { it.isNotEmpty() }?.let { put("remark", it) }
+        if (u.sendWork) {
+            put("technicianName", u.technicianName?.trim()?.ifBlank { null }?.let(::JsonPrimitive) ?: JsonNull)
+            put("technicianPhone", u.technicianPhone?.ifBlank { null }?.let(::JsonPrimitive) ?: JsonNull)
+            put("estimatedCost", u.estimatedCost?.let(::numberJson) ?: JsonNull)
+            put("workStartDate", u.workStartDate?.ifBlank { null }?.let(::JsonPrimitive) ?: JsonNull)
+        } else if (u.workStartDate != null) {
+            put("workStartDate", u.workStartDate)
+        }
+        if (u.status == "RESOLVED") {
+            u.paidBy?.let { put("paidBy", it) }
+            u.actualCost?.let { put("actualCost", numberJson(it)) }
+        }
+    }
+}
+
+/** Bytes sent across all parts → 0..100 (only on change). */
+internal class UploadProgress(private val total: Long, private val onProgress: (Int) -> Unit) {
+    private var sent = 0L
+    private var last = -1
+
+    @Synchronized fun add(n: Long) {
+        if (total <= 0) return
+        sent += n
+        val pct = ((sent * 100) / total).toInt().coerceIn(0, 100)
+        if (pct != last) { last = pct; onProgress(pct) }
+    }
+}
+
+/** Counts bytes as OkHttp writes them (OkHttp may write twice with logging: the count is capped at 100). */
+internal class CountingBody(private val delegate: RequestBody, private val tracker: UploadProgress) : RequestBody() {
+    override fun contentType() = delegate.contentType()
+    override fun contentLength() = delegate.contentLength()
+    override fun writeTo(sink: BufferedSink) {
+        val counting = object : ForwardingSink(sink) {
+            override fun write(source: Buffer, byteCount: Long) {
+                super.write(source, byteCount)
+                tracker.add(byteCount)
+            }
+        }.buffer()
+        delegate.writeTo(counting)
+        counting.flush()
     }
 }

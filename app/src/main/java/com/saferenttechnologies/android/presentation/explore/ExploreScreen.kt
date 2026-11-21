@@ -97,6 +97,8 @@ fun ExploreScreen(
     homeAlertBusy: Boolean = false,
     /** Tenant without an active lease: "Dashboard" button at the top left. */
     onOpenDashboard: (() -> Unit)? = null,
+    /** Shown under the header (tenant: lease invitations from landlords). */
+    topContent: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -156,11 +158,11 @@ fun ExploreScreen(
             if (state.offline) {
                 Text(
                     stringResource(R.string.explore_offline),
-                    color = Color.White,
+                    color = AuthColors.OnToast,
                     fontFamily = Inter,
                     fontSize = 12.ssp,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().background(AuthColors.Ink).padding(6.sdp),
+                    modifier = Modifier.fillMaxWidth().background(AuthColors.Toast).padding(6.sdp),
                 )
             }
             PullToRefreshBox(
@@ -176,6 +178,7 @@ fun ExploreScreen(
                 ) {
                     item(key = "header") {
                         Header(state, firstName, unreadNotifications, onOpenNotifications, onIntent, pendingReviews, hasApplications, onOpenApplications, onBack, ::nearMe, homeAlertOn, homeAlertArea, onOpenHomeAlert, onToggleHomeAlert, homeAlertBusy, onOpenDashboard)
+                        topContent()
                     }
                     when {
                         state.loading && state.items.isEmpty() -> items(3) { SkeletonCard() }
@@ -226,12 +229,12 @@ fun ExploreScreen(
         }
         if (state.locating) {
             Row(
-                Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 12.sdp).clip(RoundedCornerShape(50)).background(AuthColors.Ink).padding(horizontal = 14.sdp, vertical = 8.sdp),
+                Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 12.sdp).clip(RoundedCornerShape(50)).background(AuthColors.Toast).padding(horizontal = 14.sdp, vertical = 8.sdp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CircularProgressIndicator(color = Color.White, strokeWidth = 2.sdp, modifier = Modifier.size(14.sdp))
+                CircularProgressIndicator(color = AuthColors.OnToast, strokeWidth = 2.sdp, modifier = Modifier.size(14.sdp))
                 Spacer(Modifier.width(8.sdp))
-                Text(stringResource(R.string.explore_locating), color = Color.White, fontFamily = Inter, fontSize = 12.ssp)
+                Text(stringResource(R.string.explore_locating), color = AuthColors.OnToast, fontFamily = Inter, fontSize = 12.ssp)
             }
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.sdp))

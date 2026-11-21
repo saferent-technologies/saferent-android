@@ -34,6 +34,7 @@ class FirebaseAuthRepository @Inject constructor(
     private val firebaseAuth: FirebaseAuth,
     private val activityHolder: CurrentActivityHolder,
     private val logger: AppLogger,
+    private val emergencyCache: com.saferenttechnologies.android.data.safety.EmergencyCache,
 ) : AuthRepository {
 
     /** Needed to resend to the same number without a new reCAPTCHA. */
@@ -90,6 +91,8 @@ class FirebaseAuthRepository @Inject constructor(
         signIn(PhoneAuthProvider.getCredential(verificationId, code))
 
     override suspend fun signOut() {
+        // Emergency numbers / address saved for offline use go with the account.
+        emergencyCache.clear()
         firebaseAuth.signOut()
     }
 

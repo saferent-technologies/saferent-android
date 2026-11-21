@@ -244,6 +244,8 @@ class PropertyRepositoryImpl @Inject constructor(
 
     override suspend fun deleteImage(id: String, imageId: String) = unitCall("DELETE image") { api.deleteImage(id, imageId) }
 
+    override suspend fun deleteVideo(id: String, videoId: String) = unitCall("DELETE video") { api.deleteVideo(id, videoId) }
+
     override suspend fun setImageOrder(id: String, imageId: String, displayOrder: Int) = unitCall("PATCH image") {
         api.updateImage(id, imageId, buildJsonObject { put("displayOrder", displayOrder) })
     }

@@ -50,8 +50,21 @@ fun SafeRentTheme(
         else -> LightColorScheme
     }
 
+    // Snackbars ("No internet connection", "Allow location" …) use the inverse colours. Dark mode:
+    // our grey pill + light text + orange action instead of the wallpaper's light purple / pink.
+    // Light mode stays exactly as it was.
+    val scheme = if (darkTheme) {
+        colorScheme.copy(
+            inverseSurface = androidx.compose.ui.graphics.Color(0xFF2B313B),
+            inverseOnSurface = androidx.compose.ui.graphics.Color(0xFFF1F5F9),
+            inversePrimary = androidx.compose.ui.graphics.Color(0xFFF0874F),
+        )
+    } else {
+        colorScheme
+    }
+
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = scheme,
         typography = Typography,
         content = content
     )

@@ -19,6 +19,11 @@ interface LeaseRepository {
     suspend fun acceptExit(leaseId: String, note: String, review: ReviewDraft?): AppResult<LeaseActionResult>
     suspend fun declineExit(leaseId: String, note: String): AppResult<LeaseActionResult>
     suspend fun cancelExit(leaseId: String): AppResult<LeaseActionResult>
+    /** Agreed closing → ask the other side to keep the lease (with a reason). */
+    suspend fun requestUndo(leaseId: String, reason: String): AppResult<LeaseActionResult>
+    suspend fun acceptUndo(leaseId: String): AppResult<LeaseActionResult>
+    suspend fun declineUndo(leaseId: String, note: String): AppResult<LeaseActionResult>
+    suspend fun cancelUndo(leaseId: String): AppResult<LeaseActionResult>
     suspend fun reviewInfo(leaseId: String): AppResult<LeaseReviewInfo>
     suspend fun postReview(leaseId: String, review: ReviewDraft): AppResult<LeaseActionResult>
     suspend fun pendingReviews(): AppResult<List<com.saferenttechnologies.android.domain.model.PendingReview>>

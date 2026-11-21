@@ -79,9 +79,9 @@ class ApartmentTest {
         assertEquals("u2", FlatSelection.default(listing, current = "gone"))
     }
 
-    @Test fun `changing flat swaps photos - flat's own first, then the building`() {
-        assertEquals(listOf("i102", "front"), FlatSelection.photos(listing, "u2").map { it.id })
-        assertEquals(listOf("i101", "front"), FlatSelection.photos(listing, "u1").map { it.id })
+    @Test fun `changing flat swaps photos - only the flat's own, no front view`() {
+        assertEquals(listOf("i102"), FlatSelection.photos(listing, "u2").map { it.id })
+        assertEquals(listOf("i101"), FlatSelection.photos(listing, "u1").map { it.id })
     }
 
     @Test fun `non-apartment listings show every photo as before`() {

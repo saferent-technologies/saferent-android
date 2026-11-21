@@ -50,6 +50,8 @@ class PropertyDetailViewModel @Inject constructor(
     private val logger: AppLogger,
     private val getSupportConfig: GetSupportConfigUseCase,
     private val leases: LeaseRepository,
+    private val people: com.saferenttechnologies.android.domain.repository.PeopleRepository,
+    private val draftStore: com.saferenttechnologies.android.domain.repository.PropertyDraftStore,
     sessionEvents: SessionEvents,
 ) : MviViewModel<PropertyDetailState, PropertyDetailIntent, PropertyDetailEffect>(PropertyDetailState()) {
 
@@ -89,6 +91,25 @@ class PropertyDetailViewModel @Inject constructor(
             }
             PropertyDetailIntent.DismissConfirm -> setState { copy(confirm = null) }
             is PropertyDetailIntent.Edit -> currentState.propertyId?.let { sendEffect(PropertyDetailEffect.OpenEditor(it, intent.step)) }
+            // "Continue changes" → the step they were on when they closed the wizard (else the server's step, else details).
+            is PropertyDetailIntent.OpenTenantDetails -> {
+                setState { copy(tenantDetailsFor = intent.invitationId, tenantDetails = null) }
+                when (val r = manage.tenantDetails(intent.invitationId)) {
+                    is AppResult.Success -> if (currentState.tenantDetailsFor == intent.invitationId) setState { copy(tenantDetails = r.data) }
+                    is AppResult.Failure -> {
+                        setState { copy(tenantDetailsFor = null) }
+                        showError(r.error)
+                    }
+                }
+            }
+            PropertyDetailIntent.CloseTenantDetails -> setState { copy(tenantDetailsFor = null, tenantDetails = null) }
+            PropertyDetailIntent.ContinueChanges -> currentState.propertyId?.let { id ->
+                val saved = draftStore.lastStep(id)
+                val server = currentState.detail?.property?.wizardStep ?: 0
+                val step = (saved ?: server.takeIf { it > WizardStep.BASIC } ?: WizardStep.BASIC)
+                    .coerceIn(WizardStep.BASIC, WizardStep.LAST) // type can't change on a live listing
+                sendEffect(PropertyDetailEffect.OpenEditor(id, step))
+            }
 
             PropertyDetailIntent.SubmitChanges -> submitChanges()
             PropertyDetailIntent.DiscardChanges -> setState { copy(confirmDiscard = true) }
@@ -146,7 +167,10 @@ class PropertyDetailViewModel @Inject constructor(
             is PropertyDetailIntent.WhatsAppTenant -> sendEffect(PropertyDetailEffect.WhatsApp(intent.phone))
 
             // The last tenant of THIS flat / bed not reviewed yet → popup; other flats invite normally.
-            is PropertyDetailIntent.StartInvite -> {
+            is PropertyDetailIntent.StartInvite -> if (!currentState.canInvite) {
+                // Not approved yet → nothing to invite to.
+                sendEffect(PropertyDetailEffect.Message(INVITE_NOT_APPROVED))
+            } else {
                 val due = com.saferenttechnologies.android.domain.model.ReviewLocks.dueFor(currentState.reviewsDue, intent.unitId, intent.bedId)
                 if (due != null) setState { copy(reviewPrompt = due) }
                 else if (!InviteLocks.isLocked(currentState.pendingInvites, intent.unitId, intent.bedId)) setState {
@@ -154,6 +178,35 @@ class PropertyDetailViewModel @Inject constructor(
                 }
             }
             PropertyDetailIntent.DismissReviewPrompt -> setState { copy(reviewPrompt = null) }
+            PropertyDetailIntent.InviteLookup -> inviteLookup()
+            is PropertyDetailIntent.AskApprove -> currentState.detail?.approval?.let { a ->
+                if (if (intent.withoutProof) a.canApproveWithoutProof else a.canApprove) setState { copy(approveConfirm = intent.withoutProof) }
+            }
+            PropertyDetailIntent.ConfirmApprove -> currentState.approveConfirm?.let { without ->
+                setState { copy(approveConfirm = null) }
+                decide(approve = true, withoutProof = without, reason = "")
+            }
+            PropertyDetailIntent.AskReject -> setState { copy(rejectReason = "") }
+            is PropertyDetailIntent.RejectReason -> setState { copy(rejectReason = intent.text.take(1000)) }
+            PropertyDetailIntent.ConfirmReject -> currentState.rejectReason?.takeIf { it.trim().length >= 5 }?.let { reason ->
+                setState { copy(rejectReason = null) }
+                decide(approve = false, withoutProof = false, reason = reason)
+            }
+            PropertyDetailIntent.DismissApproval -> setState { copy(approveConfirm = null, rejectReason = null, approvalBlock = null, verifySheet = false) }
+            PropertyDetailIntent.CheckDocuments -> {
+                setState { copy(approvalBlock = null, tab = DetailTab.DOCUMENTS) }
+                loadTab(DetailTab.DOCUMENTS)
+            }
+            PropertyDetailIntent.OpenVerifySheet -> setState { copy(verifySheet = true, approvalBlock = null) }
+            PropertyDetailIntent.VerifyIdentity -> {
+                setState { copy(verifySheet = false, approvalBlock = null) }
+                sendEffect(PropertyDetailEffect.OpenOwnerVerification)
+            }
+            PropertyDetailIntent.ContactSupportVerify -> {
+                setState { copy(verifySheet = false, approvalBlock = null) }
+                currentState.propertyId?.let { sendEffect(PropertyDetailEffect.OpenVerificationSupport(it)) }
+            }
+            PropertyDetailIntent.InviteClearFound -> setState { copy(inviteForm = inviteForm?.copy(found = null, notOnSafeRent = false)) }
             is PropertyDetailIntent.InviteChanged -> setState { copy(inviteForm = intent.form.copy(error = null)) }
             PropertyDetailIntent.CancelInvite -> setState { copy(inviteForm = null) }
             PropertyDetailIntent.SendInvite -> sendInvite()
@@ -245,6 +298,7 @@ class PropertyDetailViewModel @Inject constructor(
     }
 
     private suspend fun changesDone(message: String) {
+        currentState.propertyId?.let { draftStore.saveLastStep(it, null) } // submitted / discarded → start fresh next time
         if (message.isNotBlank()) sendEffect(PropertyDetailEffect.Message(message))
         sendEffect(PropertyDetailEffect.Changed) // list + dashboard numbers
         refresh()
@@ -425,13 +479,45 @@ class PropertyDetailViewModel @Inject constructor(
 
     // ---------------- invitations / applications ----------------
 
+    /** SafeRent ID / phone → their name (and phone) filled in; not found → enter details by hand. */
+    private suspend fun inviteLookup() {
+        val f = currentState.inviteForm ?: return
+        if (f.lookupBusy) return
+        val q = com.saferenttechnologies.android.domain.model.PeopleLookup.parse(f.lookup)
+            ?: return setState { copy(inviteForm = f.copy(lookupInvalid = true)) }
+        setState { copy(inviteForm = f.copy(lookupBusy = true, lookupInvalid = false, found = null, notOnSafeRent = false)) }
+        val r = people.lookup(q)
+        val now = currentState.inviteForm ?: return
+        setState {
+            copy(
+                inviteForm = when (r) {
+                    is AppResult.Success -> r.data?.let { p ->
+                        now.copy(
+                            lookupBusy = false,
+                            found = p,
+                            recipientName = now.recipientName.ifBlank { p.fullName },
+                            recipientPhone = if (q is com.saferenttechnologies.android.domain.model.LookupQuery.Phone) q.value else now.recipientPhone,
+                        )
+                    } ?: now.copy(
+                        lookupBusy = false,
+                        notOnSafeRent = true,
+                        recipientPhone = if (q is com.saferenttechnologies.android.domain.model.LookupQuery.Phone) q.value else now.recipientPhone,
+                    )
+                    is AppResult.Failure -> now.copy(lookupBusy = false)
+                },
+            )
+        }
+        (r as? AppResult.Failure)?.error?.takeUnless { it is AppError.AccountBlocked }?.message?.let { sendEffect(PropertyDetailEffect.Message(it)) }
+    }
+
     private suspend fun sendInvite() {
         val id = currentState.propertyId ?: return
         val f = currentState.inviteForm ?: return
         val digits = f.recipientPhone.filter(Char::isDigit).takeLast(10)
         val error = when {
             f.recipientName.isBlank() -> InviteError.NAME
-            digits.length != 10 -> InviteError.PHONE
+            // Found on SafeRent by ID → the server knows their phone.
+            digits.length != 10 && f.found == null -> InviteError.PHONE
             f.monthlyRent.toDoubleOrNull() == null -> InviteError.RENT
             SimpleDate.parse(f.startDate) == null -> InviteError.START_DATE
             else -> null
@@ -444,7 +530,8 @@ class PropertyDetailViewModel @Inject constructor(
                 unitId = f.unitId,
                 bedId = f.bedId,
                 recipientName = f.recipientName,
-                recipientPhone = "+91$digits",
+                recipientPhone = if (digits.length == 10) "+91$digits" else "",
+                recipientUserId = f.found?.id,
                 recipientEmail = f.recipientEmail,
                 monthlyRent = f.monthlyRent,
                 securityDeposit = f.securityDeposit,
@@ -456,6 +543,7 @@ class PropertyDetailViewModel @Inject constructor(
                 lockInMonths = f.lockInMonths.toIntOrNull(),
                 additionalTerms = f.additionalTerms,
                 expiresInDays = INVITE_DAYS,
+                requirements = f.requirements.takeIf { it.asksAnything },
             ),
         )
         setState { copy(busy = false) }
@@ -531,7 +619,30 @@ class PropertyDetailViewModel @Inject constructor(
     // ---------------- errors ----------------
 
     /** 412 / 409 / 400 messages are shown as the server wrote them. VERSION_CONFLICT → reload. */
+    /** Moderator approve / reject → message, reload the property. */
+    private suspend fun decide(approve: Boolean, withoutProof: Boolean, reason: String) {
+        val id = currentState.propertyId ?: return
+        if (currentState.busy) return
+        setState { copy(busy = true) }
+        val r = manage.review(id, approve, withoutProof, reason)
+        setState { copy(busy = false) }
+        when (r) {
+            is AppResult.Success -> {
+                sendEffect(PropertyDetailEffect.Message(r.data.message.ifBlank { if (approve) APPROVED else REJECTED }))
+                sendEffect(PropertyDetailEffect.Changed)
+                refresh()
+            }
+            is AppResult.Failure -> showError(r.error)
+        }
+    }
+
     private suspend fun showError(error: AppError) {
+        // 412 owner not verified / ownership proof missing (approve, publish) → bottom sheet with the next step.
+        if (error is AppError.InvalidState && error.errorCode?.uppercase() in com.saferenttechnologies.android.domain.model.ApprovalBlocker.CODES) {
+            setState { copy(approvalBlock = com.saferenttechnologies.android.domain.model.ApprovalBlocker(error.errorCode!!.uppercase(), error.message)) }
+            refresh()
+            return
+        }
         when (error) {
             is AppError.AccountBlocked -> return // global blocked screen
             is AppError.Conflict -> if (error.versionConflict) refresh()
@@ -553,7 +664,10 @@ class PropertyDetailViewModel @Inject constructor(
     companion object {
         private const val TAG = "SR-ManageProperty"
         const val INVITE_DAYS = 7
+        const val INVITE_NOT_APPROVED = "You can invite tenants once SafeRent approves this property."
         /** Placeholder replaced by a string resource in the screen. */
         const val UPLOADING_MESSAGE = "@uploading"
+        private const val APPROVED = "Approved, the listing is live."
+        private const val REJECTED = "Rejected. The owner can fix it and send it again."
     }
 }

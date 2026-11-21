@@ -150,12 +150,14 @@ fun ActionGridSkeleton(count: Int) {
         (0 until count).chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.sdp)) {
                 row.forEach {
+                    // Same as ActionBox: 42 icon, 12 gap, title (15sp), 2 gap, two lines of body (12sp).
                     Column(Modifier.weight(1f).clip(RoundedCornerShape(16.sdp)).background(AuthColors.Surface).padding(14.sdp)) {
                         Bone(Modifier.size(42.sdp), RoundedCornerShape(12.sdp))
                         Spacer(Modifier.height(12.sdp))
-                        BoneLine(0.6f, 15.sdp)
-                        Spacer(Modifier.height(6.sdp))
-                        BoneLine(0.85f, 10.sdp)
+                        TextBone(0.6f, 15.sdp, 20.sdp)
+                        Spacer(Modifier.height(2.sdp))
+                        TextBone(0.9f, 10.sdp, 16.sdp)
+                        TextBone(0.55f, 10.sdp, 16.sdp)
                     }
                 }
             }
@@ -163,12 +165,19 @@ fun ActionGridSkeleton(count: Int) {
     }
 }
 
+/** One line of text: a bone of [bone] height centred in the text's real line height [line]. */
+@Composable
+private fun TextBone(fraction: Float, bone: androidx.compose.ui.unit.Dp, line: androidx.compose.ui.unit.Dp) {
+    Box(Modifier.fillMaxWidth().height(line), contentAlignment = androidx.compose.ui.Alignment.CenterStart) { BoneLine(fraction, bone) }
+}
+
 /** A card of small number boxes, 3 per row (dashboard "Your properties" / rent). */
 @Composable
 fun FigureCardSkeleton(boxes: Int) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp)).background(AuthColors.Surface).padding(12.sdp)) {
-        Box(Modifier.padding(start = 2.sdp)) { BoneLine(0.3f, 10.sdp) }
-        Spacer(Modifier.height(10.sdp))
+        // Same as FigureCard: title (12sp), 8 gap, boxes of value (15sp) + label (11sp).
+        Box(Modifier.padding(start = 2.sdp)) { TextBone(0.3f, 10.sdp, 16.sdp) }
+        Spacer(Modifier.height(8.sdp))
         Column(verticalArrangement = Arrangement.spacedBy(8.sdp)) {
             (0 until boxes).chunked(3).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
@@ -177,9 +186,9 @@ fun FigureCardSkeleton(boxes: Int) {
                             Modifier.weight(1f).clip(RoundedCornerShape(12.sdp)).background(AuthColors.Card)
                                 .border(1.sdp, AuthColors.Border, RoundedCornerShape(12.sdp)).padding(10.sdp),
                         ) {
-                            BoneLine(0.55f, 15.sdp)
-                            Spacer(Modifier.height(6.sdp))
-                            BoneLine(0.8f, 9.sdp)
+                            TextBone(0.55f, 15.sdp, 20.sdp)
+                            Spacer(Modifier.height(2.sdp))
+                            TextBone(0.8f, 9.sdp, 13.sdp)
                         }
                     }
                     repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
@@ -241,11 +250,12 @@ fun FormSkeleton(modifier: Modifier = Modifier, fields: Int = 5) {
 @Composable
 fun HomeSkeleton(modifier: Modifier = Modifier, actions: Int = 5) {
     ShimmerHost {
-        Column(modifier.fillMaxSize().background(AuthColors.Background).padding(24.sdp)) {
+        // Same padding as the dashboard (16 sides, 20 top / bottom) and the greeting's two lines.
+        Column(modifier.fillMaxSize().background(AuthColors.Background).padding(horizontal = 16.sdp, vertical = 20.sdp)) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.sdp)) {
-                    BoneLine(0.3f, 11.sdp)
-                    BoneLine(0.55f, 19.sdp)
+                Column(Modifier.weight(1f)) {
+                    TextBone(0.3f, 11.sdp, 18.sdp)
+                    TextBone(0.55f, 19.sdp, 26.sdp)
                 }
                 Spacer(Modifier.width(8.sdp))
                 Bone(Modifier.size(TOP_ICON), CircleShape)
@@ -373,4 +383,73 @@ fun AnnouncementDetailSkeleton(modifier: Modifier = Modifier) {
             repeat(4) { BoneLine(if (it == 3) 0.6f else 1f, 13.sdp) }
         }
     }
+}
+
+/**
+ * "Review tenant" result while it loads: the same blocks and sizes as the real report: person card,
+ * rent record (3 number boxes + rows), earlier landlords' reviews, past leases.
+ */
+@Composable
+fun TenantReportSkeleton(modifier: Modifier = Modifier) {
+    ShimmerHost {
+        Column(modifier.fillMaxWidth()) {
+            // Person card: 44 avatar + name (16sp) / ID · phone (12sp) / member since (11sp).
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp)).background(AuthColors.Surface).padding(14.sdp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Bone(Modifier.size(44.sdp), CircleShape)
+                Spacer(Modifier.width(12.sdp))
+                Column(Modifier.weight(1f)) {
+                    TextBone(0.55f, 15.sdp, 22.sdp)
+                    TextBone(0.75f, 11.sdp, 16.sdp)
+                    TextBone(0.4f, 10.sdp, 15.sdp)
+                }
+            }
+            // Rent record: title, 3 boxes (value 18sp + label 11sp), 2 payment rows.
+            ReportSectionBone()
+            Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+                repeat(3) {
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(12.sdp)).background(AuthColors.Surface).padding(12.sdp)) {
+                        TextBone(0.5f, 18.sdp, 24.sdp)
+                        TextBone(0.7f, 10.sdp, 15.sdp)
+                    }
+                }
+            }
+            repeat(2) {
+                Spacer(Modifier.height(6.sdp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.sdp)).border(1.sdp, AuthColors.Border, RoundedCornerShape(10.sdp)).padding(10.sdp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        TextBone(0.4f, 12.sdp, 18.sdp)
+                        TextBone(0.3f, 10.sdp, 16.sdp)
+                    }
+                    Bone(Modifier.width(56.sdp).height(22.sdp), RoundedCornerShape(50))
+                }
+            }
+            // Reviews from earlier landlords: 2 cards (name + stars, two lines of text, date).
+            ReportSectionBone()
+            repeat(2) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 4.sdp).clip(RoundedCornerShape(12.sdp)).background(AuthColors.Surface).padding(12.sdp)) {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f)) { TextBone(0.45f, 12.sdp, 18.sdp) }
+                        Bone(Modifier.width(36.sdp).height(12.sdp), RoundedCornerShape(4.sdp))
+                    }
+                    TextBone(0.95f, 11.sdp, 18.sdp)
+                    TextBone(0.7f, 11.sdp, 18.sdp)
+                    TextBone(0.35f, 9.sdp, 15.sdp)
+                }
+            }
+        }
+    }
+}
+
+/** Section title of the report (16sp, 20 above, 8 below). */
+@Composable
+private fun ReportSectionBone() {
+    Spacer(Modifier.height(20.sdp))
+    TextBone(0.45f, 14.sdp, 21.sdp)
+    Spacer(Modifier.height(8.sdp))
 }

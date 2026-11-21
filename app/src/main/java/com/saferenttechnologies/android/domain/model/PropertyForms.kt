@@ -119,7 +119,8 @@ object PropertyForms {
             "waterChargesAmount", FieldType.MONEY, min = 0.0,
             requiredWhen = RequiredWhen("waterChargesType", "FIXED_MONTHLY", setOf("ONE_TIME")),
         ).copy(shownWhen = showIf("waterChargesType", "FIXED_MONTHLY", "ONE_TIME", "USAGE_BASED")),
-        f("waterAvailability", FieldType.TEXT, maxLength = 120),
+        // Hours of water a day (0 to 24): digits keyboard, still sent as text.
+        f("waterAvailability", FieldType.TEXT, maxLength = 2, min = 0.0, max = 24.0).copy(digitsOnly = true),
     )
 
     fun utilGasInternet(types: PropertyTypes?): List<FieldDef> = listOf(

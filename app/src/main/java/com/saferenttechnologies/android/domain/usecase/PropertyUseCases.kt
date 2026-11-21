@@ -105,7 +105,8 @@ class SubmitPropertyUseCase @Inject constructor(
             Result.Submitted(r.data)
         }
         is AppResult.Failure -> when (val e = r.error) {
-            is AppError.InvalidState -> Result.Problems(e.message, e.problems.map { it to SubmitProblems.stepFor(it) })
+            is AppError.InvalidState -> if (e.errorCode == "VIDEO_REQUIRED") Result.Failed(e)
+                else Result.Problems(e.message, e.problems.map { it to SubmitProblems.stepFor(it) })
             else -> Result.Failed(e)
         }
     }

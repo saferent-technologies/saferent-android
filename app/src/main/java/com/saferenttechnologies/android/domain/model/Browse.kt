@@ -223,6 +223,14 @@ data class ListingDetail(
     val utilities: List<Disclosure> = emptyList(),
     val policies: List<Disclosure> = emptyList(),
     val photos: List<ListingPhoto> = emptyList(),
+    /** Video tours (approved): per flat / room, or the building's. */
+    val videos: List<PropertyVideo> = emptyList(),
+    /** Furniture & appliances the owner provides (reduced items). */
+    val furnishings: List<RegisterItem> = emptyList(),
+    /** Safety features (no phone numbers / instructions); null = owner hasn't filled it in. */
+    val safety: ListingSafety? = null,
+    /** Society (no contacts); null = not a society / not filled in. */
+    val society: ListingSociety? = null,
     val disclosureLegend: Map<String, String> = emptyMap(),
     val myApplication: MyApplicationRef? = null,
 ) {
@@ -246,18 +254,29 @@ object FlatSelection {
             ?: detail.units.firstOrNull { it.available }?.id
             ?: detail.units.firstOrNull()?.id
 
-    /** The flat's own photos first, then the building's (unitId = null). Other types: every photo. */
+    /**
+     * Inside an apartment a flat is chosen → ONLY that flat's photos (no front view / building photos).
+     * No flat chosen, or the flat has no photos yet → the building's photos (front view …). Other types: every photo.
+     */
     fun photos(detail: ListingDetail, unitId: String?): List<ListingPhoto> {
         if (!detail.isUnitPriced) return detail.photos
         val unit = detail.units.firstOrNull { it.id == unitId }
         val flat = detail.photos.filter { p -> unit != null && (p.unitId == unit.id || p.id in unit.imageIds) }
-        val building = detail.photos.filter { it.unitId == null && it !in flat }
-        return flat + building
+        return flat.ifEmpty { detail.photos.filter { it.unitId == null } }
     }
 }
 
 data class ReviewSummary(val average: Double?, val count: Int, val categories: Map<String, Double>)
-data class Review(val id: String, val rating: Double?, val comment: String, val authorName: String, val createdAt: String)
+data class Review(
+    val id: String,
+    val rating: Double?,
+    val comment: String,
+    val authorName: String,
+    val createdAt: String,
+    /** Which flat / bed the reviewer lived in ("Flat 302", "Room 2 · Bed B1"). */
+    val place: String = "",
+    val tags: List<String> = emptyList(),
+)
 data class ReviewsPreview(val summary: ReviewSummary, val reviews: List<Review>)
 
 // ---------------- apply / enquire / report ----------------

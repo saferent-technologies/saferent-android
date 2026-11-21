@@ -11,6 +11,10 @@ import retrofit2.http.Path
 
 /** Tenant side of a landlord invitation (the /invite/{token} link). */
 interface InvitationApi {
+    /** Tenant: invitations sent to me (by my SafeRent account / phone), pending first. Each has its token. */
+    @GET("api/v1/invitations/mine")
+    suspend fun mine(): Response<ApiEnvelope<JsonElement>>
+
     @GET("api/v1/invitations/token/{token}")
     suspend fun byToken(@Path("token") token: String): Response<ApiEnvelope<JsonElement>>
 

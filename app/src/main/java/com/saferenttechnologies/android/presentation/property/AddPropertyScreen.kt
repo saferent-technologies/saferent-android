@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.property
 
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.WindowInsets
 import com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH
 import com.saferenttechnologies.android.presentation.common.TOP_ICON
 import com.saferenttechnologies.android.presentation.common.FormSkeleton
@@ -57,13 +59,30 @@ import com.saferenttechnologies.android.ui.theme.PlusJakartaSans
 
 /** Add-property wizard: progress on top, Back / Next at the bottom, "Save & exit" keeps the draft. */
 @Composable
-fun AddPropertyScreen(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
+fun AddPropertyScreen(
+    state: AddPropertyState,
+    onIntent: (AddPropertyIntent) -> Unit,
+    /** Owner not verified at "Submit for review" → Owner verification screen. */
+    onOpenOwnerVerification: () -> Unit = {},
+    /** … or a support ticket about it. */
+    onContactSupport: (propertyId: String?) -> Unit = {},
+    /** Ownership step (its own screen model). */
+    ownership: com.saferenttechnologies.android.presentation.owner.OwnershipState = com.saferenttechnologies.android.presentation.owner.OwnershipState(),
+    onOwnershipIntent: (com.saferenttechnologies.android.presentation.owner.OwnershipIntent) -> Unit = {},
+) {
     val camera = state.camera
     if (camera != null) {
         CameraCaptureScreen(
             mode = camera,
             onCaptured = { onIntent(AddPropertyIntent.Captured(it)) },
             onClose = { onIntent(AddPropertyIntent.CloseCamera) },
+        )
+        return
+    }
+    if (state.videoFor != null) {
+        com.saferenttechnologies.android.presentation.video.VideoRecordScreen(
+            onRecorded = { path, sec -> onIntent(AddPropertyIntent.VideoRecorded(path, sec)) },
+            onClose = { onIntent(AddPropertyIntent.CloseVideoCamera) },
         )
         return
     }
@@ -126,16 +145,59 @@ fun AddPropertyScreen(state: AddPropertyState, onIntent: (AddPropertyIntent) -> 
                         WizardStep.PRICING -> PricingStep(state, onIntent)
                         WizardStep.OPTIONAL -> OptionalStep(state, onIntent)
                         WizardStep.PHOTOS -> PhotosStep(state, onIntent)
-                        else -> DocumentsStep(state, onIntent) // last step: documents + submit
+                        WizardStep.DOCUMENTS -> DocumentsStep(state, onIntent)
+                        else -> {
+                            // Last step: who owns it (private) + "Submit for verification".
+                            SubmitProblemsList(state, onIntent)
+                            com.saferenttechnologies.android.presentation.owner.OwnershipForm(ownership, onOwnershipIntent)
+                        }
                     }
                     Spacer(Modifier.height(24.sdp))
                 }
             }
         }
-        BottomBar(state, onIntent)
+        // Submit waits until the ownership details are saved.
+        BottomBar(state, onIntent, submitBlocked = state.step >= WizardStep.LAST && (ownership.dirty || ownership.saving || ownership.loading || ownership.uploadingPoa))
     }
 
     if (state.drafts != null) DraftsSheet(state, onIntent)
+    if (state.ownerInReviewSheet) {
+        VerifyOwnerSheet(
+            inReview = true,
+            onVerify = { onIntent(AddPropertyIntent.SubmitWhileInReview) },
+            onSupport = {
+                onIntent(AddPropertyIntent.DismissVerifyOwner)
+                onOpenOwnerVerification()
+            },
+            onDismiss = { onIntent(AddPropertyIntent.DismissVerifyOwner) },
+        )
+    }
+    if (state.verifyOwnerSheet) {
+        VerifyOwnerSheet(
+            onVerify = {
+                onIntent(AddPropertyIntent.DismissVerifyOwner)
+                onOpenOwnerVerification()
+            },
+            onSupport = {
+                onIntent(AddPropertyIntent.DismissVerifyOwner)
+                onContactSupport(state.property?.id)
+            },
+            onDismiss = { onIntent(AddPropertyIntent.DismissVerifyOwner) },
+        )
+    }
+    if (state.deleteVideoId != null) DeleteVideoDialog(onIntent)
+    state.declaration?.let { d ->
+        com.saferenttechnologies.android.presentation.compliance.DeclarationSheet(
+            declaration = d,
+            agree = state.declareAgree,
+            busy = state.declaring || state.saving,
+            ownerOnly = state.declarationOwnerOnly,
+            buttonText = stringResource(R.string.comp_declare_submit),
+            onAgree = { onIntent(AddPropertyIntent.DeclarationAgree(it)) },
+            onDeclare = { onIntent(AddPropertyIntent.Declare) },
+            onDismiss = { onIntent(AddPropertyIntent.DismissDeclaration) },
+        )
+    }
     if (state.confirmSubmit) {
         AlertDialog(
             onDismissRequest = { onIntent(AddPropertyIntent.DismissSubmit) },
@@ -241,7 +303,7 @@ private fun ChangesBanner(state: AddPropertyState) {
 private fun StepHeader(state: AddPropertyState) {
     val type = state.type
     val title = when {
-        state.step >= WizardStep.LAST && state.isLiveEdit -> R.string.changes_review_title
+        state.step == WizardStep.DOCUMENTS && state.isLiveEdit -> R.string.changes_review_title
         (state.isUnitPriced || state.isRoomPriced) && state.step == WizardStep.PRICING -> R.string.apartment_common_charges
         (state.isUnitPriced || state.isRoomPriced) && state.step == WizardStep.PHOTOS -> R.string.apartment_building_photos
         state.step != WizardStep.UNITS -> stepTitle(state.step)
@@ -268,12 +330,18 @@ fun stepTitle(step: Int): Int = when (step) {
     WizardStep.OPTIONAL -> R.string.step_optional
     WizardStep.PHOTOS -> R.string.step_photos
     WizardStep.DOCUMENTS -> R.string.step_documents
+    WizardStep.OWNERSHIP -> R.string.own_title
     else -> R.string.step_review
 }
 
 @Composable
 private fun Banner(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
-    val text = state.bannerText ?: state.bannerMessage?.let { stringResource(it.res()) } ?: return
+    val text = state.bannerText
+        ?: state.bannerMessage?.let { m ->
+            if (m == AddPropertyMessage.VIDEO_REQUIRED) stringResource(R.string.video_required_banner, state.missingVideoUnits.joinToString(", "))
+            else stringResource(m.res())
+        }
+        ?: return
     Row(
         Modifier
             .fillMaxWidth()
@@ -291,6 +359,7 @@ private fun Banner(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Uni
 
 private fun AddPropertyMessage.res(): Int = when (this) {
     AddPropertyMessage.NETWORK_OR_SERVER -> R.string.add_property_error_generic
+    AddPropertyMessage.VIDEO_REQUIRED -> R.string.video_required_banner
     AddPropertyMessage.VERSION_CONFLICT -> R.string.add_property_error_conflict
     AddPropertyMessage.MAX_PHOTOS -> R.string.add_property_error_max_photos
     AddPropertyMessage.CHANGES_LOCKED -> R.string.changes_wizard_locked
@@ -305,10 +374,13 @@ private fun AddPropertyMessage.res(): Int = when (this) {
     AddPropertyMessage.WAIT_FOR_UPLOADS -> R.string.add_property_error_wait_uploads
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun BottomBar(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
+private fun BottomBar(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit, submitBlocked: Boolean = false) {
     val editorOpen = state.unitEditor != null || state.roomEditor != null || state.floorsUnitId != null
-    if (editorOpen || state.types == null) return
+    // While typing, Back / Next step aside: more room for the form, no bar jumping on the keyboard.
+    val typing = WindowInsets.isImeVisible
+    if (editorOpen || state.types == null || typing) return
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.sdp, vertical = 12.sdp)) {
         if (state.step == WizardStep.OPTIONAL) {
             Text(
@@ -324,7 +396,7 @@ private fun BottomBar(state: AddPropertyState, onIntent: (AddPropertyIntent) -> 
                     .padding(bottom = 12.sdp),
             )
         }
-        // Documents is the last step → "Submit for verification" instead of Next.
+        // Ownership is the last step → "Submit for verification" instead of Next.
         val isReview = state.step >= WizardStep.LAST
         Row(horizontalArrangement = Arrangement.spacedBy(12.sdp), verticalAlignment = Alignment.CenterVertically) {
             if (state.step > WizardStep.CATEGORY) {
@@ -351,7 +423,7 @@ private fun BottomBar(state: AddPropertyState, onIntent: (AddPropertyIntent) -> 
                     },
                 ),
                 // Change under verification → read-only: Next only browses, submit is off.
-                enabled = !state.busy && (state.step != WizardStep.CATEGORY || state.selectedTypeKey != null) && !(isReview && state.locked),
+                enabled = !state.busy && (state.step != WizardStep.CATEGORY || state.selectedTypeKey != null) && !(isReview && (state.locked || submitBlocked)),
                 loading = state.saving,
                 onClick = { onIntent(if (isReview) AddPropertyIntent.Submit else AddPropertyIntent.Next) },
                 modifier = Modifier.weight(if (isReview) 0.68f else 0.6f),
@@ -458,5 +530,53 @@ private fun SubmittedContent(liveChanges: Boolean, onDone: () -> Unit) {
             loading = false,
             onClick = onDone,
         )
+    }
+}
+
+
+/** "Submit for review" by an owner who isn't verified yet: Verify identity or Contact support. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun VerifyOwnerSheet(onVerify: () -> Unit, onSupport: () -> Unit, onDismiss: () -> Unit, inReview: Boolean = false) {
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = AuthColors.Card,
+        dragHandle = { androidx.compose.material3.BottomSheetDefaults.DragHandle(color = AuthColors.Border) },
+    ) {
+        Column(
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 24.sdp, end = 24.sdp, bottom = 16.sdp, top = 4.sdp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(Modifier.size(64.sdp).clip(androidx.compose.foundation.shape.CircleShape).background(AuthColors.OrangeSoft), contentAlignment = Alignment.Center) {
+                Icon(painterResource(R.drawable.ic_shield_check), null, tint = AuthColors.OrangeText, modifier = Modifier.size(30.sdp))
+            }
+            Spacer(Modifier.height(16.sdp))
+            // In review: "Submit for review" + "View verification". Not verified: "Verify identity" + "Contact support".
+            Text(
+                stringResource(if (inReview) R.string.addprop_kyc_review_title else R.string.approval_verify_identity_title),
+                color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 19.ssp, textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(8.sdp))
+            Text(
+                stringResource(if (inReview) R.string.addprop_kyc_review_body else R.string.approval_verify_sheet_body),
+                color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp, textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(20.sdp))
+            AuthPrimaryButton(
+                text = stringResource(if (inReview) R.string.add_property_submit else R.string.approval_verify_identity),
+                enabled = true, loading = false, onClick = onVerify, fontSize = 15.ssp,
+            )
+            Spacer(Modifier.height(4.sdp))
+            Text(
+                stringResource(if (inReview) R.string.kyc_view_verification else R.string.approval_contact_support),
+                color = AuthColors.Body,
+                fontFamily = Inter,
+                fontWeight = FontWeight.Medium,
+                fontSize = 15.ssp,
+                modifier = Modifier.clip(RoundedCornerShape(8.sdp)).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onSupport)
+                    .padding(horizontal = 16.sdp, vertical = 14.sdp),
+            )
+        }
     }
 }

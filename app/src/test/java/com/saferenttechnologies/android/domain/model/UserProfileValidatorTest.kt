@@ -15,12 +15,17 @@ class UserProfileValidatorTest {
         dateOfBirth = "1998-04-12",
         city = "Hyderabad",
         state = "Telangana",
+        email = "ravi@saferent.in",
+        occupation = "Engineer",
     )
 
     @Test
-    fun `valid form has no errors and email is optional`() {
+    fun `valid form has no errors and every detail is required`() {
         assertTrue(UserProfileValidator.validate(valid, today).isEmpty())
-        assertTrue(UserProfileValidator.validate(valid.copy(email = "  "), today).isEmpty())
+        assertTrue(UserProfileValidator.validate(valid.copy(email = "  "), today).isEmpty()) // email optional
+        assertTrue(UserProfileField.OCCUPATION in UserProfileValidator.validate(valid.copy(occupation = ""), today))
+        // Landlords aren't asked their occupation.
+        assertTrue(UserProfileValidator.validate(valid.copy(role = UserRole.LANDLORD, occupation = ""), today).isEmpty())
     }
 
     @Test

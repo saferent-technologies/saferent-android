@@ -67,6 +67,8 @@ interface PropertyRepository {
     suspend fun saveAmenities(id: String, items: Map<String, String>, custom: List<String>, unitId: String? = null, roomId: String? = null): AppResult<Unit>
 
     suspend fun deleteImage(id: String, imageId: String): AppResult<Unit>
+    /** DELETE properties/{id}/videos/{videoId}. */
+    suspend fun deleteVideo(id: String, videoId: String): AppResult<Unit>
     suspend fun setImageOrder(id: String, imageId: String, displayOrder: Int): AppResult<Unit>
 
     suspend fun documents(id: String): AppResult<List<PropertyDocument>>
@@ -93,6 +95,10 @@ interface LocationProvider {
 interface PropertyDraftStore {
     suspend fun draftId(): String?
     suspend fun saveDraftId(id: String?)
+    /** Wizard step the landlord was on when they closed it (per property) → "Continue changes" opens there. */
+    suspend fun lastStep(propertyId: String): Int? = null
+    /** null = forget (changes submitted / discarded). */
+    suspend fun saveLastStep(propertyId: String, step: Int?) {}
 }
 
 /** One captured photo waiting for / failing upload (the file is kept until it's uploaded). */
@@ -113,6 +119,33 @@ data class PhotoUploadSummary(
     /** Grows on every finished upload → reload the property's photos. */
     val succeeded: Int = 0,
 )
+
+/** Video tours upload in the background too (big files: WorkManager, network required, retries). */
+interface VideoUploadQueue {
+    fun enqueue(propertyId: String, filePath: String, durationSec: Int, unitId: String?, roomId: String?)
+    /** Videos still uploading for this property. */
+    fun running(propertyId: String): Flow<Int>
+    /** Every recorded video of this property: uploading / uploaded / failed (per flat / room). */
+    fun observe(propertyId: String): Flow<List<VideoUpload>>
+    /** Upload a failed one again (same file). */
+    fun retry(propertyId: String, upload: VideoUpload)
+}
+
+/** One recorded video on its way to the server. */
+data class VideoUpload(
+    val workId: String,
+    val filePath: String,
+    val unitId: String?,
+    val roomId: String?,
+    val durationSec: Int,
+    val state: VideoUploadState,
+    /** Server message when it failed. */
+    val message: String? = null,
+    /** 0–100 while sending; -1 = not known yet. */
+    val progress: Int = -1,
+)
+
+enum class VideoUploadState { UPLOADING, UPLOADED, FAILED }
 
 /** Queues photo uploads in the background (WorkManager, multipart, network required, retry with backoff). */
 interface PhotoUploadQueue {

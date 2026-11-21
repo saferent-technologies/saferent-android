@@ -68,6 +68,10 @@ data class ListingDetailState(
         get() = detail?.let { FlatSelection.photos(it, selectedUnitId) }.orEmpty()
             .filterNot { com.saferenttechnologies.android.domain.model.PanoramaRules.isPanoramaCategory(it.category) }
 
+    /** Video tours: the selected flat's first, then the building's. */
+    val videos: List<com.saferenttechnologies.android.domain.model.PropertyVideo>
+        get() = detail?.let { com.saferenttechnologies.android.domain.model.VideoRules.forFlat(it.videos, selectedUnitId, it.isUnitPriced) }.orEmpty()
+
     /** 360° photos (360 viewer, not the 4:3 pager): apartment → the selected flat's, then the building's. */
     val panoramas: List<com.saferenttechnologies.android.domain.model.ListingPhoto>
         get() = detail?.let { FlatSelection.photos(it, selectedUnitId) }.orEmpty()
@@ -141,8 +145,12 @@ class ListingDetailViewModel @Inject constructor(
             is ListingDetailIntent.SelectUnit -> {
                 savedState[KEY_UNIT] = intent.unitId
                 setState { copy(selectedUnitId = intent.unitId, selectedBedId = null) }
+                loadReviews()
             }
-            is ListingDetailIntent.SelectBed -> setState { copy(selectedBedId = intent.bedId, selectedUnitId = null) }
+            is ListingDetailIntent.SelectBed -> {
+                setState { copy(selectedBedId = intent.bedId, selectedUnitId = null) }
+                loadReviews()
+            }
             is ListingDetailIntent.OpenViewer -> setState { copy(viewer = intent.index) }
             ListingDetailIntent.CloseViewer -> setState { copy(viewer = null) }
             ListingDetailIntent.Share -> currentState.detail?.let { sendEffect(ListingDetailEffect.Share(shareText(it.id, it.title))) }
@@ -185,11 +193,23 @@ class ListingDetailViewModel @Inject constructor(
                         selectedBedId = selectedBedId ?: d.beds.firstOrNull { it.available }?.id,
                     )
                 }
-                viewModelScope.launch {
-                    (repository.reviews(id) as? AppResult.Success)?.let { rv -> setState { copy(reviews = rv.data) } }
-                }
+                loadReviews()
             }
             is AppResult.Failure -> setState { copy(loading = false, error = r.error.takeUnless { it is AppError.AccountBlocked }?.message) }
+        }
+    }
+
+    private var reviewsJob: kotlinx.coroutines.Job? = null
+
+    /** Past tenants' reviews of this landlord for the selected flat / bed (whole property when none). */
+    private fun loadReviews() {
+        val id = currentState.listingId ?: return
+        val unit = currentState.selectedUnitId
+        val bed = currentState.selectedBedId
+        reviewsJob?.cancel()
+        reviewsJob = viewModelScope.launch {
+            setState { copy(reviews = null) }
+            (repository.reviews(id, unit, bed) as? AppResult.Success)?.let { rv -> setState { copy(reviews = rv.data) } }
         }
     }
 

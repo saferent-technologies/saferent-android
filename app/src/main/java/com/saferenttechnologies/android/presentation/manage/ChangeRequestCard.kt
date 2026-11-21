@@ -36,7 +36,6 @@ import com.saferenttechnologies.android.domain.model.PropertyActions
 import com.saferenttechnologies.android.domain.model.PropertyDetail
 import com.saferenttechnologies.android.domain.model.PropertyRevision
 import com.saferenttechnologies.android.domain.model.RevisionStatus
-import com.saferenttechnologies.android.domain.model.WizardStep
 import com.saferenttechnologies.android.presentation.auth.AuthColors
 import com.saferenttechnologies.android.presentation.explore.Amber
 import com.saferenttechnologies.android.presentation.property.OutlineAction
@@ -119,12 +118,12 @@ fun ChangeRequestCard(detail: PropertyDetail, busy: Boolean, onIntent: (Property
             Spacer(Modifier.height(10.sdp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
                 if (detail.can.editRevision) {
-                    OutlineAction(stringResource(R.string.changes_continue), enabled = !busy, modifier = Modifier.weight(1f)) {
-                        onIntent(PropertyDetailIntent.Edit(WizardStep.BASIC))
+                    OutlineAction(stringResource(R.string.changes_continue), enabled = !busy, modifier = Modifier.weight(1f), compact = true) {
+                        onIntent(PropertyDetailIntent.ContinueChanges)
                     }
                 }
                 if (PropertyActions.canDiscardChanges(detail)) {
-                    OutlineAction(stringResource(R.string.changes_discard), enabled = !busy, modifier = Modifier.weight(1f)) {
+                    OutlineAction(stringResource(R.string.changes_discard), enabled = !busy, modifier = Modifier.weight(1f), compact = true) {
                         onIntent(PropertyDetailIntent.DiscardChanges)
                     }
                 }
@@ -143,7 +142,7 @@ fun ChangeRequestCard(detail: PropertyDetail, busy: Boolean, onIntent: (Property
                         .clip(RoundedCornerShape(12.sdp))
                         .background(if (busy) AuthColors.Border else AuthColors.Orange)
                         .clickable(enabled = !busy, role = Role.Button) { onIntent(PropertyDetailIntent.SubmitChanges) }
-                        .padding(vertical = 13.sdp),
+                        .padding(vertical = 10.sdp),
                 )
             }
         }

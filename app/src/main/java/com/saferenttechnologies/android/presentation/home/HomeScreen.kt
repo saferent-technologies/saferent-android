@@ -71,7 +71,11 @@ fun HomeScreen(
     onOpenProperties: (PropertyFilter) -> Unit = {},
     unreadNotifications: Int = 0,
     onOpenNotifications: () -> Unit = {},
+    /** "Scan QR" (property / flat codes). */
+    onScanQr: (() -> Unit)? = null,
     tenantLease: TenantLease? = null,
+    /** Tenant with a lease: extra blocks under the actions (furniture in your home). */
+    tenantExtra: @Composable () -> Unit = {},
     onExploreHomes: () -> Unit = {},
     onOpenLease: (TenantLease) -> Unit = {},
     leaseCloseRequested: Boolean = false,
@@ -101,6 +105,14 @@ fun HomeScreen(
     onOpenLeases: () -> Unit = {},
     /** Tenant's lease is ending (notice period) → show "Open to homes". */
     tenantInNotice: Boolean = false,
+    /** Landlord: owner verification status ("Owner verified" / "Verify now"). */
+    landlordTop: @Composable () -> Unit = {},
+    /** Landlord: extra cards under the actions. */
+    landlordExtra: @Composable () -> Unit = {},
+    /** Landlord: "Check tenant" box → reviews + rent record of a tenant. */
+    onCheckTenant: () -> Unit = {},
+    /** Tenant: lease invitations from landlords. */
+    tenantTop: @Composable () -> Unit = {},
 ) {
     PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize().background(AuthColors.Background)) {
     Column(
@@ -109,12 +121,17 @@ fun HomeScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(24.sdp),
+            // Same side margin as the other screens (16), a little more at the top / bottom.
+            .padding(horizontal = 16.sdp, vertical = 20.sdp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // Small "Good morning" + full name (not a big "Hi, Ravi").
             com.saferenttechnologies.android.presentation.common.Greeting(state.user?.fullName.orEmpty(), Modifier.weight(1f))
             Spacer(Modifier.width(8.sdp))
+            onScanQr?.let {
+                com.saferenttechnologies.android.presentation.smart.ScanQrButton(onClick = it)
+                Spacer(Modifier.width(8.sdp))
+            }
             BellWithBadge(unreadNotifications, onOpenNotifications)
         }
         if (state.showRoleSwitcher) {
@@ -125,6 +142,7 @@ fun HomeScreen(
         if (state.activeRole == UserRole.LANDLORD && state.summary == null && state.summaryLoading) {
             LandlordDashboardSkeleton()
         } else if (state.activeRole == UserRole.LANDLORD) {
+            landlordTop()
             LandlordSummary(state.summary, onOpenProperties, onOpenRent, onOpenTenants)
             Spacer(Modifier.height(16.sdp))
             LandlordActions(
@@ -137,8 +155,11 @@ fun HomeScreen(
                 requestsNeedAction = requestsBadge,
                 onOpenRequests = onOpenRequests,
                 onOpenAnnouncements = onOpenAnnouncements,
+                onCheckTenant = onCheckTenant,
             )
+            landlordExtra()
         } else if (tenantLease != null) {
+            tenantTop()
             TenantLeaseCard(tenantLease, leaseCloseRequested, onExploreHomes, onOpenLease, onOpenLeases)
             Spacer(Modifier.height(12.sdp))
             // "Open to new homes" only matters while the lease is ending (notice period).
@@ -161,7 +182,9 @@ fun HomeScreen(
                 onOpenAnnouncements = onOpenAnnouncements,
                 onOpenDocuments = onOpenDocuments,
             )
+            tenantExtra()
         } else if (state.activeRole == UserRole.TENANT) {
+            tenantTop()
             // No active lease: what's left for a tenant (explore, past leases, alerts, documents …).
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.sdp)).background(AuthColors.Surface).padding(18.sdp)) {
                 Text(stringResource(R.string.tenant_no_lease_title), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.ExtraBold, fontSize = 17.ssp)
@@ -253,13 +276,15 @@ private fun TenantLeaseCard(lease: TenantLease, closeRequested: Boolean, onExplo
 /** Landlord dashboard while GET properties/summary loads: number cards, rent card, shortcut boxes. */
 @Composable
 private fun LandlordDashboardSkeleton() {
-    // Same blocks as the loaded dashboard: "Your properties" (7 boxes), rent (3 boxes), 5 shortcut boxes.
+    // Same blocks and gaps as the loaded dashboard: "Your properties" (7 boxes), 10, rent (3 boxes),
+    // 16, then the 6 shortcut boxes (Add property … Announcements, Check tenant).
     ShimmerHost {
-        Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {
+        Column {
             com.saferenttechnologies.android.presentation.common.FigureCardSkeleton(7)
+            Spacer(Modifier.height(10.sdp))
             com.saferenttechnologies.android.presentation.common.FigureCardSkeleton(3)
-            Spacer(Modifier.height(6.sdp))
-            com.saferenttechnologies.android.presentation.common.ActionGridSkeleton(5)
+            Spacer(Modifier.height(16.sdp))
+            com.saferenttechnologies.android.presentation.common.ActionGridSkeleton(6)
         }
     }
 }
@@ -335,6 +360,7 @@ private fun LandlordActions(
     requestsNeedAction: Int = 0,
     onOpenRequests: () -> Unit = {},
     onOpenAnnouncements: () -> Unit = {},
+    onCheckTenant: () -> Unit = {},
 ) {
     // Always shown. Properties open from the "Your properties" numbers, so the first box is "Add property".
     val actions = listOf(
@@ -374,6 +400,14 @@ private fun LandlordActions(
             stringResource(R.string.ann_box_landlord),
             primary = false,
             onClick = onOpenAnnouncements,
+        ),
+        // Next to Announcements: earlier landlords' reviews + rent record of a tenant.
+        DashboardAction(
+            R.drawable.ic_people,
+            stringResource(R.string.tc_box_title),
+            stringResource(R.string.tc_box_body),
+            primary = false,
+            onClick = onCheckTenant,
         ),
     )
     Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {

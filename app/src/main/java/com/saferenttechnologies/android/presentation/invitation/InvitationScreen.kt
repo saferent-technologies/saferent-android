@@ -72,10 +72,19 @@ fun InvitationScreen(
     onIntent: (InvitationIntent) -> Unit,
     onChanged: () -> Unit,
     onOpenHome: (String) -> Unit,
+    /** Share step "Add": open the document vault upload (type pre-picked when known). */
+    onOpenUpload: (com.saferenttechnologies.android.domain.model.DocType?) -> Unit = {},
 ) {
     BackHandler { onIntent(InvitationIntent.Close) }
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(Unit) { effects.collect { if (it is InvitationEffect.Changed) onChanged() } }
+    LaunchedEffect(Unit) {
+        effects.collect {
+            when (it) {
+                is InvitationEffect.Changed -> onChanged()
+                is InvitationEffect.OpenUpload -> onOpenUpload(it.type)
+            }
+        }
+    }
     LaunchedEffect(state.message) {
         val m = state.message ?: return@LaunchedEffect
         onIntent(InvitationIntent.MessageShown)
@@ -87,7 +96,11 @@ fun InvitationScreen(
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             TopBar(code = inv?.code.orEmpty()) { onIntent(InvitationIntent.Close) }
             when {
+                // Accepted and the owner asked for documents → share them now ("Skip for now" allowed).
+                state.outcome != null && inv != null && state.sharingStep -> ShareDocsContent(state, onIntent)
                 state.outcome != null && inv != null -> OutcomeContent(state, inv) { onIntent(InvitationIntent.Close) }
+                // The owner asks a few details before the lease starts.
+                state.answering && inv != null -> AnswersContent(state, inv, onIntent)
                 inv == null && (state.loading || state.error == null) ->
                     DetailSkeleton()
                 inv == null -> ErrorContent(state, onIntent)

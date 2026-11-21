@@ -44,8 +44,14 @@ fun rememberPermissionRequester(permission: AppPermission): PermissionRequester 
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         val granted = result.values.any { it }
-        pending?.invoke(granted)
-        pending = null
+        val rationale = permission.manifestNames.any { activity?.shouldShowRequestPermissionRationale(it) == true }
+        if (!granted && !rationale) {
+            // Android didn't show its dialog (blocked: "Don't allow" twice) → only Settings can turn it on.
+            prompt = PermissionPrompt(permission, PermissionStatus.PERMANENTLY_DENIED)
+        } else {
+            pending?.invoke(granted)
+            pending = null
+        }
     }
 
     prompt?.let { p ->
@@ -57,10 +63,13 @@ fun rememberPermissionRequester(permission: AppPermission): PermissionRequester 
                 scope.launch {
                     m?.markPrompted(permission, System.currentTimeMillis())
                     if (p.status == PermissionStatus.PERMANENTLY_DENIED) {
+                        // Android really refused to ask → Settings.
                         context.openAppSettings()
                         pending?.invoke(false)
                         pending = null
                     } else {
+                        // Always try Android's own dialog first: "asked before + no rationale" is also what
+                        // Android reports after an "Only this time" grant ran out, so it may still show.
                         m?.markAsked(permission)
                         launcher.launch(permission.manifestNames.toTypedArray())
                     }
@@ -86,7 +95,8 @@ fun rememberPermissionRequester(permission: AppPermission): PermissionRequester 
                 val rationale = permission.manifestNames.any { activity?.shouldShowRequestPermissionRationale(it) == true }
                 val status = PermissionRules.status(granted = false, askedBefore = m.askedBefore(permission), rationale)
                 pending = onResult
-                prompt = PermissionPrompt(permission, status)
+                // First sheet always offers "Allow"; "Open settings" only once Android itself refused.
+                prompt = PermissionPrompt(permission, if (status == PermissionStatus.PERMANENTLY_DENIED) PermissionStatus.DENIED else status)
             }
         }
     }

@@ -43,6 +43,9 @@ abstract class PropertyModule {
     @Binds @Singleton
     abstract fun bindPhotoUploadQueue(impl: WorkManagerPhotoUploadQueue): PhotoUploadQueue
 
+    @Binds @Singleton
+    abstract fun bindVideoUploadQueue(impl: com.saferenttechnologies.android.data.property.WorkManagerVideoUploadQueue): com.saferenttechnologies.android.domain.repository.VideoUploadQueue
+
     companion object {
         @Provides
         @Singleton

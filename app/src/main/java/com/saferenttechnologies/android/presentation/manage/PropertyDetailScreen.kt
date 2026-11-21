@@ -25,6 +25,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -103,6 +104,26 @@ fun PropertyDetailScreen(
     onReviewLease: (leaseId: String) -> Unit = {},
     /** "Report a problem" → support ticket (PROPERTY, this property). */
     onReportProblem: ((propertyId: String?) -> Unit)? = null,
+    /** Owner not verified → Owner verification screen. */
+    onOpenOwnerVerification: () -> Unit = {},
+    /** "Contact support" about verification → support ticket. */
+    onVerificationSupport: (propertyId: String) -> Unit = {},
+    /** Owner only: who owns this property (private). null = not shown. */
+    ownership: com.saferenttechnologies.android.presentation.owner.OwnershipState? = null,
+    /** Owner / manager / inspector: inspection reports of this property. */
+    onOpenInspections: (() -> Unit)? = null,
+    /** Owner / manager: furniture & appliances register. */
+    onOpenFurniture: (() -> Unit)? = null,
+    /** Owner / manager: visit requests + availability. */
+    onOpenVisits: (() -> Unit)? = null,
+    /** Owner / manager: Safety & emergency form. */
+    onOpenSafety: (() -> Unit)? = null,
+    /** Owner / manager: India compliance (declaration, tax, approvals, documents). */
+    onOpenCompliance: (() -> Unit)? = null,
+    /** Owner / manager: Society / association + parking (null for land). */
+    onOpenSociety: (() -> Unit)? = null,
+    /** Owner / team: property + flat QR codes (share / print). */
+    onOpenQr: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -136,6 +157,8 @@ fun PropertyDetailScreen(
                 is PropertyDetailEffect.ContactSupport ->
                     if (!context.tryStart(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${effect.email}")))) snackbar.showSnackbar(noApp)
                 PropertyDetailEffect.Changed -> onChanged()
+                PropertyDetailEffect.OpenOwnerVerification -> onOpenOwnerVerification()
+                is PropertyDetailEffect.OpenVerificationSupport -> onVerificationSupport(effect.propertyId)
                 PropertyDetailEffect.NotFound -> onNotFound()
                 is PropertyDetailEffect.OpenLease -> onOpenLease(effect.leaseId, effect.preview)
                 is PropertyDetailEffect.ReviewLease -> onReviewLease(effect.leaseId)
@@ -191,7 +214,7 @@ fun PropertyDetailScreen(
                             // 360° views of this property → the 360 viewer.
                             val panos = state.detail?.property?.images.orEmpty().filter { com.saferenttechnologies.android.domain.model.PanoramaRules.isPanoramaCategory(it.category) }
                             var view360 by remember { mutableStateOf(false) }
-                            if (panos.isNotEmpty()) {
+                            if (com.saferenttechnologies.android.domain.model.AppFeatureFlags.PANORAMA_360 && panos.isNotEmpty()) {
                                 Row(
                                     Modifier.align(Alignment.BottomEnd).padding(12.sdp).clip(RoundedCornerShape(50)).background(AuthColors.Orange)
                                         .clickable(role = androidx.compose.ui.semantics.Role.Button) { view360 = true }.padding(horizontal = 12.sdp, vertical = 7.sdp),
@@ -210,6 +233,137 @@ fun PropertyDetailScreen(
                     Column(Modifier.fillMaxSize().nestedScroll(hideOnScroll).verticalScroll(rememberScrollState())) {
                     Header(state)
                     Banners(state, onIntent)
+                    // QR stickers for the gate and each flat's door.
+                    if (onOpenQr != null && state.canManage) {
+                        Row(
+                            Modifier.padding(horizontal = 16.sdp, vertical = 6.sdp).fillMaxWidth().clip(RoundedCornerShape(14.sdp))
+                                .border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp))
+                                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onOpenQr).padding(14.sdp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(painterResource(R.drawable.ic_qr), null, tint = AuthColors.OrangeText, modifier = Modifier.size(20.sdp))
+                            Spacer(Modifier.width(12.sdp))
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.qr_title), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
+                                Text(stringResource(R.string.qr_entry_note), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+                            }
+                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = AuthColors.Body, modifier = Modifier.size(18.sdp))
+                        }
+                    }
+                    // Society / association + parking (owner / manager; not for land).
+                    if (onOpenSociety != null && state.canManage) {
+                        Row(
+                            Modifier.padding(horizontal = 16.sdp, vertical = 6.sdp).fillMaxWidth().clip(RoundedCornerShape(14.sdp))
+                                .border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp))
+                                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onOpenSociety).padding(14.sdp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(painterResource(R.drawable.ic_home_outline), null, tint = AuthColors.OrangeText, modifier = Modifier.size(20.sdp))
+                            Spacer(Modifier.width(12.sdp))
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.soc_title), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
+                                Text(stringResource(R.string.soc_entry_note), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+                            }
+                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = AuthColors.Body, modifier = Modifier.size(18.sdp))
+                        }
+                    }
+                    // Compliance (owner / manager): private, never on the listing.
+                    if (onOpenCompliance != null && state.canManage) {
+                        Row(
+                            Modifier.padding(horizontal = 16.sdp, vertical = 6.sdp).fillMaxWidth().clip(RoundedCornerShape(14.sdp))
+                                .border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp))
+                                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onOpenCompliance).padding(14.sdp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(painterResource(R.drawable.ic_document), null, tint = AuthColors.OrangeText, modifier = Modifier.size(20.sdp))
+                            Spacer(Modifier.width(12.sdp))
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.comp_title), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
+                                Text(stringResource(R.string.comp_entry_note), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+                            }
+                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = AuthColors.Body, modifier = Modifier.size(18.sdp))
+                        }
+                    }
+                    // Safety & emergency (owner / manager).
+                    if (onOpenSafety != null && state.canManage) {
+                        Row(
+                            Modifier.padding(horizontal = 16.sdp, vertical = 6.sdp).fillMaxWidth().clip(RoundedCornerShape(14.sdp))
+                                .border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp))
+                                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onOpenSafety).padding(14.sdp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(painterResource(R.drawable.ic_shield_check), null, tint = AuthColors.OrangeText, modifier = Modifier.size(20.sdp))
+                            Spacer(Modifier.width(12.sdp))
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.safety_title), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
+                                Text(stringResource(R.string.safety_entry_note), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+                            }
+                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = AuthColors.Body, modifier = Modifier.size(18.sdp))
+                        }
+                    }
+                    // Visits: requests to confirm + visiting times (owner / manager).
+                    if (onOpenVisits != null && state.canManage) {
+                        Row(
+                            Modifier.padding(horizontal = 16.sdp, vertical = 6.sdp).fillMaxWidth().clip(RoundedCornerShape(14.sdp))
+                                .border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp))
+                                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onOpenVisits).padding(14.sdp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(painterResource(R.drawable.ic_my_location), null, tint = AuthColors.OrangeText, modifier = Modifier.size(20.sdp))
+                            Spacer(Modifier.width(12.sdp))
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.visit_host_title), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
+                                Text(stringResource(R.string.visit_entry_note), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+                            }
+                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = AuthColors.Body, modifier = Modifier.size(18.sdp))
+                        }
+                    }
+                    // Furniture & appliances: when a flat / room is semi or fully furnished.
+                    val p = state.detail?.property
+                    val furnished = p != null && (p.units.any { com.saferenttechnologies.android.domain.model.RegisterRules.furnished(it.values["furnishing"]) } ||
+                        p.rooms.any { com.saferenttechnologies.android.domain.model.RegisterRules.furnished(it.values["furnishing"]) })
+                    if (onOpenFurniture != null && state.canManage && furnished) {
+                        Row(
+                            Modifier.padding(horizontal = 16.sdp, vertical = 6.sdp).fillMaxWidth().clip(RoundedCornerShape(14.sdp))
+                                .border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp))
+                                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onOpenFurniture).padding(14.sdp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(painterResource(R.drawable.ic_sofa), null, tint = AuthColors.OrangeText, modifier = Modifier.size(20.sdp))
+                            Spacer(Modifier.width(12.sdp))
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.reg_title), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
+                                Text(stringResource(R.string.reg_entry_note), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+                            }
+                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = AuthColors.Body, modifier = Modifier.size(18.sdp))
+                        }
+                    }
+                    // Inspection reports (owner, manager, inspector).
+                    val can = state.detail?.can
+                    if (onOpenInspections != null && (can?.manage == true || can?.inspect == true)) {
+                        Row(
+                            Modifier.padding(horizontal = 16.sdp, vertical = 6.sdp).fillMaxWidth().clip(RoundedCornerShape(14.sdp))
+                                .border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp))
+                                .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onOpenInspections).padding(14.sdp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(painterResource(R.drawable.ic_document), null, tint = AuthColors.OrangeText, modifier = Modifier.size(20.sdp))
+                            Spacer(Modifier.width(12.sdp))
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.insp_title), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
+                                Text(stringResource(R.string.insp_entry_note), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+                            }
+                            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = AuthColors.Body, modifier = Modifier.size(18.sdp))
+                        }
+                    }
+                    // Ownership (owner only, private): edit opens the wizard's Ownership step.
+                    if (ownership != null && state.canManage && ownership.propertyId == state.propertyId) {
+                        Column(Modifier.padding(horizontal = 16.sdp)) {
+                            com.saferenttechnologies.android.presentation.owner.OwnershipCard(ownership) {
+                                state.propertyId?.let { onOpenEditor(it, com.saferenttechnologies.android.domain.model.WizardStep.OWNERSHIP, false) }
+                            }
+                        }
+                    }
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.sdp, vertical = 8.sdp), horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
                         items(DetailTab.VISIBLE) { tab ->
                             Chip(tabLabel(tab, detail.property.structure.usesRooms, state.unitWord.takeIf { state.isUnitPriced }), selected = tab == state.tab) { onIntent(PropertyDetailIntent.SelectTab(tab)) }
@@ -248,7 +402,9 @@ fun PropertyDetailScreen(
     if (state.confirmDiscard) DiscardChangesDialog(onIntent)
     state.changeProblems?.let { ChangeProblemsSheet(it, onIntent) }
     state.inviteForm?.let { InviteDialog(state, it, onIntent) }
+    if (state.tenantDetailsFor != null) TenantDetailsSheet(state.tenantDetails) { onIntent(PropertyDetailIntent.CloseTenantDetails) }
     state.reviewPrompt?.let { ReviewFirstDialog(it, onIntent) }
+    ApprovalDialogs(state, onIntent)
     state.openUnitId?.let { id -> state.detail?.property?.units?.firstOrNull { it.id == id }?.let { FlatSheet(state, it, onIntent) } }
     state.decision?.let { DecisionDialog(state, it, onIntent) }
 }
@@ -358,6 +514,8 @@ private fun Banners(state: PropertyDetailState, onIntent: (PropertyDetailIntent)
     Column(Modifier.padding(horizontal = 16.sdp)) {
         // Change request of a live listing (unsent / being verified / rejected) or "last changes approved".
         state.detail?.let { ChangeRequestCard(it, state.busy, onIntent) }
+        // Waiting for verification: moderator Approve / Reject, owner "Verify your identity" etc.
+        ApprovalSection(state, onIntent)
         // A past tenant to review first (blocks new invites for this property).
         state.reviewsDue.firstOrNull()?.let { due ->
             Banner(
@@ -379,7 +537,7 @@ private fun Banners(state: PropertyDetailState, onIntent: (PropertyDetailIntent)
                 onIntent(PropertyDetailIntent.Action(PropertyAction.ACTIVATE))
             }
             pub == "REJECTED" -> Banner(stringResource(R.string.manage_banner_rejected), property.moderationNote, AuthColors.OrangeText, stringResource(R.string.manage_fix_resubmit).takeIf { state.canManage }) {
-                onIntent(PropertyDetailIntent.Edit(com.saferenttechnologies.android.domain.model.WizardStep.REVIEW))
+                onIntent(PropertyDetailIntent.Edit(com.saferenttechnologies.android.domain.model.WizardStep.LAST))
             }
             pub == "PENDING_VERIFICATION" -> Banner(stringResource(R.string.manage_banner_pending), null, Color(0xFF2563EB), null) {}
             pub == "APPROVED" -> Banner(stringResource(R.string.manage_banner_approved), null, Color(0xFF0D9488), stringResource(R.string.manage_action_publish).takeIf { state.canManage }) {

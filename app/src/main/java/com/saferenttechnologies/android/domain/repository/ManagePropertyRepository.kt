@@ -40,10 +40,16 @@ interface ManagePropertyRepository {
     suspend fun leases(propertyId: String, active: Boolean): AppResult<List<Lease>>
     /** Landlord: tenants of every property (GET leases without propertyId). */
     suspend fun allLeases(active: Boolean): AppResult<List<Lease>>
+
+    /** Moderator: POST properties/{id}/review { decision APPROVE | REJECT, withoutOwnershipDocument?, reason? }. */
+    suspend fun review(id: String, approve: Boolean, withoutProof: Boolean = false, reason: String = ""): AppResult<ActionResult>
     suspend fun invitations(propertyId: String, status: String): AppResult<List<Invitation>>
     suspend fun createInvitation(propertyId: String, input: CreateInvitation): AppResult<InvitationCreated>
     suspend fun renewInvitationLink(invitationId: String, expiresInDays: Int): AppResult<InvitationLink>
     suspend fun revokeInvitation(invitationId: String): AppResult<ActionResult>
+    /** GET invitations/{id}/tenant-details (owner / lease managers). */
+    suspend fun tenantDetails(invitationId: String): AppResult<com.saferenttechnologies.android.domain.model.TenantDetailsView> =
+        AppResult.Failure(com.saferenttechnologies.android.domain.model.AppError.Unknown())
     suspend fun applications(propertyId: String, status: String): AppResult<List<RentalApplication>>
     suspend fun decideApplication(applicationId: String, decision: ApplicationDecision): AppResult<ActionResult>
     suspend fun statusHistory(propertyId: String, page: Int): AppResult<Page<StatusChange>>

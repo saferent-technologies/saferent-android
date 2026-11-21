@@ -67,6 +67,9 @@ class AddPropertyViewModel @Inject constructor(
     private val manage: ManagePropertyRepository,
     private val logger: AppLogger,
     private val panoramas: com.saferenttechnologies.android.domain.repository.PanoramaFiles,
+    private val videoUploads: com.saferenttechnologies.android.domain.repository.VideoUploadQueue,
+    private val kyc: com.saferenttechnologies.android.domain.repository.KycRepository,
+    private val compliance: com.saferenttechnologies.android.domain.repository.ComplianceRepository,
     sessionEvents: SessionEvents,
 ) : MviViewModel<AddPropertyState, AddPropertyIntent, AddPropertyEffect>(AddPropertyState()) {
 
@@ -138,6 +141,40 @@ class AddPropertyViewModel @Inject constructor(
             } else banner(AddPropertyMessage.MAX_PHOTOS)
             AddPropertyIntent.ClosePanoramaCamera -> setState { copy(panoramaFor = null) }
             is AddPropertyIntent.PanoramaCaptured -> panoramaCaptured(intent.filePath)
+            is AddPropertyIntent.OpenVideoCamera -> setState { copy(videoFor = intent.target) }
+            AddPropertyIntent.CloseVideoCamera -> setState { copy(videoFor = null) }
+            AddPropertyIntent.DismissVerifyOwner -> setState { copy(verifyOwnerSheet = false, ownerInReviewSheet = false) }
+            is AddPropertyIntent.RetryVideo -> currentState.property?.id?.let { videoUploads.retry(it, intent.upload) }
+            is AddPropertyIntent.AskDeleteVideo -> if (!currentState.busy) setState { copy(deleteVideoId = intent.videoId) }
+            AddPropertyIntent.DismissDeleteVideo -> setState { copy(deleteVideoId = null) }
+            is AddPropertyIntent.OpenFurniture -> setState { copy(openFurniture = intent.target) }
+            AddPropertyIntent.FurnitureOpened -> setState { copy(openFurniture = null) }
+            AddPropertyIntent.ConfirmDeleteVideo -> currentState.deleteVideoId?.let { videoId ->
+                setState { copy(deleteVideoId = null) }
+                mutate { repository.deleteVideo(it, videoId) }
+            }
+            AddPropertyIntent.SubmitWhileInReview -> {
+                setState { copy(ownerInReviewSheet = false) }
+                confirmOrDeclare()
+            }
+            is AddPropertyIntent.VideoRecorded -> {
+                val target = currentState.videoFor ?: PanoramaTarget()
+                setState { copy(videoFor = null) }
+                val id = currentState.property?.id
+                if (id == null) {
+                    File(intent.filePath).delete()
+                } else {
+                    // One video per place: "Record again" replaces it → remove the old one first (else 409).
+                    val old = currentState.property?.videos?.lastOrNull { it.unitId == target.unitId && it.roomId == target.roomId }
+                    val removed = old == null || mutate { repository.deleteVideo(it, old.id) }
+                    if (removed) {
+                        videoUploads.enqueue(id, intent.filePath, intent.durationSec, target.unitId, target.roomId)
+                        setState { copy(missingVideoUnitIds = missingVideoUnitIds - setOfNotNull(target.unitId)) }
+                    } else {
+                        File(intent.filePath).delete() // error banner shown; record again to retry
+                    }
+                }
+            }
             is AddPropertyIntent.SelectListingType -> setState { copy(listingType = ListingTypes.safe(intent.value)) }
             is AddPropertyIntent.FieldChanged -> fieldChanged(intent)
 
@@ -255,6 +292,9 @@ class AddPropertyViewModel @Inject constructor(
                 submit()
             }
             AddPropertyIntent.DismissSubmit -> setState { copy(confirmSubmit = false) }
+            is AddPropertyIntent.DeclarationAgree -> setState { copy(declareAgree = intent.agree) }
+            AddPropertyIntent.Declare -> declare()
+            AddPropertyIntent.DismissDeclaration -> if (!currentState.declaring) setState { copy(declaration = null, declareAgree = false) }
             AddPropertyIntent.Done -> reset()
         }
     }
@@ -322,7 +362,18 @@ class AddPropertyViewModel @Inject constructor(
         watchUploads(p.id)
     }
 
+    private var videosJob: Job? = null
+
     private fun watchUploads(propertyId: String) {
+        if (videosJob == null) videosJob = viewModelScope.launch {
+            var uploadedBefore = -1
+            videoUploads.observe(propertyId).collect { list ->
+                setState { copy(videoUploads = list) }
+                val uploaded = list.count { it.state == com.saferenttechnologies.android.domain.repository.VideoUploadState.UPLOADED }
+                if (uploadedBefore >= 0 && uploaded > uploadedBefore) reloadProperty() // one reached the server → show it
+                uploadedBefore = uploaded
+            }
+        }
         if (uploadsJob != null) return
         uploadsJob = viewModelScope.launch {
             uploads.observe(propertyId).collect { summary ->
@@ -395,11 +446,7 @@ class AddPropertyViewModel @Inject constructor(
                 // Live listing: last step = "Review your changes" with the change's completeness.
                 if (state.isLiveEdit) (repository.completeness(id) as? AppResult.Success)?.let { r -> setState { copy(completeness = r.data) } }
             }
-            WizardStep.REVIEW -> {
-                setState { copy(loading = true) }
-                val r = repository.completeness(id)
-                setState { copy(loading = false, completeness = (r as? AppResult.Success)?.data ?: completeness) }
-            }
+            // Ownership: loaded by its own screen model (OwnershipViewModel) from the host.
         }
     }
 
@@ -867,7 +914,79 @@ class AddPropertyViewModel @Inject constructor(
         }
         if (currentState.uploads.running > 0) return banner(AddPropertyMessage.WAIT_FOR_UPLOADS)
         if (currentState.missingRequiredPhotos.isNotEmpty()) return banner(AddPropertyMessage.REQUIRED_PHOTOS_MISSING)
-        setState { copy(confirmSubmit = true) }
+        // Every flat needs its video tour (the building's own video stays optional). Fresh copy first:
+        // a video that finished uploading a moment ago must count.
+        reloadProperty()
+        val p = currentState.property
+        val serverVideos = p?.videos.orEmpty()
+        val localUnits = currentState.videoUploads.filter { it.state != com.saferenttechnologies.android.domain.repository.VideoUploadState.FAILED }.mapNotNull { it.unitId }.toSet()
+        logger.d(TAG, "Video check: server videos=${serverVideos.size} (for flats ${serverVideos.count { it.unitId != null }}), sent from this phone=${localUnits.size}, server lists videos=${p?.videosFromServer}")
+        // Server doesn't send "videos" yet → the app can't see uploaded videos, so it doesn't block (the server checks).
+        val missing = if (p?.videosFromServer != true) emptyList() else com.saferenttechnologies.android.domain.model.VideoRules.unitsWithoutVideo(
+            units = p.units.map { it.id to it.unitNumber },
+            serverVideos = serverVideos,
+            uploadingUnitIds = localUnits,
+        )
+        if (missing.isNotEmpty()) {
+            val ids = p?.units.orEmpty().filter { u -> u.unitNumber.ifBlank { u.id } in missing }.map { it.id }.toSet()
+            setState { copy(missingVideoUnits = missing, missingVideoUnitIds = ids) }
+            return banner(AddPropertyMessage.VIDEO_REQUIRED)
+        }
+        // Owner not verified (and not sent for review yet) → verify first: SafeRent approves
+        // properties only from verified owners. Status unknown (offline) → don't block here.
+        val status = (kyc.status() as? AppResult.Success)?.data
+        if (status != null && !status.isApproved && !status.isSubmitted) return setState { copy(verifyOwnerSheet = true) }
+        // Verification sent, not reviewed yet → tell them, they can still send the property.
+        if (status != null && status.isSubmitted) return setState { copy(ownerInReviewSheet = true) }
+        confirmOrDeclare()
+    }
+
+    /**
+     * Last step before submitting: the ownership declaration. Not made (or the text changed) → show it;
+     * made / can't check (offline, older server) → "Are you sure?" (the server checks again on submit).
+     */
+    private suspend fun confirmOrDeclare() {
+        val id = currentState.property?.id
+        if (id == null || currentState.isLiveEdit) return setState { copy(confirmSubmit = true) }
+        val d = (compliance.compliance(id) as? AppResult.Success)?.data?.declaration
+        if (d != null && !d.current && d.text.isNotBlank()) {
+            setState { copy(declaration = d, declareAgree = false, declarationOwnerOnly = false) }
+        } else {
+            setState { copy(confirmSubmit = true) }
+        }
+    }
+
+    /** Submit said "Confirm the ownership declaration." → open it. */
+    private suspend fun openDeclaration() {
+        val id = currentState.property?.id ?: return
+        val d = (compliance.compliance(id) as? AppResult.Success)?.data?.declaration ?: return
+        setState { copy(declaration = d, declareAgree = false, declarationOwnerOnly = false) }
+    }
+
+    private suspend fun declare() {
+        val s = currentState
+        val id = s.property?.id ?: return
+        val d = s.declaration ?: return
+        if (!s.declareAgree || s.declaring) return
+        setState { copy(declaring = true) }
+        val r = compliance.declare(id, d.version)
+        setState { copy(declaring = false) }
+        when (r) {
+            is AppResult.Success -> {
+                logger.d(TAG, "Ownership declaration made → submit")
+                setState { copy(declaration = null, declareAgree = false) }
+                submit()
+            }
+            is AppResult.Failure -> {
+                val e = r.error
+                when {
+                    e is AppError.Server && e.httpCode == 403 -> setState { copy(declarationOwnerOnly = true, declareAgree = false) }
+                    // "The declaration text changed. Reload and read it again."
+                    e is AppError.FieldIssues -> openDeclaration()
+                }
+                e.takeUnless { it is AppError.AccountBlocked }?.message?.let { setState { copy(bannerText = it) } }
+            }
+        }
     }
 
     private suspend fun submit() {
@@ -880,10 +999,16 @@ class AddPropertyViewModel @Inject constructor(
                 logger.d(TAG, "Submitted for verification")
                 setState { copy(saving = false, submitted = true, property = r.property) }
             }
-            is SubmitPropertyUseCase.Result.Problems -> setState {
-                // Apartment: "Add the rent." etc. are fixed on the flats.
-                val problems = if (isUnitPriced || isRoomPriced) r.problems.map { (p, _) -> p to ApartmentRules.stepFor(p, apartment = true) } else r.problems
-                copy(saving = false, problems = problems, bannerText = r.message)
+            is SubmitPropertyUseCase.Result.Problems -> {
+                // "Confirm the ownership declaration." → the declaration, not a wizard step.
+                val needsDeclaration = r.problems.any { (p, _) -> com.saferenttechnologies.android.domain.model.ComplianceRules.isDeclarationProblem(p) }
+                val rest = r.problems.filterNot { (p, _) -> com.saferenttechnologies.android.domain.model.ComplianceRules.isDeclarationProblem(p) }
+                setState {
+                    // Apartment: "Add the rent." etc. are fixed on the flats.
+                    val problems = if (isUnitPriced || isRoomPriced) rest.map { (p, _) -> p to ApartmentRules.stepFor(p, apartment = true) } else rest
+                    copy(saving = false, problems = problems, bannerText = if (rest.isEmpty()) null else r.message)
+                }
+                if (needsDeclaration) openDeclaration()
             }
             is SubmitPropertyUseCase.Result.Failed -> {
                 setState { copy(saving = false) }
@@ -927,7 +1052,13 @@ class AddPropertyViewModel @Inject constructor(
             } else {
                 setState { copy(bannerText = error.message) }
             }
-            is AppError.InvalidState -> {
+            is AppError.InvalidState -> if (error.errorCode == "VIDEO_REQUIRED") {
+                // Server: these flats have no video → banner with their numbers + red video slots.
+                val units = currentState.property?.units.orEmpty()
+                val numbers = error.unitIds.map { id -> units.firstOrNull { it.id == id }?.unitNumber?.ifBlank { null } ?: id }
+                setState { copy(missingVideoUnits = numbers, missingVideoUnitIds = error.unitIds.toSet()) }
+                banner(AddPropertyMessage.VIDEO_REQUIRED)
+            } else {
                 // 412 "Your changes are being verified…" → the change can't be edited now.
                 if (error.message.contains("being verified", ignoreCase = true)) setState { copy(locked = true) }
                 setState { copy(bannerText = error.message) }
@@ -948,6 +1079,15 @@ class AddPropertyViewModel @Inject constructor(
         setState { copy(bannerMessage = message, bannerText = text) }
 
     private fun reset() {
+        // Remember where they left (closed / back / save & exit) → "Continue changes" opens there.
+        // Sent for review → forget it (the next edit starts fresh).
+        val s = currentState
+        s.property?.id?.let { id ->
+            if (s.isOpen) {
+                val step = if (s.submitted) null else s.step
+                viewModelScope.launch { draftStore.saveLastStep(id, step) }
+            }
+        }
         uploadsJob?.cancel()
         uploadsJob = null
         lastSucceeded = 0

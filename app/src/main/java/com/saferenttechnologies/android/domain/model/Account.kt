@@ -34,6 +34,8 @@ data class AccountUser(
     val isProfileCompleted: Boolean = false,
     /** auth/me top-level "termsAccepted" — display / diagnostics only. */
     val termsAccepted: Boolean = false,
+    /** Server: identity verified → full name can't be changed in Edit profile. */
+    val nameLocked: Boolean = false,
 ) {
     /** All roles of the account; falls back to [role] when the server sends no list. */
     val allRoles: List<UserRole>

@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.permission
 
+import androidx.compose.foundation.layout.navigationBarsPadding
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -29,8 +30,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.saferenttechnologies.android.R
 import com.saferenttechnologies.android.core.ui.sdp
 import com.saferenttechnologies.android.core.ui.ssp
@@ -43,9 +42,10 @@ import com.saferenttechnologies.android.ui.theme.Inter
 import com.saferenttechnologies.android.ui.theme.PlusJakartaSans
 
 /**
- * Our own popup, always shown BEFORE the system permission dialog.
- * Permanently denied → the button says "Open settings".
+ * Our own bottom sheet, always shown BEFORE the system permission dialog.
+ * Android refused to ask (blocked) → the button says "Open settings".
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun PermissionRationaleDialog(
     prompt: PermissionPrompt,
@@ -53,14 +53,18 @@ fun PermissionRationaleDialog(
     onNotNow: () -> Unit,
 ) {
     val texts = prompt.permission.texts()
-    Dialog(onDismissRequest = onNotNow, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    // Bottom sheet (not a centre popup): swipe down / tap outside = "Not now".
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onNotNow,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = AuthColors.Card,
+        dragHandle = { androidx.compose.material3.BottomSheetDefaults.DragHandle(color = AuthColors.Border) },
+    ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = 24.sdp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.sdp))
-                .background(AuthColors.Card)
-                .padding(24.sdp),
+                .navigationBarsPadding()
+                .padding(start = 24.sdp, end = 24.sdp, bottom = 16.sdp, top = 4.sdp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(

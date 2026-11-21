@@ -36,7 +36,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -379,12 +378,6 @@ private fun PrimaryButton(text: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(60.sdp)
-            .shadow(
-                elevation = 18.sdp,
-                shape = shape,
-                ambientColor = OnboardingColors.ButtonStart,
-                spotColor = OnboardingColors.ButtonStart,
-            )
             .clip(shape)
             .background(Brush.horizontalGradient(listOf(OnboardingColors.ButtonStart, OnboardingColors.ButtonEnd)))
             .clickable(role = Role.Button, onClick = onClick),

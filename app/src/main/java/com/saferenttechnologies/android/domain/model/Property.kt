@@ -154,6 +154,9 @@ data class Property(
     val units: List<PropertyUnit> = emptyList(),
     val rooms: List<PropertyRoom> = emptyList(),
     val images: List<PropertyImage> = emptyList(),
+    val videos: List<PropertyVideo> = emptyList(),
+    /** The property response had a "videos" list. false → server can't report videos yet, so the app can't check them. */
+    val videosFromServer: Boolean = true,
     val documents: List<PropertyDocument> = emptyList(),
     val publicationStatus: String = "DRAFT",
     val verificationStatus: String = "",

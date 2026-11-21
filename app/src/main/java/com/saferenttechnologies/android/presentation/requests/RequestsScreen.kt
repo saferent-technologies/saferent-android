@@ -50,6 +50,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,6 +87,7 @@ import com.saferenttechnologies.android.presentation.property.Chip
 import com.saferenttechnologies.android.presentation.property.ChipGrid
 import com.saferenttechnologies.android.presentation.property.OutlineAction
 import com.saferenttechnologies.android.presentation.property.absoluteUrl
+import com.saferenttechnologies.android.presentation.manage.calendarDate
 import com.saferenttechnologies.android.presentation.property.optionLabel
 import com.saferenttechnologies.android.presentation.property.propertyFieldColors
 import com.saferenttechnologies.android.ui.theme.Inter
@@ -135,11 +138,26 @@ private fun StatusChip(r: ServiceRequest) = StatusPill(r.statusLabel.ifBlank { o
 fun RequestsScreen(state: RequestsState, effects: Flow<RequestsEffect>, onIntent: (RequestsIntent) -> Unit) {
     BackHandler { onIntent(RequestsIntent.Back) }
     val context = LocalContext.current
-    val unreadable = stringResource(R.string.pay_proof_unreadable)
+    val codes = mapOf(
+        RequestsViewModel.PHOTO_UNREADABLE to stringResource(R.string.pay_proof_unreadable),
+        RequestsViewModel.MEDIA_TWO_VIDEOS to stringResource(R.string.req_media_two_videos),
+        RequestsViewModel.MEDIA_LIMIT to stringResource(R.string.req_media_limit, RequestRules.MAX_PHOTOS),
+        RequestsViewModel.MEDIA_VIDEO_BIG to stringResource(R.string.req_media_video_big),
+        RequestsViewModel.MEDIA_FILE_BIG to stringResource(R.string.req_media_file_big),
+        RequestsViewModel.MEDIA_NOT_VIDEO to stringResource(R.string.req_media_not_video),
+    )
+    val noPdfApp = stringResource(R.string.req_no_pdf_app)
     LaunchedEffect(Unit) {
         effects.collect { e ->
-            if (e is RequestsEffect.Message) {
-                Toast.makeText(context, if (e.text == RequestsViewModel.PHOTO_UNREADABLE) unreadable else e.text, Toast.LENGTH_LONG).show()
+            when (e) {
+                is RequestsEffect.Message -> Toast.makeText(context, codes[e.text] ?: e.text, Toast.LENGTH_LONG).show()
+                // Invoice PDF (in cache, shared read-only) → the phone's PDF viewer.
+                is RequestsEffect.OpenPdf -> {
+                    val open = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                        .setDataAndType(android.net.Uri.parse(e.uri), "application/pdf")
+                        .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    runCatching { context.startActivity(open) }.onFailure { Toast.makeText(context, noPdfApp, Toast.LENGTH_LONG).show() }
+                }
             }
         }
     }
@@ -158,7 +176,58 @@ fun RequestsScreen(state: RequestsState, effects: Flow<RequestsEffect>, onIntent
         }
     }
     state.sheet?.let { RequestActionSheet(state, it, onIntent) }
+    state.work?.let { w -> WorkDetailsSheet(w, state.workProblems, state.workErrors, state.busy, onIntent) }
     state.viewer?.let { (urls, start) -> PhotoViewer(urls, start) { onIntent(RequestsIntent.CloseViewer) } }
+    // Request videos: signed-in stream (Range), full screen.
+    state.playing?.let { url -> com.saferenttechnologies.android.presentation.video.TourVideoPlayer(url, withAuth = true) { onIntent(RequestsIntent.PlayVideo(null)) } }
+    // Short video from the camera, 720p (camera permission was asked through our popup first).
+    if (state.recordFor != null) {
+        com.saferenttechnologies.android.presentation.video.VideoRecordScreen(
+            onRecorded = { path, _ -> onIntent(RequestsIntent.VideoRecorded(path)) },
+            onClose = { onIntent(RequestsIntent.CloseRecorder) },
+            hd720 = true,
+        )
+    }
+    UploadProgress(state.preparing, state.uploading)
+}
+
+/** "Preparing video… 40%" (made 720p on the phone) then "Uploading… 60%". */
+@Composable
+private fun UploadProgress(preparing: Int?, uploading: Int?) {
+    val pct = preparing ?: uploading ?: return
+    Dialog(onDismissRequest = {}, properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)) {
+        Column(
+            Modifier.clip(RoundedCornerShape(16.sdp)).background(AuthColors.Card).padding(20.sdp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                stringResource(if (preparing != null) R.string.req_preparing_video else R.string.req_uploading),
+                color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp,
+            )
+            Spacer(Modifier.height(12.sdp))
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { pct.coerceIn(0, 100) / 100f },
+                color = AuthColors.Orange,
+                trackColor = AuthColors.Surface,
+                modifier = Modifier.width(200.sdp),
+            )
+            Spacer(Modifier.height(8.sdp))
+            Text("$pct%", color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp)
+        }
+    }
+}
+
+/** Photos and videos: video → player, photo → viewer (photos only, swipe). */
+@Composable
+private fun MediaStrip(items: List<com.saferenttechnologies.android.domain.model.RequestPhoto>, onIntent: (RequestsIntent) -> Unit) {
+    if (items.isEmpty()) return
+    val urls = items.map { absoluteUrl(it.url) }
+    val videos = items.filter { it.isVideo }.map { absoluteUrl(it.url) }.toSet()
+    val images = urls.filterNot { it in videos }
+    PhotoStrip(urls, videos, onOpen = { i ->
+        val u = urls[i]
+        if (u in videos) onIntent(RequestsIntent.PlayVideo(u)) else onIntent(RequestsIntent.ViewPhotos(images, images.indexOf(u).coerceAtLeast(0)))
+    })
 }
 
 @Composable
@@ -271,7 +340,7 @@ private fun ColumnScope.RaiseContent(state: RequestsState, onIntent: (RequestsIn
     val f = state.raise
     val types = state.options?.types.orEmpty()
     val type = types.firstOrNull { it.key == f.type }
-    val picker = rememberPhotoPicker(RequestRules.MAX_PHOTOS - f.photos.size) { onIntent(RequestsIntent.RaiseAddPhotos(it)) }
+    val picker = rememberPhotoPicker(RequestRules.MAX_PHOTOS - f.photos.size, onRecordVideo = { onIntent(RequestsIntent.RecordVideo(MediaTarget.RAISE)) }) { onIntent(RequestsIntent.RaiseAddPhotos(it)) }
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.sdp)) {
         if (state.rentalTitle.isNotBlank()) {
             Text(stringResource(R.string.req_for_rental, state.rentalTitle), color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp)
@@ -345,6 +414,7 @@ private fun ColumnScope.RaiseContent(state: RequestsState, onIntent: (RequestsIn
 
         Spacer(Modifier.height(16.sdp))
         Heading(stringResource(R.string.req_q_photos, f.photos.size, RequestRules.MAX_PHOTOS))
+        Text(stringResource(R.string.req_media_hint), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp, modifier = Modifier.padding(bottom = 8.sdp))
         PhotoStrip(f.photos, onRemove = { onIntent(RequestsIntent.RaiseRemovePhoto(it)) })
         if (f.photos.isNotEmpty()) Spacer(Modifier.height(8.sdp))
         AddPhotoButtons(picker, enabled = !state.busy && f.photos.size < RequestRules.MAX_PHOTOS)
@@ -388,7 +458,7 @@ private fun ColumnScope.DetailContent(state: RequestsState, onIntent: (RequestsI
         if (state.detailLoading) com.saferenttechnologies.android.presentation.common.RequestDetailSkeleton()
         return
     }
-    val urlOf = r.photos.associate { it.id to absoluteUrl(it.url) }
+    val photoOf = r.photos.associateBy { it.id }
     PullToRefreshBox(isRefreshing = state.detailLoading, onRefresh = { onIntent(RequestsIntent.Refresh) }, modifier = Modifier.fillMaxWidth().weight(1f)) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 16.sdp)) {
             // Header
@@ -422,16 +492,22 @@ private fun ColumnScope.DetailContent(state: RequestsState, onIntent: (RequestsI
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.sdp)).background(AuthColors.Surface).padding(12.sdp),
             )
             // Photos of the request itself (update photos sit on their timeline line).
-            val main = r.photos.filter { it.updateId == null }.map { absoluteUrl(it.url) }
+            val main = r.photos.filter { it.updateId == null }
             if (main.isNotEmpty()) {
                 Spacer(Modifier.height(10.sdp))
-                PhotoStrip(main, onOpen = { onIntent(RequestsIntent.ViewPhotos(main, it)) })
+                MediaStrip(main, onIntent)
             }
+
+            // Work details (technician, estimate, start; after resolution: cost + who paid) and receipts.
+            Spacer(Modifier.height(14.sdp))
+            WorkDetailsCard(r, state.landlord, state.busy) { onIntent(RequestsIntent.OpenWork) }
+            Spacer(Modifier.height(10.sdp))
+            InvoicesCard(r, state.landlord, state.busy, state.openingInvoice, onOpen = { onIntent(RequestsIntent.OpenInvoice(it)) }) { onIntent(RequestsIntent.AddInvoice(it)) }
 
             // Timeline
             Spacer(Modifier.height(18.sdp))
             Heading(stringResource(R.string.req_timeline))
-            r.timeline.forEachIndexed { i, e -> TimelineRow(e, last = i == r.timeline.lastIndex, landlord = state.landlord, urlOf = urlOf, onIntent = onIntent) }
+            r.timeline.forEachIndexed { i, e -> TimelineRow(e, last = i == r.timeline.lastIndex, landlord = state.landlord, photoOf = photoOf, onIntent = onIntent) }
 
             // Landlord update panel
             if (state.landlord && r.can.update) {
@@ -452,7 +528,7 @@ private fun Info(text: String) {
 
 /** "Landlord · Status → In progress", remark, photos, time — with a dot + line on the left. */
 @Composable
-private fun TimelineRow(e: RequestEvent, last: Boolean, landlord: Boolean, urlOf: Map<String, String>, onIntent: (RequestsIntent) -> Unit) {
+private fun TimelineRow(e: RequestEvent, last: Boolean, landlord: Boolean, photoOf: Map<String, com.saferenttechnologies.android.domain.model.RequestPhoto>, onIntent: (RequestsIntent) -> Unit) {
     val who = when (e.byRole) {
         "TENANT" -> stringResource(if (landlord) R.string.lease_the_tenant else R.string.req_you).replaceFirstChar { it.uppercase() }
         "LANDLORD" -> stringResource(if (landlord) R.string.req_you else R.string.lease_the_landlord).replaceFirstChar { it.uppercase() }
@@ -489,10 +565,10 @@ private fun TimelineRow(e: RequestEvent, last: Boolean, landlord: Boolean, urlOf
                 Text(ago(e.at), color = AuthColors.Muted, fontFamily = Inter, fontSize = 11.ssp)
             }
             if (e.remark.isNotBlank()) Text(e.remark, color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp, modifier = Modifier.padding(top = 2.sdp))
-            val photos = e.photoIds.mapNotNull { urlOf[it] }
+            val photos = e.photoIds.mapNotNull { photoOf[it] }
             if (photos.isNotEmpty()) {
                 Spacer(Modifier.height(6.sdp))
-                PhotoStrip(photos, onOpen = { onIntent(RequestsIntent.ViewPhotos(photos, it)) })
+                MediaStrip(photos, onIntent)
             }
         }
     }
@@ -504,13 +580,32 @@ private fun UpdatePanel(state: RequestsState, r: ServiceRequest, onIntent: (Requ
     val statuses = state.options?.landlordStatuses?.ifEmpty { null }
         ?: listOf("OPEN" to stringResource(R.string.req_st_pending), "IN_PROGRESS" to stringResource(R.string.req_st_progress), "RESOLVED" to stringResource(R.string.req_st_resolved))
     val selected = state.updStatus ?: r.status
-    val picker = rememberPhotoPicker(RequestRules.MAX_PHOTOS - state.updPhotos.size) { onIntent(RequestsIntent.UpdAddPhotos(it)) }
+    val picker = rememberPhotoPicker(RequestRules.MAX_PHOTOS - state.updPhotos.size, onRecordVideo = { onIntent(RequestsIntent.RecordVideo(MediaTarget.UPDATE)) }) { onIntent(RequestsIntent.UpdAddPhotos(it)) }
+    var pickingStart by remember { mutableStateOf(false) }
+    val changing = state.updStatus?.takeIf { it != r.status }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp)).border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp)).padding(14.sdp)) {
         Heading(stringResource(R.string.req_update_title))
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
             statuses.forEach { (key, label) ->
                 Chip(label, selected = selected == key, enabled = !state.busy, modifier = Modifier.widthIn(min = 72.sdp), maxLines = 1) { onIntent(RequestsIntent.UpdStatus(key)) }
             }
+        }
+        // "In progress": work start date (today by default, changeable).
+        if (changing == "IN_PROGRESS" && state.updStartDate != null) {
+            Spacer(Modifier.height(10.sdp))
+            Text(stringResource(R.string.req_work_start_date), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.ssp)
+            Spacer(Modifier.height(6.sdp))
+            OutlineAction(calendarDate(state.updStartDate), R.drawable.ic_edit, enabled = !state.busy, modifier = Modifier.fillMaxWidth(), compact = true) { pickingStart = true }
+        }
+        // "Resolved": who paid (optional for the owner) + amount.
+        if (changing == "RESOLVED") {
+            Spacer(Modifier.height(12.sdp))
+            WhoPaid(
+                state.updPaidBy, state.updAmount, r.estimatedCost, landlord = true, enabled = !state.busy,
+                amountError = resolveError(RequestRules.resolveProblem(state.updPaidBy, state.updAmount, payerRequired = false)),
+                onPaidBy = { k -> onIntent(RequestsIntent.UpdPaidBy(k.takeUnless { it == state.updPaidBy })) },
+                onAmount = { onIntent(RequestsIntent.UpdAmount(it)) },
+            )
         }
         Spacer(Modifier.height(10.sdp))
         // No floating label: the "e.g." example shows in the empty box and goes away on tap.
@@ -534,6 +629,16 @@ private fun UpdatePanel(state: RequestsState, r: ServiceRequest, onIntent: (Requ
         Spacer(Modifier.height(12.sdp))
         AuthPrimaryButton(text = stringResource(R.string.req_send_update), enabled = state.canSendUpdate, loading = state.busy, onClick = { onIntent(RequestsIntent.SendUpdate) }, fontSize = 15.ssp, shadow = false)
     }
+    if (pickingStart) WorkDatePicker(state.updStartDate, onDismiss = { pickingStart = false }) { d -> pickingStart = false; onIntent(RequestsIntent.UpdStartDate(d)) }
+}
+
+/** Amount / who-paid problems (the server checks again). */
+@Composable
+private fun resolveError(p: RequestRules.ResolveProblem?): String? = when (p) {
+    null -> null
+    RequestRules.ResolveProblem.NO_PAYER -> stringResource(R.string.req_err_no_payer)
+    RequestRules.ResolveProblem.BAD_AMOUNT -> stringResource(R.string.req_err_amount)
+    RequestRules.ResolveProblem.NO_COST_AMOUNT -> stringResource(R.string.req_err_no_cost_amount)
 }
 
 /** Bottom buttons, only those `can` allows. */
@@ -584,7 +689,12 @@ private fun ActionBar(state: RequestsState, r: ServiceRequest, onIntent: (Reques
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RequestActionSheet(state: RequestsState, sheet: RequestSheet, onIntent: (RequestsIntent) -> Unit) {
-    val picker = rememberPhotoPicker(RequestRules.MAX_PHOTOS - state.sheetPhotos.size) { onIntent(RequestsIntent.SheetAddPhotos(it)) }
+    val resolve = sheet == RequestSheet.RESOLVE
+    val picker = rememberPhotoPicker(
+        RequestRules.MAX_PHOTOS - state.sheetPhotos.size,
+        onRecordVideo = { onIntent(RequestsIntent.RecordVideo(MediaTarget.SHEET)) },
+        receipts = resolve,
+    ) { onIntent(RequestsIntent.SheetAddPhotos(it)) }
     ModalBottomSheet(
         onDismissRequest = { onIntent(RequestsIntent.DismissSheet) },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -605,6 +715,31 @@ private fun RequestActionSheet(state: RequestsState, sheet: RequestSheet, onInte
                 fontSize = 20.ssp,
             )
             Spacer(Modifier.height(12.sdp))
+            if (resolve) {
+                Text(stringResource(R.string.req_fixed_q), color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
+                Spacer(Modifier.height(14.sdp))
+                val r = state.detail
+                val problem = state.resolveProblem
+                if (state.sheetError && problem == RequestRules.ResolveProblem.NO_PAYER) {
+                    Text(stringResource(R.string.req_err_no_payer), color = AuthColors.Error, fontFamily = Inter, fontSize = 12.ssp, modifier = Modifier.padding(bottom = 6.sdp))
+                }
+                WhoPaid(
+                    state.sheetPaidBy, state.sheetAmount, r?.estimatedCost, landlord = state.landlord, enabled = !state.busy,
+                    amountError = if (problem != RequestRules.ResolveProblem.NO_PAYER && (state.sheetError || problem == RequestRules.ResolveProblem.NO_COST_AMOUNT)) resolveError(problem) else null,
+                    onPaidBy = { onIntent(RequestsIntent.SheetPaidBy(it)) },
+                    onAmount = { onIntent(RequestsIntent.SheetAmount(it)) },
+                )
+                // Receipts only when something was paid.
+                if (state.sheetPaidBy != null && state.sheetPaidBy != "NO_COST") {
+                    Spacer(Modifier.height(10.sdp))
+                    Text(stringResource(R.string.req_add_receipt), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.ssp)
+                    Spacer(Modifier.height(6.sdp))
+                    PhotoStrip(state.sheetPhotos, onRemove = { onIntent(RequestsIntent.SheetRemovePhoto(it)) })
+                    if (state.sheetPhotos.isNotEmpty()) Spacer(Modifier.height(8.sdp))
+                    AddPhotoButtons(picker, enabled = !state.busy && state.sheetPhotos.size < RequestRules.MAX_PHOTOS, receipts = true)
+                }
+                Spacer(Modifier.height(12.sdp))
+            }
             val required = sheet == RequestSheet.REOPEN
             OutlinedTextField(
                 value = state.sheetRemark,
@@ -631,12 +766,12 @@ private fun RequestActionSheet(state: RequestsState, sheet: RequestSheet, onInte
             AuthPrimaryButton(
                 text = stringResource(
                     when (sheet) {
-                        RequestSheet.RESOLVE -> R.string.req_resolved_btn
+                        RequestSheet.RESOLVE -> R.string.req_mark_resolved
                         RequestSheet.REOPEN -> R.string.req_reopen
                         RequestSheet.CANCEL -> R.string.req_withdraw
                     },
                 ),
-                enabled = !state.busy && (!required || RequestRules.remarkOk(state.sheetRemark)),
+                enabled = !state.busy && (!required || RequestRules.remarkOk(state.sheetRemark)) && (!resolve || state.sheetPaidBy != null),
                 loading = state.busy,
                 onClick = { onIntent(RequestsIntent.SheetSubmit) },
                 fontSize = 15.ssp,

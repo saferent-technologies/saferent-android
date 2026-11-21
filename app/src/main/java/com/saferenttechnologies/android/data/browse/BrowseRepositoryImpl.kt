@@ -63,8 +63,8 @@ class BrowseRepositoryImpl @Inject constructor(
     override suspend fun listing(id: String): AppResult<ListingDetail> =
         call("GET browse/{id}", { api.listing(id) }) { data, _ -> (data as? JsonObject)?.let(BrowseMapper::detail) }
 
-    override suspend fun reviews(propertyId: String): AppResult<ReviewsPreview> =
-        call("GET property reviews", { api.reviews(propertyId, 3) }) { data, meta -> BrowseMapper.reviews(data, meta) }
+    override suspend fun reviews(propertyId: String, unitId: String?, bedId: String?): AppResult<ReviewsPreview> =
+        call("GET property reviews", { api.reviews(propertyId, 5, unitId, bedId) }) { data, meta -> BrowseMapper.reviews(data, meta) }
 
     override suspend fun apply(propertyId: String, input: ApplyInput): AppResult<String> {
         val body = buildJsonObject {
@@ -319,6 +319,23 @@ object BrowseMapper {
                 val imgId = o.text("id").ifBlank { return@mapNotNull null }
                 ListingPhoto(imgId, o.text("category"), o.text("url").ifBlank { "/api/v1/files/property-images/$imgId" }, o.text("unitId").ifBlank { null })
             },
+            videos = p.arrayAt("videos").mapNotNull { v ->
+                val o = v as? JsonObject ?: return@mapNotNull null
+                val vid = o.text("id").ifBlank { return@mapNotNull null }
+                com.saferenttechnologies.android.domain.model.PropertyVideo(
+                    id = vid,
+                    url = o.text("url").ifBlank { "/api/v1/files/property-videos/$vid" },
+                    thumbnailUrl = o.text("thumbnailUrl"),
+                    durationSec = o.text("durationSec").toDoubleOrNull()?.toInt() ?: 0,
+                    status = o.text("status").ifBlank { "APPROVED" },
+                    unitId = o.text("unitId").ifBlank { null },
+                    roomId = o.text("roomId").ifBlank { null },
+                )
+            },
+            // "What's included" (reduced register items: no serial, dates, notes or repairs).
+            furnishings = com.saferenttechnologies.android.data.inventory.RegisterMapper.items(p),
+            safety = com.saferenttechnologies.android.data.safety.SafetyMapper.listing(p["safety"] as? kotlinx.serialization.json.JsonObject),
+            society = com.saferenttechnologies.android.data.society.SocietyMapper.listing(p["society"] as? kotlinx.serialization.json.JsonObject),
             disclosureLegend = legend,
             myApplication = my,
         )
@@ -334,6 +351,8 @@ object BrowseMapper {
                 comment = o.text("comment").ifBlank { o.text("text") },
                 authorName = o.obj("author")?.text("fullName").orEmpty().ifBlank { o.text("authorName") },
                 createdAt = o.text("createdAt"),
+                place = o.text("place").ifBlank { o.obj("unit")?.text("unitNumber").orEmpty() },
+                tags = o.arrayAt("tags").mapNotNull { (it as? JsonPrimitive)?.content },
             )
         }
         val categories = stats?.obj("categories")?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.doubleOrNull?.let { k to it } }?.toMap().orEmpty()

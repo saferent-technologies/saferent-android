@@ -83,10 +83,10 @@ class LaunchPermissionsViewModel @Inject constructor(
             .filter { permissions.isSupported(it) && !permissions.isGranted(it) }
             .filter { PermissionRules.canPromptOnLaunch(permissions.lastPromptAt(it), now()) }
             .map { p ->
-                PermissionPrompt(
-                    p,
-                    PermissionRules.status(granted = false, askedBefore = permissions.askedBefore(p), rationale[p] == true),
-                )
+                val status = PermissionRules.status(granted = false, askedBefore = permissions.askedBefore(p), rationale[p] == true)
+                // "Asked before + no rationale" is also what Android reports after an "Only this time"
+                // grant ran out → always offer Android's own dialog first, never "Open settings" up front.
+                PermissionPrompt(p, if (status == PermissionStatus.PERMANENTLY_DENIED) PermissionStatus.DENIED else status)
             }
         logger.d(TAG, "Launch permissions to ask: ${queue.map { "${it.permission}=${it.status}" }}")
         setState { LaunchPermissionsState(started = true, prompt = queue.firstOrNull(), queue = queue.drop(1)) }

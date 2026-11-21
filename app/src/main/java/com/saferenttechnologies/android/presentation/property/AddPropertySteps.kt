@@ -172,24 +172,30 @@ fun ChipRows(items: List<String>, perRow: Int = 3, content: @Composable (String)
 }
 
 @Composable
-fun OutlineAction(text: String, icon: Int? = null, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.sdp)
+fun OutlineAction(text: String, icon: Int? = null, enabled: Boolean = true, modifier: Modifier = Modifier, compact: Boolean = false, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(if (compact) 10.sdp else 12.sdp)
     Row(
         modifier
-            .heightIn(min = 48.sdp)
+            .heightIn(min = if (compact) 38.sdp else 48.sdp)
             .clip(shape)
             // Disabled = grey border / muted text, not clickable (no faded orange).
-            .border(1.5.sdp, if (enabled) AuthColors.Orange else AuthColors.Border, shape)
+            .border(if (compact) 1.sdp else 1.5.sdp, if (enabled) AuthColors.Orange else AuthColors.Border, shape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 14.sdp, vertical = 10.sdp),
+            .padding(horizontal = if (compact) 10.sdp else 14.sdp, vertical = if (compact) 6.sdp else 10.sdp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
         icon?.let {
-            Icon(painterResource(it), null, tint = if (enabled) AuthColors.OrangeText else AuthColors.Muted, modifier = Modifier.size(18.sdp))
-            Spacer(Modifier.width(8.sdp))
+            Icon(painterResource(it), null, tint = if (enabled) AuthColors.OrangeText else AuthColors.Muted, modifier = Modifier.size(if (compact) 16.sdp else 18.sdp))
+            Spacer(Modifier.width(if (compact) 6.sdp else 8.sdp))
         }
-        Text(text, color = if (enabled) AuthColors.OrangeText else AuthColors.Muted, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 14.ssp)
+        Text(
+            text, color = if (enabled) AuthColors.OrangeText else AuthColors.Muted, fontFamily = Inter, fontWeight = FontWeight.Medium,
+            fontSize = if (compact) 13.ssp else 14.ssp,
+            // Compact: one line, never grows the card.
+            maxLines = if (compact) 1 else Int.MAX_VALUE,
+            overflow = if (compact) androidx.compose.ui.text.style.TextOverflow.Ellipsis else androidx.compose.ui.text.style.TextOverflow.Clip,
+        )
     }
 }
 
@@ -956,9 +962,34 @@ private fun FlatPanelSection(state: AddPropertyState, unitLabel: String, onInten
         onClick = { onIntent(AddPropertyIntent.SaveFlatAmenities) },
     )
 
-    // 360° view of this flat / room (optional; opens the 360 camera directly).
+    // Video tour of this flat / room (optional; records in the app with the SafeRent watermark).
     Spacer(Modifier.height(24.sdp))
-    PanoramaSection(state, onIntent, PanoramaTarget(unitId = panel.unitId, roomId = panel.roomId))
+    // A flat's video is required; a PG room's is optional.
+    VideoSection(state, onIntent, PanoramaTarget(unitId = panel.unitId, roomId = panel.roomId), required = panel.unitId != null)
+    // 360° view: built but switched off for now (AppFeatureFlags.PANORAMA_360).
+    if (com.saferenttechnologies.android.domain.model.AppFeatureFlags.PANORAMA_360) {
+        Spacer(Modifier.height(24.sdp))
+        PanoramaSection(state, onIntent, PanoramaTarget(unitId = panel.unitId, roomId = panel.roomId))
+    }
+    // Semi / fully furnished → list what's provided (furniture & appliances register).
+    val furnishing = (state.property?.units?.firstOrNull { it.id == panel.unitId }?.values ?: state.property?.rooms?.firstOrNull { it.id == panel.roomId }?.values)?.get("furnishing")
+    if (com.saferenttechnologies.android.domain.model.RegisterRules.furnished(furnishing)) {
+        Spacer(Modifier.height(24.sdp))
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp)).border(1.sdp, AuthColors.Orange, RoundedCornerShape(14.sdp))
+                .clickable(enabled = !state.busy, role = Role.Button) { onIntent(AddPropertyIntent.OpenFurniture(PanoramaTarget(unitId = panel.unitId, roomId = panel.roomId))) }
+                .padding(14.sdp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(painterResource(R.drawable.ic_sofa), null, tint = AuthColors.OrangeText, modifier = Modifier.size(22.sdp))
+            Spacer(Modifier.width(12.sdp))
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.reg_title), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp)
+                Text(stringResource(R.string.reg_wizard_note), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+            }
+            Icon(painterResource(R.drawable.ic_chevron_right), null, tint = AuthColors.Body, modifier = Modifier.size(18.sdp))
+        }
+    }
 
     // Photos of this flat
     Spacer(Modifier.height(24.sdp))

@@ -236,9 +236,14 @@ fun PhotosStep(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
         }
     }
 
-    // 360° view of the whole building (optional). Each flat / PG room has its own in its panel.
+    // Videos: building & common areas (optional) first, then every flat (required), then PG rooms (optional).
     Spacer(Modifier.height(18.sdp))
-    PanoramaSection(state, onIntent)
+    VideosBlock(state, onIntent)
+    // 360° view: built but switched off for now (AppFeatureFlags.PANORAMA_360).
+    if (com.saferenttechnologies.android.domain.model.AppFeatureFlags.PANORAMA_360) {
+        Spacer(Modifier.height(18.sdp))
+        PanoramaSection(state, onIntent)
+    }
 
     // Uploaded photos grouped by category (PENDING until SafeRent verifies the property).
     val sorted = property.images.sortedBy { it.displayOrder ?: Int.MAX_VALUE }
@@ -255,6 +260,150 @@ fun PhotosStep(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
             Spacer(Modifier.height(8.sdp))
         }
     }
+}
+
+/**
+ * "Video tour" of one flat / PG room (or the whole building): record in the app (watermarked,
+ * small file), uploads in the background. Shows where it is: uploading / uploaded / failed (Retry).
+ * Flats must have one ([required]); the building's own video is optional.
+ */
+@Composable
+internal fun VideoSection(
+    state: AddPropertyState,
+    onIntent: (AddPropertyIntent) -> Unit,
+    target: PanoramaTarget = PanoramaTarget(),
+    required: Boolean = false,
+    /** Slot name ("Building & common areas", "Flat 302", "Room 2"); null = "Video tour". */
+    title: String? = null,
+) {
+    val camera = com.saferenttechnologies.android.presentation.permission.rememberPermissionRequester(com.saferenttechnologies.android.domain.model.AppPermission.CAMERA)
+    val video = state.property?.videos.orEmpty().lastOrNull { it.unitId == target.unitId && it.roomId == target.roomId }
+    // Newest recording for this flat / room that's still on its way (or failed).
+    val upload = state.videoUploads.lastOrNull { it.unitId == target.unitId && it.roomId == target.roomId && !(it.state == com.saferenttechnologies.android.domain.repository.VideoUploadState.UPLOADED && video != null) }
+    var playing by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val missing = (required && video == null && upload == null) || (target.unitId != null && target.unitId in state.missingVideoUnitIds)
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.sdp))
+            .border(1.sdp, if (missing) AuthColors.Orange else AuthColors.Border, RoundedCornerShape(14.sdp)).padding(14.sdp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title ?: stringResource(R.string.video_title), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 15.ssp, modifier = Modifier.weight(1f))
+            Text(
+                stringResource(if (required) R.string.add_property_required else R.string.pano_optional),
+                color = if (required) AuthColors.OrangeText else AuthColors.Muted, fontFamily = Inter, fontSize = 12.ssp,
+            )
+        }
+        Spacer(Modifier.height(4.sdp))
+        Text(stringResource(R.string.video_section_hint, com.saferenttechnologies.android.domain.model.VideoRules.MAX_SECONDS), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+        // Where the video is: uploading (with %), failed, or the server's status chip (In review / Live / Rejected).
+        val uploading = upload?.state == com.saferenttechnologies.android.domain.repository.VideoUploadState.UPLOADING
+        when {
+            uploading -> {
+                val pct = upload?.progress ?: -1
+                Spacer(Modifier.height(6.sdp))
+                Text(
+                    if (pct in 0..100) stringResource(R.string.video_uploading_pct, pct) else stringResource(R.string.video_uploading),
+                    color = AuthColors.OrangeText, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 12.ssp,
+                )
+                if (pct in 0..100) {
+                    Spacer(Modifier.height(4.sdp))
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { pct / 100f }, color = AuthColors.Orange, trackColor = AuthColors.Surface,
+                        modifier = Modifier.fillMaxWidth().height(4.sdp).clip(RoundedCornerShape(2.sdp)),
+                    )
+                }
+            }
+            upload?.state == com.saferenttechnologies.android.domain.repository.VideoUploadState.FAILED -> {
+                Spacer(Modifier.height(6.sdp))
+                Text(stringResource(R.string.video_failed_upload) + (upload.message?.let { "\n$it" } ?: ""), color = AuthColors.Error, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 12.ssp)
+            }
+            video != null -> {
+                Spacer(Modifier.height(6.sdp))
+                val (label, fg, bg) = when {
+                    video.isLive -> Triple(stringResource(R.string.video_chip_live), AuthColors.GreenText, AuthColors.GreenBg)
+                    video.isRejected -> Triple(stringResource(R.string.video_chip_rejected), AuthColors.Error, AuthColors.Error.copy(alpha = 0.1f))
+                    else -> Triple(stringResource(R.string.video_chip_review), AuthColors.OrangeText, AuthColors.OrangeSoft)
+                }
+                Text(
+                    label, color = fg, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 11.ssp,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(bg).padding(horizontal = 10.sdp, vertical = 3.sdp),
+                )
+                if (video.isRejected && video.rejectionReason.isNotBlank()) {
+                    Spacer(Modifier.height(4.sdp))
+                    Text(video.rejectionReason, color = AuthColors.Error, fontFamily = Inter, fontSize = 12.ssp)
+                }
+            }
+        }
+        Spacer(Modifier.height(10.sdp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.sdp)) {
+            if (upload?.state == com.saferenttechnologies.android.domain.repository.VideoUploadState.FAILED && java.io.File(upload.filePath).exists()) {
+                OutlineAction(stringResource(R.string.add_property_retry), R.drawable.ic_refresh, modifier = Modifier.weight(1f), compact = true) { onIntent(AddPropertyIntent.RetryVideo(upload)) }
+            } else if (video != null) {
+                OutlineAction(
+                    stringResource(R.string.video_play, com.saferenttechnologies.android.domain.model.VideoRules.clock(video.durationSec)),
+                    R.drawable.ic_play,
+                    modifier = Modifier.weight(1f),
+                    compact = true,
+                ) { playing = true }
+            }
+            OutlineAction(
+                stringResource(if (video != null || upload != null) R.string.video_record_again else R.string.video_record),
+                R.drawable.ic_camera,
+                enabled = !state.busy && !uploading, // one upload at a time per place
+                modifier = Modifier.weight(1f),
+                compact = true,
+            ) { camera.request { granted -> if (granted) onIntent(AddPropertyIntent.OpenVideoCamera(target)) } }
+            // Delete (confirm first). Not while a new one is uploading.
+            if (video != null && !uploading) {
+                Box(
+                    Modifier.size(38.sdp).clip(RoundedCornerShape(10.sdp))
+                        .border(1.sdp, if (state.busy) AuthColors.Border else AuthColors.Error.copy(alpha = 0.6f), RoundedCornerShape(10.sdp))
+                        .clickable(enabled = !state.busy, role = Role.Button) { onIntent(AddPropertyIntent.AskDeleteVideo(video.id)) },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(painterResource(R.drawable.ic_delete), stringResource(R.string.video_delete), tint = if (state.busy) AuthColors.Muted else AuthColors.Error, modifier = Modifier.size(18.sdp)) }
+            }
+        }
+    }
+    if (playing && video != null) {
+        com.saferenttechnologies.android.presentation.video.TourVideoPlayer(absoluteUrl(video.url)) { playing = false }
+    }
+}
+
+/** Media step "Videos": one slot per place. Building first (optional), each flat (required), each PG room (optional). */
+@Composable
+private fun VideosBlock(state: AddPropertyState, onIntent: (AddPropertyIntent) -> Unit) {
+    val p = state.property ?: return
+    Text(stringResource(R.string.video_block_title), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 16.ssp)
+    Spacer(Modifier.height(8.sdp))
+    Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {
+        VideoSection(state, onIntent, PanoramaTarget(), required = false, title = stringResource(R.string.listing_building_video))
+        p.units.forEach { u ->
+            VideoSection(state, onIntent, PanoramaTarget(unitId = u.id), required = true, title = "${state.unitWord} ${u.unitNumber}".trim())
+        }
+        p.rooms.forEach { r ->
+            VideoSection(state, onIntent, PanoramaTarget(roomId = r.id), required = false, title = stringResource(R.string.add_property_room_n, r.roomNumber))
+        }
+    }
+}
+
+/** "Delete this video tour?" */
+@Composable
+internal fun DeleteVideoDialog(onIntent: (AddPropertyIntent) -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { onIntent(AddPropertyIntent.DismissDeleteVideo) },
+        title = { Text(stringResource(R.string.video_delete_title), fontFamily = com.saferenttechnologies.android.ui.theme.PlusJakartaSans, fontWeight = FontWeight.ExtraBold) },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { onIntent(AddPropertyIntent.ConfirmDeleteVideo) }) {
+                Text(stringResource(R.string.video_delete), color = AuthColors.Error, fontFamily = Inter, fontWeight = FontWeight.Medium)
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = { onIntent(AddPropertyIntent.DismissDeleteVideo) }) {
+                Text(stringResource(R.string.add_property_cancel), color = AuthColors.Body, fontFamily = Inter)
+            }
+        },
+        containerColor = AuthColors.Card,
+    )
 }
 
 /**
@@ -411,7 +560,10 @@ fun SubmitProblemsList(state: AddPropertyState, onIntent: (AddPropertyIntent) ->
                 Box(Modifier.size(18.sdp).clip(CircleShape).border(2.sdp, AuthColors.Error, CircleShape))
                 Spacer(Modifier.width(10.sdp))
                 Text(problem, color = AuthColors.Ink, fontFamily = Inter, fontSize = 14.ssp, modifier = Modifier.weight(1f))
-                Text(stringResource(R.string.add_property_fix), color = AuthColors.OrangeText, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.ssp)
+                Text(
+                    stringResource(if (step == WizardStep.OWNERSHIP) R.string.own_go_to else R.string.add_property_fix),
+                    color = AuthColors.OrangeText, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.ssp,
+                )
             }
             Spacer(Modifier.height(8.sdp))
         }

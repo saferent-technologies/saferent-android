@@ -52,7 +52,6 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -86,6 +85,9 @@ internal data class AuthPalette(
     val OtpFilled: Color,
     val OtpFilledBorder: Color,
     val Error: Color,
+    /** Small dark pills / banners ("You're offline", "Finding your location…") and their text. */
+    val Toast: Color,
+    val OnToast: Color,
 )
 
 private val LightAuthPalette = AuthPalette(
@@ -111,6 +113,9 @@ private val LightAuthPalette = AuthPalette(
     OtpFilled = Color(0xFFFFF7ED),
     OtpFilledBorder = Color(0xFFF9D5B4),
     Error = Color(0xFFDC2626),
+    // Same as before in light: ink pill, white text.
+    Toast = Color(0xFF0F172A),
+    OnToast = Color.White,
 )
 
 private val DarkAuthPalette = AuthPalette(
@@ -136,6 +141,9 @@ private val DarkAuthPalette = AuthPalette(
     OtpFilled = Color(0xFF2A1A10),
     OtpFilledBorder = Color(0xFF5C3418),
     Error = Color(0xFFF87171),
+    // Dark: a raised grey pill with light text (Ink is near white here, so white text vanished).
+    Toast = Color(0xFF2B313B),
+    OnToast = Color(0xFFF1F5F9),
 )
 
 /** Follows the system light / dark setting. */
@@ -155,7 +163,8 @@ internal fun AuthPrimaryButton(
     @DrawableRes trailingIcon: Int? = null,
     fontSize: TextUnit = 17.ssp,
     /** Orange glow under the button; off on login / OTP. */
-    shadow: Boolean = true,
+    /** Kept for callers; buttons are flat everywhere (no orange glow). */
+    @Suppress("UNUSED_PARAMETER") shadow: Boolean = false,
 ) {
     val shape = RoundedCornerShape(14.sdp)
     val active = enabled && !loading
@@ -167,10 +176,6 @@ internal fun AuthPrimaryButton(
         modifier = modifier
             .fillMaxWidth()
             .height(56.sdp)
-            .then(
-                if (disabled || !shadow) Modifier
-                else Modifier.shadow(12.sdp, shape, ambientColor = AuthColors.Orange, spotColor = AuthColors.Orange),
-            )
             .clip(shape)
             .background(if (disabled) AuthColors.Border else AuthColors.Orange)
             .clickable(enabled = active, role = Role.Button, onClick = onClick),

@@ -7,7 +7,10 @@ espressoCore = "3.7.0"
 lifecycleRuntimeKtx = "2.11.0"
 activityCompose = "1.13.0"
 kotlin = "2.4.0"
-composeBom = "2026.02.01"
+composeBom = "2026.08.00"
+# Compose core (ui / foundation / runtime) above the BOM: 1.13.0 (Nov 2026) has the newest
+# keyboard / text input fixes (keyboard closed and reopened between text fields on Android 17).
+composeCore = "1.13.0"
 ksp = "2.3.11"
 hilt = "2.60.1"
 retrofit = "3.0.0"
@@ -25,6 +28,7 @@ coil = "3.6.3"
 media3 = "1.10.1"
 googleServices = "4.4.4"
 camerax = "1.5.1"
+zxing = "3.5.3"
 playServicesLocation = "21.3.0"
 
 [libraries]
@@ -35,7 +39,8 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
-androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "composeCore" }
+androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "composeCore" }
 androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
@@ -61,6 +66,8 @@ chucker = { group = "com.github.chuckerteam.chucker", name = "library", version.
 chucker-no-op = { group = "com.github.chuckerteam.chucker", name = "library-no-op", version.ref = "chucker" }
 # Splash
 lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", version.ref = "lottie" }
+# QR codes: draw (property / flat) and read CameraX frames. Core only (pure Java, no Play services).
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
 # Firebase (phone OTP sign-in)
@@ -74,10 +81,16 @@ coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref 
 coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
+# Request videos: shrink gallery videos to 720p before upload (Media3, same family as ExoPlayer)
+androidx-media3-transformer = { group = "androidx.media3", name = "media3-transformer", version.ref = "media3" }
+androidx-media3-effect = { group = "androidx.media3", name = "media3-effect", version.ref = "media3" }
 # Add property: in-app camera (CameraX, no gallery) + one GPS fix
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
+# Flat video tour: CameraX recording + watermark drawn into every frame (CameraX effects).
+androidx-camera-video = { group = "androidx.camera", name = "camera-video", version.ref = "camerax" }
+androidx-camera-effects = { group = "androidx.camera", name = "camera-effects", version.ref = "camerax" }
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 # Storage

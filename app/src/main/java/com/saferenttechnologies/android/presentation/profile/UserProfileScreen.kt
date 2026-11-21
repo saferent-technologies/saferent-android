@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.profile
 
+import androidx.compose.ui.focus.focusProperties
 import com.saferenttechnologies.android.core.ui.sdp
 import com.saferenttechnologies.android.core.ui.ssp
 import android.content.res.Configuration
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -47,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -74,6 +77,7 @@ import java.util.TimeZone
 fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> Unit) {
     val form = state.form
     val errors = state.fieldErrors
+    if (state.editing) androidx.activity.compose.BackHandler { onIntent(UserProfileIntent.CloseEdit) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -88,23 +92,25 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.sdp),
         ) {
-            Box(Modifier.fillMaxWidth().heightIn(min = 48.sdp)) {
-                if (state.skippable && !state.registrationRequired) {
-                    Text(
-                        if (state.isSkipping) "Skipping…" else "Skip",
-                        // Muted until a role is picked — Skip needs landlord / tenant first.
-                        color = if (state.form.role != null) AuthColors.Body else AuthColors.Muted,
-                        fontFamily = Inter,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 16.ssp,
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .clip(RoundedCornerShape(8.sdp))
-                            .clickable(enabled = !state.busy, role = Role.Button) { onIntent(UserProfileIntent.Skip) }
-                            .padding(12.sdp),
-                    )
+            if (state.editing) {
+                // Edit profile (from the Profile tab): back + title, no role choice.
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.sdp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(com.saferenttechnologies.android.presentation.common.TOP_ICON).clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(AuthColors.Surface).clickable(enabled = !state.busy, role = Role.Button) { onIntent(UserProfileIntent.CloseEdit) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_chevron_left), stringResource(R.string.add_property_back), tint = AuthColors.Ink,
+                            modifier = Modifier.size(com.saferenttechnologies.android.presentation.common.TOP_ICON_GLYPH),
+                        )
+                    }
+                    Spacer(Modifier.width(12.sdp))
+                    Text(stringResource(R.string.profile_edit_title), color = AuthColors.Ink, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, fontSize = 17.ssp)
                 }
-            }
+            } else {
+            // No "Skip": every detail is needed before the dashboard.
+            Spacer(Modifier.height(48.sdp))
             Spacer(Modifier.height(8.sdp))
             Text(
                 "Tell us about yourself",
@@ -150,6 +156,7 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
                 )
             }
             ErrorText(errors[UserProfileField.ROLE])
+            }
 
             Spacer(Modifier.height(20.sdp))
             Field(
@@ -158,7 +165,15 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
                 error = errors[UserProfileField.FULL_NAME],
                 onChange = { onIntent(UserProfileIntent.NameChanged(it)) },
                 capitalization = KeyboardCapitalization.Words,
+                locked = state.nameLocked,
             )
+            if (state.nameLocked) {
+                Row(Modifier.padding(top = 6.sdp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painterResource(R.drawable.ic_shield_check), null, tint = AuthColors.GreenText, modifier = Modifier.size(14.sdp))
+                    Spacer(Modifier.width(6.sdp))
+                    Text(stringResource(R.string.profile_name_locked), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+                }
+            }
 
             Spacer(Modifier.height(20.sdp))
             SectionLabel("Gender")
@@ -177,6 +192,32 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
             )
 
             Spacer(Modifier.height(16.sdp))
+            // City + state from the phone's location: our popup first, then Android's.
+            val locationPermission = com.saferenttechnologies.android.presentation.permission.rememberPermissionRequester(
+                com.saferenttechnologies.android.domain.model.AppPermission.LOCATION,
+            )
+            val askLocation = {
+                locationPermission.request { granted ->
+                    onIntent(if (granted) UserProfileIntent.UseMyLocation else UserProfileIntent.LocationDenied)
+                }
+            }
+            androidx.compose.runtime.LaunchedEffect(state.isStarted) {
+                if (state.isStarted && !state.locationTried && form.city.isBlank() && form.state.isBlank()) askLocation()
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Where do you live?", color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.ssp, modifier = Modifier.weight(1f))
+                Text(
+                    if (state.locating) "Finding your location…" else "Use my location",
+                    color = if (state.locating || state.busy) AuthColors.Muted else AuthColors.OrangeText,
+                    fontFamily = Inter,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.ssp,
+                    modifier = Modifier.clip(RoundedCornerShape(8.sdp))
+                        .clickable(enabled = !state.locating && !state.busy, role = Role.Button) { askLocation() }
+                        .padding(horizontal = 8.sdp, vertical = 6.sdp),
+                )
+            }
+            Spacer(Modifier.height(6.sdp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.sdp)) {
                 Field(
                     label = "City",
@@ -208,7 +249,7 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
             if (state.showOccupation) {
                 Spacer(Modifier.height(16.sdp))
                 Field(
-                    label = "Occupation (optional)",
+                    label = "Occupation",
                     value = form.occupation,
                     error = errors[UserProfileField.OCCUPATION],
                     onChange = { onIntent(UserProfileIntent.OccupationChanged(it)) },
@@ -255,10 +296,10 @@ fun UserProfileScreen(state: UserProfileState, onIntent: (UserProfileIntent) -> 
                 )
             }
             AuthPrimaryButton(
-                text = "Continue",
+                text = if (state.editing) stringResource(R.string.profile_save) else "Continue",
                 enabled = state.canSave, // never sends a new account without consents
                 loading = state.isSaving,
-                trailingIcon = R.drawable.ic_arrow_forward,
+                trailingIcon = if (state.editing) null else R.drawable.ic_arrow_forward,
                 onClick = { onIntent(UserProfileIntent.Save) },
             )
         }
@@ -405,12 +446,17 @@ private fun Field(
     capitalization: KeyboardCapitalization = KeyboardCapitalization.None,
     keyboardType: KeyboardType = KeyboardType.Text,
     imeAction: ImeAction = ImeAction.Next,
+    /** Shown but can't be changed (verified name). */
+    locked: Boolean = false,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
         label = { Text(label, fontFamily = Inter) },
         singleLine = true,
+        readOnly = locked,
+        enabled = !locked,
+        trailingIcon = if (locked) { { Icon(painterResource(R.drawable.ic_shield_check), null, tint = AuthColors.GreenText, modifier = Modifier.size(18.sdp)) } } else null,
         isError = error != null,
         supportingText = if (error != null) { { Text(error, fontFamily = Inter) } } else null,
         keyboardOptions = KeyboardOptions(capitalization = capitalization, keyboardType = keyboardType, imeAction = imeAction),
@@ -444,6 +490,7 @@ private fun DateField(value: String, error: String?, onClick: () -> Unit) {
             Modifier
                 .matchParentSize()
                 .clip(RoundedCornerShape(12.sdp))
+                .focusProperties { canFocus = false }
                 .clickable(role = Role.Button, onClickLabel = "Pick date of birth", onClick = onClick),
         )
     }

@@ -24,8 +24,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class LeaseSheet { REQUEST, ACCEPT, DECLINE, REVIEW, DEPOSIT }
-enum class LeaseConfirm { SEND, CANCEL }
+enum class LeaseSheet { REQUEST, ACCEPT, DECLINE, REVIEW, DEPOSIT, UNDO, UNDO_DECLINE }
+enum class LeaseConfirm { SEND, CANCEL, UNDO_CANCEL, UNDO_ACCEPT }
 
 data class LeaseDetailState(
     val isOpen: Boolean = false,
@@ -98,6 +98,14 @@ sealed interface LeaseDetailIntent : UiIntent {
     data object SubmitReview : LeaseDetailIntent
     data object DismissSheet : LeaseDetailIntent
 
+    /** Agreed closing → "Keep the lease" (reason) / other side agrees or declines / I withdraw it. */
+    data object StartUndo : LeaseDetailIntent
+    data object SubmitUndo : LeaseDetailIntent
+    data object AskAcceptUndo : LeaseDetailIntent
+    data object StartDeclineUndo : LeaseDetailIntent
+    data object SubmitDeclineUndo : LeaseDetailIntent
+    data object AskCancelUndo : LeaseDetailIntent
+
     data object StartDeposit : LeaseDetailIntent
     data class DepositAmount(val text: String) : LeaseDetailIntent
     data class DepositDate(val date: SimpleDate) : LeaseDetailIntent
@@ -165,10 +173,32 @@ class LeaseDetailViewModel @Inject constructor(
             LeaseDetailIntent.AskCancel -> if (currentState.exit?.open?.canCancel == true) setState { copy(confirm = LeaseConfirm.CANCEL) }
             LeaseDetailIntent.ConfirmCancel -> {
                 val id = currentState.leaseId ?: return
+                val kind = currentState.confirm
                 setState { copy(confirm = null) }
-                act { repository.cancelExit(id) }
+                when (kind) {
+                    LeaseConfirm.UNDO_CANCEL -> act { repository.cancelUndo(id) }
+                    LeaseConfirm.UNDO_ACCEPT -> act { repository.acceptUndo(id) }
+                    else -> act { repository.cancelExit(id) }
+                }
             }
             LeaseDetailIntent.DismissConfirm -> setState { copy(confirm = null) }
+
+            LeaseDetailIntent.StartUndo -> if (currentState.exit?.open?.canUndo == true) setState { copy(sheet = LeaseSheet.UNDO, reason = "", reasonError = false) }
+            LeaseDetailIntent.SubmitUndo -> {
+                val s = currentState
+                val id = s.leaseId ?: return
+                if (!LeaseExitRules.reasonOk(s.reason)) return setState { copy(reasonError = true) }
+                act(closeSheet = true) { repository.requestUndo(id, s.reason) }
+            }
+            LeaseDetailIntent.AskAcceptUndo -> setState { copy(confirm = LeaseConfirm.UNDO_ACCEPT) }
+            LeaseDetailIntent.StartDeclineUndo -> setState { copy(sheet = LeaseSheet.UNDO_DECLINE, note = "", noteError = false) }
+            LeaseDetailIntent.SubmitDeclineUndo -> {
+                val s = currentState
+                val id = s.leaseId ?: return
+                if (!LeaseExitRules.declineOk(s.note)) return setState { copy(noteError = true) }
+                act(closeSheet = true) { repository.declineUndo(id, s.note) }
+            }
+            LeaseDetailIntent.AskCancelUndo -> setState { copy(confirm = LeaseConfirm.UNDO_CANCEL) }
 
             LeaseDetailIntent.StartAccept -> setState { copy(sheet = LeaseSheet.ACCEPT, note = "", noteError = false, addReview = false, reviewError = false) }
             LeaseDetailIntent.StartDecline -> setState { copy(sheet = LeaseSheet.DECLINE, note = "", noteError = false) }

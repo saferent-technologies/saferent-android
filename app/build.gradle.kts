@@ -23,7 +23,10 @@ val apiBaseUrl: String = (localProperties.getProperty("SAFERENT_API_URL") ?: "ht
 android {
     namespace = "com.saferenttechnologies.android"
     compileSdk {
-        version = release(37)
+        // Compose 1.13 needs API 37.1 to compile against (targetSdk stays 37).
+        version = release(37) {
+            minorApiLevel = 1
+        }
     }
 
     defaultConfig {
@@ -63,6 +66,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
@@ -95,12 +99,18 @@ dependencies {
     implementation(libs.coil.network.okhttp)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.transformer)
+    implementation(libs.androidx.media3.effect)
 
     // Add property: in-app camera only (no gallery / file picker) + GPS address
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
+    implementation(libs.androidx.camera.video)
+    implementation(libs.androidx.camera.effects)
+    // QR codes (owner "QR codes" screen + in-app scanner)
+    implementation(libs.zxing.core)
     implementation(libs.play.services.location)
 
     // Storage

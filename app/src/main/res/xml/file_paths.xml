@@ -3,4 +3,6 @@
 <paths>
     <cache-path name="receipts" path="receipts/" />
     <cache-path name="request_photos" path="request-photos/" />
+    <!-- QR code PNGs (Share). -->
+    <cache-path name="qr_codes" path="qr/" />
 </paths>

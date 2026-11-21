@@ -67,7 +67,8 @@ class UnitPricingTest {
         )
         assertTrue(d.isUnitPriced)
         assertEquals("Shop", d.unitWord)
-        assertEquals(listOf("a", "b"), FlatSelection.photos(d, "s1").map { it.id })
+        assertEquals(listOf("a"), FlatSelection.photos(d, "s1").map { it.id })
+        // Unit without photos yet → building photos (front view) instead of an empty header.
         assertEquals(listOf("b"), FlatSelection.photos(d, "s2").map { it.id })
         val community = d.copy(propertyType = "VILLA", building = mapOf("villaListing" to "COMMUNITY"))
         assertTrue(community.isUnitPriced)

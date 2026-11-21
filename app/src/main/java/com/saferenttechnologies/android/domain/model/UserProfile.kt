@@ -114,7 +114,10 @@ object UserProfileValidator {
         }
         if (form.city.isBlank()) put(UserProfileField.CITY, "Enter your city")
         if (form.state.isBlank()) put(UserProfileField.STATE, "Enter your state")
+        // Every detail is required (no skipping) except email and the referral code.
         val email = form.email.trim()
         if (email.isNotEmpty() && !EMAIL.matches(email)) put(UserProfileField.EMAIL, "Enter a valid email")
+        // Occupation is asked of tenants only.
+        if (form.role == UserRole.TENANT && form.occupation.isBlank()) put(UserProfileField.OCCUPATION, "Enter your occupation")
     }
 }

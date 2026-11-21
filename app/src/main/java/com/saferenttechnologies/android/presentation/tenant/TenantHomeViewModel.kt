@@ -45,6 +45,8 @@ data class TenantHomeUiState(
     val dashboardOpen: Boolean = false,
     /** Lease ending (close requested / accepted, move-out date set) → notice period. */
     val inNotice: Boolean = false,
+    /** Lease invitations landlords sent me (open them → accept / decline). */
+    val invitations: List<com.saferenttechnologies.android.domain.model.TenantInvitation> = emptyList(),
 ) : UiState {
     val hasActiveLease: Boolean get() = home is TenantHomeState.Linked
     /** First login / no active lease → Explore; with a lease → dashboard. */
@@ -94,6 +96,7 @@ class TenantHomeViewModel @Inject constructor(
     private val repository: BrowseRepository,
     private val leases: LeaseRepository,
     private val rent: RentRepository,
+    private val invitationRepo: com.saferenttechnologies.android.domain.repository.InvitationRepository,
     sessionEvents: SessionEvents,
 ) : MviViewModel<TenantHomeUiState, TenantHomeIntent, TenantHomeEffect>(TenantHomeUiState()) {
 
@@ -122,6 +125,9 @@ class TenantHomeViewModel @Inject constructor(
     private suspend fun load() {
         setState { copy(loading = true, error = null) }
         loadReviewQueue()
+        viewModelScope.launch {
+            (invitationRepo.mine() as? AppResult.Success)?.let { r -> setState { copy(invitations = r.data) } }
+        }
         viewModelScope.launch {
             (repository.pendingReviews() as? AppResult.Success)?.let { r -> setState { copy(pendingReviews = r.data) } }
         }

@@ -66,6 +66,19 @@ data class PropertyImageDto(
 )
 
 @Serializable
+data class PropertyVideoDto(
+    val id: String = "",
+    val url: String = "",
+    val thumbnailUrl: String? = null,
+    /** Number (42 or 42.0). */
+    val durationSec: Double? = null,
+    val status: String = "",
+    val unitId: String? = null,
+    val roomId: String? = null,
+    val rejectionReason: String? = null,
+)
+
+@Serializable
 data class PropertyDocumentDto(
     val id: String = "",
     val code: String = "",
@@ -104,6 +117,8 @@ data class PropertyDto(
     val units: List<JsonObject> = emptyList(),
     val rooms: List<JsonObject> = emptyList(),
     val images: List<PropertyImageDto> = emptyList(),
+    /** null = the server didn't send "videos" (videos not supported there yet). */
+    val videos: List<PropertyVideoDto>? = null,
     val documents: List<PropertyDocumentDto> = emptyList(),
     val publicationStatus: String = "DRAFT",
     val verificationStatus: String? = null,
@@ -139,6 +154,7 @@ data class PropertyDataDto(
     /** Change request of a live listing (null = none open). */
     val pendingRevision: JsonElement? = null,
     val lastRevision: JsonElement? = null,
+    val approval: JsonElement? = null,
 )
 
 @Serializable

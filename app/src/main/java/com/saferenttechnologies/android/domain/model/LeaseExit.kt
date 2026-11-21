@@ -39,14 +39,35 @@ data class LeaseExitRequest(
     val hasMyReview: Boolean = false,
     val canRespond: Boolean = false,
     val canCancel: Boolean = false,
+    /** Agreed closing: I may ask to undo it (keep the lease); the other side must agree. */
+    val canUndo: Boolean = false,
+    /** Open "keep the lease" request on this agreed closing. */
+    val undo: ExitUndo? = null,
 ) {
     val isPending: Boolean get() = status.equals("PENDING", true)
     val isAccepted: Boolean get() = status.equals("ACCEPTED", true)
 }
 
+/** "Cancel the agreed closing, keep the lease" — asked by one side, the other side agrees or declines. */
+data class ExitUndo(
+    val id: String = "",
+    val requestedByRole: String = "",
+    val requestedBy: String = "",
+    val reason: String = "",
+    /** PENDING (open) · ACCEPTED / DECLINED / CANCELLED. */
+    val status: String = "PENDING",
+    val createdAt: String = "",
+    val canRespond: Boolean = false,
+    val canCancel: Boolean = false,
+) {
+    val isPending: Boolean get() = status.equals("PENDING", true)
+}
+
 /** Lease header on the lease screen (GET leases/{id}, or the list row it was opened from). */
 data class LeaseSummary(
     val id: String,
+    /** For the landlord's uploads (rental agreement, police verification). */
+    val propertyId: String = "",
     val status: String = "",
     val propertyTitle: String = "",
     val place: String = "",
@@ -128,6 +149,7 @@ object LeaseExitRules {
 /** Tenant dashboard lease → the lease screen header (shown before GET leases/{id} answers). */
 fun TenantLease.toSummary() = LeaseSummary(
     id = id,
+    propertyId = propertyId,
     status = "ACTIVE",
     propertyTitle = propertyTitle,
     place = place,

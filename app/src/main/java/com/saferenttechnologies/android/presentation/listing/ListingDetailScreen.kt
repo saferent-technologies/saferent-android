@@ -90,6 +90,8 @@ fun ListingDetailScreen(
     effects: Flow<ListingDetailEffect>,
     onIntent: (ListingDetailIntent) -> Unit,
     onApplicationsChanged: () -> Unit,
+    /** "Book a visit" / "Your visit …" (host decides; hidden when bookings are off). */
+    visitSection: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -139,12 +141,27 @@ fun ListingDetailScreen(
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     // Apartment: the pager restarts at the first photo when the flat changes.
                     var view360 by remember { mutableStateOf(false) }
-                    key(state.selectedUnitId) { PhotoHeader(d, state.photos, onIntent, has360 = state.panoramas.isNotEmpty()) { view360 = true } }
+                    // Video tour of the selected flat (or the building) is the FIRST page, then the photos.
+                    var playVideo by remember { mutableStateOf(false) }
+                    val video = state.videos.firstOrNull()
+                    key(state.selectedUnitId, video?.id) {
+                        PhotoHeader(
+                            d, state.photos, onIntent,
+                            has360 = com.saferenttechnologies.android.domain.model.AppFeatureFlags.PANORAMA_360 && state.panoramas.isNotEmpty(),
+                            on360 = { view360 = true },
+                            video = video,
+                            onPlayVideo = { playVideo = true },
+                        )
+                    }
                     if (view360) {
                         com.saferenttechnologies.android.presentation.panorama.PanoramaViewer(state.panoramas.map { absoluteUrl(it.url) }) { view360 = false }
                     }
+                    if (playVideo && video != null) {
+                        com.saferenttechnologies.android.presentation.video.TourVideoPlayer(absoluteUrl(video.url)) { playVideo = false }
+                    }
                     Column(Modifier.padding(horizontal = 18.sdp)) {
                         TitleBlock(d)
+                        visitSection()
                         if (d.isUnitPriced) {
                             FlatChooserRow(state, d, onIntent)
                             state.selectedUnit?.let { FlatDetailsPanel(it, d) }
@@ -157,6 +174,17 @@ fun ListingDetailScreen(
                             ChooseHome(state, d, onIntent)
                             Highlights(state, d)
                         }
+                        // What's included: the chosen flat's furniture + building items (no serials / costs).
+                        com.saferenttechnologies.android.presentation.furnishings.WhatsIncluded(
+                            d.furnishings.filter { f -> !d.isUnitPriced || f.isBuilding || f.unitId == state.selectedUnitId },
+                            stringResource(R.string.reg_whats_included),
+                        )
+                        // Safety features + verified certificates (no phone numbers here).
+                        com.saferenttechnologies.android.presentation.safety.ListingSafetySection(d.safety)
+                        // Society: maintenance, gate, amenities, rules, moving in (no phone numbers).
+                        com.saferenttechnologies.android.presentation.society.ListingSocietySection(d.society)
+                        // Video tours: Building & common areas first, then each flat / PG room. Hidden when there are none.
+                        if (d.videos.isNotEmpty()) VideoTours(d)
                         if (d.description.isNotBlank()) About(d.description)
                         if (d.amenities.isNotEmpty()) {
                             Amenities(
@@ -196,26 +224,43 @@ private fun PhotoHeader(
     onIntent: (ListingDetailIntent) -> Unit,
     has360: Boolean = false,
     on360: () -> Unit = {},
+    /** Video tour → page 1 (before front view and the other photos). */
+    video: com.saferenttechnologies.android.domain.model.PropertyVideo? = null,
+    onPlayVideo: () -> Unit = {},
 ) {
     Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f)) {
-        if (photos.isEmpty()) {
+        val offset = if (video != null) 1 else 0
+        val pages = photos.size + offset
+        if (pages == 0) {
             ListingCover(null, Modifier.fillMaxSize())
         } else {
-            val pager = rememberPagerState { photos.size }
-            HorizontalPager(pager, Modifier.fillMaxSize()) { i ->
-                AsyncImage(
-                    model = absoluteUrl(photos[i].url),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().background(AuthColors.Surface).clickable { onIntent(ListingDetailIntent.OpenViewer(i)) },
-                )
+            val pager = rememberPagerState { pages }
+            HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
+                if (video != null && page == 0) {
+                    VideoPage(video, photos.firstOrNull()?.url, onPlayVideo)
+                } else {
+                    val i = page - offset
+                    AsyncImage(
+                        model = absoluteUrl(photos[i].url),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().background(AuthColors.Surface).clickable { onIntent(ListingDetailIntent.OpenViewer(i)) },
+                    )
+                }
             }
             Row(Modifier.align(Alignment.BottomStart).padding(12.sdp), horizontalArrangement = Arrangement.spacedBy(6.sdp)) {
-                Badge(optionLabel(photos[pager.currentPage].category))
-                Badge("${pager.currentPage + 1}/${photos.size}")
+                if (video != null && pager.currentPage == 0) {
+                    Badge(
+                        stringResource(R.string.video_button) +
+                            (if (video.durationSec > 0) " · " + com.saferenttechnologies.android.domain.model.VideoRules.clock(video.durationSec) else ""),
+                    )
+                } else {
+                    Badge(optionLabel(photos[pager.currentPage - offset].category))
+                }
+                Badge("${pager.currentPage + 1}/$pages")
             }
             Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 16.sdp), horizontalArrangement = Arrangement.spacedBy(5.sdp)) {
-                repeat(photos.size.coerceAtMost(8)) { i ->
+                repeat(pages.coerceAtMost(8)) { i ->
                     Box(Modifier.size(if (i == pager.currentPage) 8.sdp else 6.sdp).clip(CircleShape).background(Color.White.copy(alpha = if (i == pager.currentPage) 1f else 0.6f)))
                 }
             }
@@ -238,6 +283,99 @@ private fun PhotoHeader(
             HeaderIcon(R.drawable.ic_share, stringResource(R.string.listing_share)) { onIntent(ListingDetailIntent.Share) }
             Spacer(Modifier.width(8.sdp))
             HeaderIcon(R.drawable.ic_flag, stringResource(R.string.listing_report)) { onIntent(ListingDetailIntent.StartReport) }
+        }
+    }
+}
+
+/** "Video tours": building card (16:9) first, then one row per flat / room video. Tap → full screen player. */
+@Composable
+private fun VideoTours(d: ListingDetail) {
+    var playing by remember { mutableStateOf<com.saferenttechnologies.android.domain.model.PropertyVideo?>(null) }
+    val building = d.videos.firstOrNull { it.isBuilding }
+    val unitIndex = d.units.withIndex().associate { (i, u) -> u.id to i }
+    val roomIndex = d.rooms.withIndex().associate { (i, r) -> r.id to i }
+    val flats = d.videos.filter { it.unitId != null }.sortedBy { unitIndex[it.unitId] ?: Int.MAX_VALUE }
+    val rooms = d.videos.filter { it.unitId == null && it.roomId != null }.sortedBy { roomIndex[it.roomId] ?: Int.MAX_VALUE }
+    SectionTitle(stringResource(R.string.listing_video_tours))
+    Column(verticalArrangement = Arrangement.spacedBy(10.sdp)) {
+        building?.let { b ->
+            Text(stringResource(R.string.listing_building_video), color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.ssp)
+            BuildingVideoTile(b, d.photos.firstOrNull { it.unitId == null }?.url) { playing = b }
+        }
+        flats.forEach { v ->
+            val name = d.units.firstOrNull { it.id == v.unitId }?.unitNumber.orEmpty()
+            VideoRow(v, "${d.unitWord} $name".trim()) { playing = v }
+        }
+        rooms.forEach { v ->
+            val name = d.rooms.firstOrNull { it.id == v.roomId }?.roomNumber.orEmpty()
+            VideoRow(v, stringResource(R.string.add_property_room_n, name)) { playing = v }
+        }
+    }
+    playing?.let { v -> com.saferenttechnologies.android.presentation.video.TourVideoPlayer(absoluteUrl(v.url)) { playing = null } }
+}
+
+/** Flat / room video: small 16:9 picture + name + length. */
+@Composable
+private fun VideoRow(video: com.saferenttechnologies.android.domain.model.PropertyVideo, title: String, onPlay: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.sdp)).border(1.sdp, AuthColors.Border, RoundedCornerShape(12.sdp))
+            .clickable(role = Role.Button, onClick = onPlay).padding(8.sdp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(96.sdp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.sdp)).background(Color.Black), contentAlignment = Alignment.Center) {
+            if (video.thumbnailUrl.isNotBlank()) {
+                AsyncImage(model = absoluteUrl(video.thumbnailUrl), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            }
+            Box(Modifier.size(28.sdp).clip(CircleShape).background(AuthColors.Orange), contentAlignment = Alignment.Center) {
+                Icon(painterResource(R.drawable.ic_play), null, tint = Color.White, modifier = Modifier.size(16.sdp))
+            }
+        }
+        Spacer(Modifier.width(12.sdp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 14.ssp)
+            if (video.durationSec > 0) Text(com.saferenttechnologies.android.domain.model.VideoRules.clock(video.durationSec), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+        }
+    }
+}
+
+/** "Building & common areas": 16:9 picture with a play button and the length. */
+@Composable
+private fun BuildingVideoTile(video: com.saferenttechnologies.android.domain.model.PropertyVideo, fallbackPhoto: String?, onPlay: () -> Unit) {
+    Box(
+        Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(14.sdp)).background(Color.Black)
+            .clickable(role = Role.Button, onClick = onPlay),
+        contentAlignment = Alignment.Center,
+    ) {
+        val picture = video.thumbnailUrl.ifBlank { fallbackPhoto.orEmpty() }
+        if (picture.isNotBlank()) {
+            AsyncImage(model = absoluteUrl(picture), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+        Box(Modifier.size(52.sdp).clip(CircleShape).background(AuthColors.Orange), contentAlignment = Alignment.Center) {
+            Icon(painterResource(R.drawable.ic_play), stringResource(R.string.listing_building_video), tint = Color.White, modifier = Modifier.size(26.sdp))
+        }
+        if (video.durationSec > 0) {
+            Box(Modifier.align(Alignment.BottomStart).padding(10.sdp)) {
+                Badge(com.saferenttechnologies.android.domain.model.VideoRules.clock(video.durationSec))
+            }
+        }
+    }
+}
+
+/** First page of the header: the video's picture (or the first photo) with a big play button. */
+@Composable
+private fun VideoPage(video: com.saferenttechnologies.android.domain.model.PropertyVideo, fallbackPhoto: String?, onPlay: () -> Unit) {
+    Box(
+        Modifier.fillMaxSize().background(Color.Black).clickable(role = Role.Button, onClick = onPlay),
+        contentAlignment = Alignment.Center,
+    ) {
+        val picture = video.thumbnailUrl.ifBlank { fallbackPhoto.orEmpty() }
+        if (picture.isNotBlank()) {
+            AsyncImage(model = absoluteUrl(picture), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+        Box(Modifier.size(64.sdp).clip(CircleShape).background(AuthColors.Orange), contentAlignment = Alignment.Center) {
+            Icon(painterResource(R.drawable.ic_play), stringResource(R.string.video_button), tint = Color.White, modifier = Modifier.size(32.sdp))
         }
     }
 }
@@ -535,7 +673,9 @@ private fun LocationCard(d: ListingDetail, onOpenMaps: () -> Unit) {
 @Composable
 private fun ReviewsBlock(state: ListingDetailState) {
     val r = state.reviews ?: return
-    SectionTitle(stringResource(R.string.listing_reviews))
+    // Flat / bed picked → what past tenants of THAT flat / bed said about this landlord.
+    val place = state.selectedUnit?.let { stringResource(R.string.listing_reviews_flat) } ?: state.selectedBed?.let { stringResource(R.string.listing_reviews_bed) }
+    SectionTitle(place ?: stringResource(R.string.listing_reviews))
     if (r.reviews.isEmpty()) {
         Text(stringResource(R.string.listing_no_reviews), color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp)
         return
@@ -556,7 +696,9 @@ private fun ReviewsBlock(state: ListingDetailState) {
                 rv.rating?.let { Text("★ " + String.format(java.util.Locale.US, "%.1f", it), color = AuthColors.OrangeText, fontFamily = Inter, fontSize = 12.ssp) }
             }
             if (rv.comment.isNotBlank()) Text(rv.comment, color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp)
-            if (rv.createdAt.isNotBlank()) Text(prettyDate(rv.createdAt), color = AuthColors.Muted, fontFamily = Inter, fontSize = 11.ssp)
+            if (rv.tags.isNotEmpty()) Text(rv.tags.joinToString(" · "), color = AuthColors.OrangeText, fontFamily = Inter, fontSize = 12.ssp)
+            val meta = listOf(rv.place, if (rv.createdAt.isNotBlank()) prettyDate(rv.createdAt) else "").filter { it.isNotBlank() }.joinToString(" · ")
+            if (meta.isNotBlank()) Text(meta, color = AuthColors.Muted, fontFamily = Inter, fontSize = 11.ssp)
         }
     }
 }

@@ -11,10 +11,10 @@ object WizardStep {
     const val OPTIONAL = 7
     const val PHOTOS = 8
     const val DOCUMENTS = 9
-    /** Old drafts may still be saved at 10; the wizard now ends (and submits) on DOCUMENTS. */
-    const val REVIEW = 10
-    const val LAST = DOCUMENTS
-    const val COUNT = 9
+    /** Who owns the property (private). Last step: "Submit for verification" is here. Old drafts saved at 10 resume here too. */
+    const val OWNERSHIP = 10
+    const val LAST = OWNERSHIP
+    const val COUNT = 10
 }
 
 /** A problem with one field. Server messages win; local ones are shown via strings.xml. */
@@ -74,6 +74,12 @@ object FieldValidator {
             }
             field.maxLength?.let { if (value.length > it) put(field.key, FieldError.TooLong(it)) }
             if (field.digitsOnly && !value.all(Char::isDigit)) put(field.key, FieldError.NotANumber)
+            else if (field.digitsOnly && !field.type.numeric) {
+                // Digits kept as text (water hours …): still respect min / max.
+                val n = value.toDoubleOrNull()
+                if (n != null && field.max != null && n > field.max) put(field.key, FieldError.AboveMax(field.max))
+                if (n != null && field.min != null && n < field.min) put(field.key, FieldError.BelowMin(field.min))
+            }
             if (field.type.numeric) {
                 val number = value.toDoubleOrNull()
                 when {
@@ -117,6 +123,8 @@ object SubmitProblems {
         return when {
             listOf("pin", "address", "locality", "city", "state", "location", "latitude", "longitude").any { it in p } -> WizardStep.LOCATION
             "photo" in p || "image" in p -> WizardStep.PHOTOS
+            // "Upload the Power of Attorney document for the representative." → Ownership, not Documents.
+            listOf("power of attorney", "representative", "co-owner", "co owner", "ownership details", "owner share", "your share", "company name").any { it in p } -> WizardStep.OWNERSHIP
             "document" in p || "ownership" in p || "deed" in p -> WizardStep.DOCUMENTS
             listOf("rent", "deposit", "price", "charge", "maintenance").any { it in p } -> WizardStep.PRICING
             listOf("flat", "unit", "room", "bed", "villa", "house").any { it in p } -> WizardStep.UNITS
@@ -141,6 +149,7 @@ fun humanize(value: String): String =
 object FieldOverrides {
     val PARKING_OPTIONS = listOf("BIKE", "CAR", "BOTH", "NONE")
     private val DIGIT_KEYS = setOf("unitNumber", "flatNumber")
+    private const val WATER_HOURS = "waterAvailability"
     private val PARKING_KEY = Regex("parking", RegexOption.IGNORE_CASE)
     private val PARKING_COUNT = Regex("slot|count|number|spaces|total", RegexOption.IGNORE_CASE)
 
@@ -149,6 +158,8 @@ object FieldOverrides {
 
     fun adjust(field: FieldDef): FieldDef = when {
         field.key in DIGIT_KEYS -> field.copy(type = FieldType.TEXT, digitsOnly = true)
+        // Water availability = hours a day → numbers keyboard, 0 to 24 (sent as text, like the server expects).
+        field.key == WATER_HOURS -> field.copy(type = FieldType.TEXT, digitsOnly = true, maxLength = 2, min = 0.0, max = 24.0)
         PARKING_KEY.containsMatchIn(field.key) && !PARKING_COUNT.containsMatchIn(field.key) &&
             (field.type == FieldType.DISCLOSURE || field.type == FieldType.BOOLEAN || field.type == FieldType.SELECT || field.type == FieldType.TEXT) ->
             field.copy(type = FieldType.SELECT, options = PARKING_OPTIONS)

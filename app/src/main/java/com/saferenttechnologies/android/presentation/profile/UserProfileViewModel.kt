@@ -26,6 +26,7 @@ class UserProfileViewModel @Inject constructor(
     private val skipUserProfile: SkipUserProfileUseCase,
     private val getLoginConsent: GetLoginConsentUseCase,
     private val signOut: SignOutUseCase,
+    private val location: com.saferenttechnologies.android.domain.repository.LocationProvider,
     sessionEvents: SessionEvents,
 ) : MviViewModel<UserProfileState, UserProfileIntent, UserProfileEffect>(UserProfileState()) {
 
@@ -55,8 +56,8 @@ class UserProfileViewModel @Inject constructor(
                     )
                 }
             }
-            is UserProfileIntent.NameChanged -> edit(UserProfileField.FULL_NAME) { copy(fullName = intent.value) }
-            is UserProfileIntent.RoleSelected -> edit(UserProfileField.ROLE) { copy(role = intent.role) }
+            is UserProfileIntent.NameChanged -> if (!currentState.nameLocked) edit(UserProfileField.FULL_NAME) { copy(fullName = intent.value) }
+            is UserProfileIntent.RoleSelected -> if (!currentState.editing) edit(UserProfileField.ROLE) { copy(role = intent.role) }
             is UserProfileIntent.GenderSelected -> edit(UserProfileField.GENDER) { copy(gender = intent.gender) }
             UserProfileIntent.OpenDatePicker -> setState { copy(showDatePicker = true) }
             UserProfileIntent.DismissDatePicker -> setState { copy(showDatePicker = false) }
@@ -71,7 +72,40 @@ class UserProfileViewModel @Inject constructor(
             is UserProfileIntent.ReferralChanged -> edit(UserProfileField.REFERRAL_CODE) { copy(referralCode = intent.value) }
             UserProfileIntent.Save -> save()
             UserProfileIntent.Skip -> skip()
+            UserProfileIntent.UseMyLocation -> useMyLocation()
+            UserProfileIntent.LocationDenied -> setState { copy(locationTried = true) }
             UserProfileIntent.BackToLogin -> signOut() // SignedOut resets every screen → login
+            is UserProfileIntent.StartEdit -> setState {
+                UserProfileState(
+                    isStarted = true,
+                    form = UserProfileForm.from(intent.user).copy(role = intent.activeRole ?: intent.user.role),
+                    user = intent.user,
+                    editing = true,
+                    nameLocked = intent.nameLocked,
+                    locationTried = true, // don't pop the location ask on edit
+                    dashboard = dashboard, // keep: the sign up route checks it
+                )
+            }
+            UserProfileIntent.CloseEdit -> if (!currentState.busy) setState {
+                UserProfileState(dashboard = dashboard)
+            }
+        }
+    }
+
+    /** One GPS fix → device Geocoder → city + state (typed values are replaced only when found). */
+    private suspend fun useMyLocation() {
+        if (currentState.locating) return
+        setState { copy(locating = true, locationTried = true) }
+        val address = location.currentFix()?.let { fix -> location.addressOf(fix.latitude, fix.longitude) }
+        setState {
+            val city = address?.city?.ifBlank { address.locality }.orEmpty()
+            val st = address?.state.orEmpty()
+            copy(
+                locating = false,
+                form = form.copy(city = city.ifBlank { form.city }, state = st.ifBlank { form.state }),
+                fieldErrors = fieldErrors - setOfNotNull(UserProfileField.CITY.takeIf { city.isNotBlank() }, UserProfileField.STATE.takeIf { st.isNotBlank() }),
+                banner = if (address == null) LOCATION_FAILED else banner,
+            )
         }
     }
 
@@ -83,9 +117,12 @@ class UserProfileViewModel @Inject constructor(
         if (state.busy) return
         if (state.consentMissing) return setState { copy(banner = SaveUserProfileUseCase.CONSENT_MESSAGE) }
         setState { copy(isSaving = true, banner = null) }
-        when (val r = saveUserProfile(state.form, state.registrationRequired, today())) {
+        // Verified name: always send the name on file, never an edited one.
+        val form = if (state.nameLocked) state.form.copy(fullName = state.user?.fullName ?: state.form.fullName) else state.form
+        when (val r = saveUserProfile(form, state.registrationRequired, today())) {
             is SaveUserProfileResult.Saved -> setState {
-                copy(isSaving = false, dashboard = PostLoginDestination.Dashboard(r.user, r.activeRole))
+                if (editing) copy(isSaving = false, saved = r.user)
+                else copy(isSaving = false, dashboard = PostLoginDestination.Dashboard(r.user, r.activeRole))
             }
             is SaveUserProfileResult.Invalid -> setState {
                 copy(
@@ -116,6 +153,7 @@ class UserProfileViewModel @Inject constructor(
 
     private companion object {
         const val SKIP_NEEDS_ROLE = "Choose landlord or tenant to continue"
+        const val LOCATION_FAILED = "Couldn't get your location. Type your city and state."
     }
 
     private fun AppError.bannerText(): String = when (this) {

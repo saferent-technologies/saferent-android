@@ -53,6 +53,7 @@ fun UserDto.toDomain() = AccountUser(
     email = email.orEmpty(),
     occupation = occupation.orEmpty(),
     isProfileCompleted = isProfileCompleted,
+    nameLocked = nameLocked,
 )
 
 private fun AcceptedDto.toDomain() = PolicyAcceptance(accepted, acceptedVersion, acceptedAt)

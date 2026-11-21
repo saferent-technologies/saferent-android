@@ -26,6 +26,10 @@ interface ManagePropertyApi {
     @GET("api/v1/properties/{id}")
     suspend fun detail(@Path("id") id: String): Response<ApiEnvelope<PropertyDataDto>>
 
+    /** Moderator decision: { decision: "APPROVE" | "REJECT", withoutOwnershipDocument?, reason? }. */
+    @POST("api/v1/properties/{id}/review")
+    suspend fun review(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject): Response<ApiEnvelope<JsonElement>>
+
     @POST("api/v1/properties/{id}/publish")
     suspend fun publish(@Path("id") id: String): Response<ApiEnvelope<PropertyDataDto>>
 
@@ -72,6 +76,11 @@ interface ManagePropertyApi {
 
     @POST("api/v1/invitations/{invId}/link")
     suspend fun renewInvitationLink(@Path("invId") invitationId: String, @Body body: JsonObject): Response<ApiEnvelope<JsonElement>>
+
+    /** Owner: what the tenant answered when accepting. Private: never logged. */
+    @retrofit2.http.Headers("Cache-Control: no-cache")
+    @GET("api/v1/invitations/{invId}/tenant-details")
+    suspend fun tenantDetails(@Path("invId") invitationId: String): Response<ApiEnvelope<JsonElement>>
 
     @POST("api/v1/invitations/{invId}/revoke")
     suspend fun revokeInvitation(@Path("invId") invitationId: String): Response<ApiEnvelope<JsonElement>>

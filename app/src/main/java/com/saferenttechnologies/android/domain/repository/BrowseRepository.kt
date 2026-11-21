@@ -16,7 +16,7 @@ interface BrowseRepository {
     suspend fun browse(filters: BrowseFilters, page: Int, pageSize: Int): AppResult<ListingPage>
     suspend fun locations(query: String): AppResult<List<LocationSuggestion>>
     suspend fun listing(id: String): AppResult<ListingDetail>
-    suspend fun reviews(propertyId: String): AppResult<ReviewsPreview>
+    suspend fun reviews(propertyId: String, unitId: String? = null, bedId: String? = null): AppResult<ReviewsPreview>
 
     /** Server message ("Application sent"). */
     suspend fun apply(propertyId: String, input: ApplyInput): AppResult<String>

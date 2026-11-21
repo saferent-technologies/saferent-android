@@ -24,13 +24,23 @@ data class UserProfileState(
     val isSaving: Boolean = false,
     val isSkipping: Boolean = false,
     val showDatePicker: Boolean = false,
+    /** Getting city / state from the phone's location. */
+    val locating: Boolean = false,
+    /** Location tried once (auto) → don't ask again on every recomposition. */
+    val locationTried: Boolean = false,
     /** Set when done → open this dashboard. */
     val dashboard: PostLoginDestination.Dashboard? = null,
+    /** Opened from the Profile tab card: edit my details (no role choice, no referral, back button). */
+    val editing: Boolean = false,
+    /** Verified user → the name is shown but can't be changed. */
+    val nameLocked: Boolean = false,
+    /** Edit saved → the updated user (host refreshes the dashboard and closes). */
+    val saved: AccountUser? = null,
 ) : UiState {
     val busy: Boolean get() = isSaving || isSkipping
     val canSave: Boolean get() = !busy && !consentMissing
     val showOccupation: Boolean get() = form.role == UserRole.TENANT
-    val showReferral: Boolean get() = registrationRequired
+    val showReferral: Boolean get() = registrationRequired && !editing
 }
 
 sealed interface UserProfileIntent : UiIntent {
@@ -51,6 +61,13 @@ sealed interface UserProfileIntent : UiIntent {
     data object BackToLogin : UserProfileIntent
     data object Save : UserProfileIntent
     data object Skip : UserProfileIntent
+    /** Location allowed → fill city + state from the phone's location (device Geocoder). */
+    data object UseMyLocation : UserProfileIntent
+    /** Location permission refused → type city / state by hand. */
+    data object LocationDenied : UserProfileIntent
+    /** Profile tab → Edit profile with the current details. [activeRole] is kept (role switch is on the Profile tab). */
+    data class StartEdit(val user: AccountUser, val activeRole: UserRole?, val nameLocked: Boolean) : UserProfileIntent
+    data object CloseEdit : UserProfileIntent
 }
 
 sealed interface UserProfileEffect : UiEffect

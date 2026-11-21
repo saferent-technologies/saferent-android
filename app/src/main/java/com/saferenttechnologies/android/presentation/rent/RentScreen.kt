@@ -106,6 +106,8 @@ fun RentScreen(
     onIntent: (RentIntent) -> Unit,
     /** "Report a problem" → support ticket (PAYMENT). */
     onReportProblem: (() -> Unit)? = null,
+    /** Smart rent reminder settings. */
+    onOpenReminders: (() -> Unit)? = null,
 ) {
     BackHandler { onIntent(RentIntent.Close) }
     val context = LocalContext.current
@@ -134,6 +136,12 @@ fun RentScreen(
                 state.period?.let { Text(it, color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp) }
             }
             Spacer(Modifier.weight(1f))
+            onOpenReminders?.let {
+                Text(
+                    stringResource(R.string.rem_button), color = AuthColors.OrangeText, fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.ssp,
+                    modifier = Modifier.clip(RoundedCornerShape(8.sdp)).clickable(role = Role.Button, onClick = it).padding(6.sdp),
+                )
+            }
             onReportProblem?.let { ReportProblemLink(it) }
         }
         // Tenants' "I paid" proofs waiting → banner on top (tap = review them).

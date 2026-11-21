@@ -39,6 +39,8 @@ sealed interface NavRoute {
     /** Landlord: tenants' payment proofs waiting ("/rent/requests"). */
     data object RentRequests : NavRoute
     data object OwnerVerification : NavRoute
+    /** DigiLocker came back to the app (/app/kyc/return?id=…&success=…&errMessage=…). */
+    data class KycReturn(val sessionId: String?, val success: Boolean?, val errMessage: String?) : NavRoute
     data object Reviews : NavRoute
     data object Wallet : NavRoute
     data object Maintenance : NavRoute
@@ -51,6 +53,14 @@ sealed interface NavRoute {
     data object MyDocuments : NavRoute
     data object Notifications : NavRoute
     data object Home : NavRoute
+    /** A property visit (tenant: My visits, host: Visits); [feedback] → open "How was the visit?". */
+    data class Visit(val visitId: String?, val feedback: Boolean = false) : NavRoute
+    /** Owner: a property's Safety & emergency form (extinguisher refill pushes). */
+    data class Safety(val propertyId: String) : NavRoute
+    /** Owner: a property's Compliance screen (document expiry pushes). */
+    data class Compliance(val propertyId: String) : NavRoute
+    /** Scanned / opened property or flat QR (/p/{code}[/u/{unit}]) → resolve, then a sheet of actions. */
+    data class Qr(val code: String, val unit: String?) : NavRoute
 
     /** Has a screen in the app today. */
     val available: Boolean
@@ -58,7 +68,7 @@ sealed interface NavRoute {
             this == Applications || this == Notifications || this == Home || this is Invitation ||
             this is LeaseDetail || this == Leases || this == Rent || this == RentRequests ||
             this == Maintenance || this is RequestDetail || this is Announcements || this == MyDocuments ||
-            this is SupportTicket
+            this is SupportTicket || this == OwnerVerification || this is KycReturn || this is Visit || this is Safety || this is Compliance || this is Qr
 }
 
 /**
@@ -114,8 +124,12 @@ object DeepLinkRouter {
         val second = parts.getOrNull(1)
         val third = parts.getOrNull(2)
         return when (first) {
-            "properties", "property", "my-properties" ->
-                second?.let { NavRoute.PropertyDetail(it, query["tab"] ?: third?.lowercase()) } ?: NavRoute.MyProperties
+            "properties", "property", "my-properties" -> when {
+                second == null -> NavRoute.MyProperties
+                third?.lowercase() == "safety" -> NavRoute.Safety(second)
+                third?.lowercase() == "compliance" || third?.lowercase() == "documents" && query["documentId"] != null -> NavRoute.Compliance(second)
+                else -> NavRoute.PropertyDetail(second, query["tab"] ?: third?.lowercase())
+            }
             "browse", "homes", "listings" -> second?.let { NavRoute.ListingDetail(it, query["unitId"]) } ?: NavRoute.Explore
             "explore" -> NavRoute.Explore
             "leases", "lease" -> second?.let { NavRoute.LeaseDetail(it) } ?: NavRoute.Leases
@@ -132,6 +146,14 @@ object DeepLinkRouter {
             "my-documents" -> NavRoute.MyDocuments
             "notifications" -> NavRoute.Notifications
             "dashboard", "home" -> NavRoute.Home
+            // QR stickers: /p/{propertyCode}[/u/{unitCode}].
+            "p" -> QrLinks.path("/$path")?.let { NavRoute.Qr(it.property, it.unit) }
+            // "/visits/{id}", "/my/visits/{id}" (+ ?feedback=1 for the feedback push).
+            "visits" -> NavRoute.Visit(second, feedback = query["feedback"] == "1")
+            "my" -> if (second?.lowercase() == "visits") NavRoute.Visit(third, feedback = query["feedback"] == "1") else null
+            "app" -> if (second?.lowercase() == "kyc" && third?.lowercase() == "return") {
+                NavRoute.KycReturn(query["id"], KycReturn.success(query["success"]), query["errMessage"]?.let { java.net.URLDecoder.decode(it, "UTF-8") })
+            } else null
             else -> null
         }
     }
@@ -170,7 +192,7 @@ object DeepLinks {
 
     /** A link opened by someone of the wrong role can't open its screen (→ "isn't available for your account"). */
     fun allowedFor(route: NavRoute, isTenant: Boolean): Boolean = when (route) {
-        is NavRoute.PropertyDetail, NavRoute.MyProperties, NavRoute.OwnerVerification -> !isTenant
+        is NavRoute.PropertyDetail, NavRoute.MyProperties, NavRoute.OwnerVerification, is NavRoute.KycReturn, is NavRoute.Safety, is NavRoute.Compliance -> !isTenant
         NavRoute.Explore, is NavRoute.Invitation -> isTenant
         else -> true
     }

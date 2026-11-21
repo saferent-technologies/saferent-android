@@ -85,6 +85,20 @@ class LeaseRepositoryImpl @Inject constructor(
         return action("POST lease exit/cancel") { api.cancelExit(leaseId, buildJsonObject { }) }
     }
 
+    override suspend fun requestUndo(leaseId: String, reason: String): AppResult<LeaseActionResult> {
+        logger.d(TAG, "ask to undo close")
+        return action("POST lease exit/undo") { api.requestUndo(leaseId, buildJsonObject { put("reason", reason.trim()) }) }
+    }
+
+    override suspend fun acceptUndo(leaseId: String): AppResult<LeaseActionResult> =
+        action("POST lease exit/undo/accept") { api.acceptUndo(leaseId, buildJsonObject { }) }
+
+    override suspend fun declineUndo(leaseId: String, note: String): AppResult<LeaseActionResult> =
+        action("POST lease exit/undo/decline") { api.declineUndo(leaseId, buildJsonObject { put("note", note.trim()) }) }
+
+    override suspend fun cancelUndo(leaseId: String): AppResult<LeaseActionResult> =
+        action("POST lease exit/undo/cancel") { api.cancelUndo(leaseId, buildJsonObject { }) }
+
     override suspend fun reviewInfo(leaseId: String): AppResult<LeaseReviewInfo> =
         call("GET lease review", { api.review(leaseId) }) { data, _ -> LeaseExitMapper.reviewInfo(data) }
 
@@ -154,6 +168,19 @@ object LeaseExitMapper {
         hasMyReview = o.bool("hasMyReview"),
         canRespond = o.bool("canRespond"),
         canCancel = o.bool("canCancel"),
+        canUndo = o.bool("canUndo"),
+        undo = (o["undo"] as? JsonObject)?.let { u ->
+            com.saferenttechnologies.android.domain.model.ExitUndo(
+                id = u.text("id"),
+                requestedByRole = u.text("requestedByRole").uppercase(),
+                requestedBy = u.text("requestedBy"),
+                reason = u.text("reason"),
+                status = u.text("status").ifBlank { "PENDING" }.uppercase(),
+                createdAt = u.text("createdAt"),
+                canRespond = u.bool("canRespond"),
+                canCancel = u.bool("canCancel"),
+            )
+        }?.takeIf { it.isPending },
     )
 
     /** GET leases/{id}: `{ lease: {…} }` or the lease itself; property / tenant / landlord nested. */
@@ -165,6 +192,7 @@ object LeaseExitMapper {
         val other = l.obj("counterparty") ?: l.obj("landlord") ?: l.obj("tenant")
         return LeaseSummary(
             id = l.text("id").ifBlank { id },
+            propertyId = l.text("propertyId").ifBlank { prop?.text("id").orEmpty() },
             status = l.text("status").uppercase(),
             propertyTitle = prop?.text("title").orEmpty(),
             place = l.text("place").ifBlank {

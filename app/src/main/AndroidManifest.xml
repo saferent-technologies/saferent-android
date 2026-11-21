@@ -68,10 +68,14 @@
                 <data android:pathPrefix="/homes/" />
                 <data android:path="/browse" />
                 <data android:pathPrefix="/invite/" />
+                <!-- Property / flat QR stickers: /p/{propertyCode} and /p/{propertyCode}/u/{unitCode}. -->
+                <data android:pathPrefix="/p/" />
                 <data android:pathPrefix="/properties/" />
                 <data android:path="/applications" />
                 <data android:pathPrefix="/leases/" />
                 <data android:path="/notifications" />
+                <!-- DigiLocker (owner verification) returns here. -->
+                <data android:path="/app/kyc/return" />
             </intent-filter>
 
             <!-- saferent://homes/{id} etc. (QR codes, SMS, other apps) -->

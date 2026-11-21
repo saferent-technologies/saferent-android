@@ -19,7 +19,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 object ApiCache {
     private const val MAX_ENTRIES = 150
     private const val MAX_BYTES = 1024 * 1024
-    private val SKIP = listOf("/config", "/splash", "/files/", "/pdf", "/auth", "/phone/", "/devices", "/fcm", "/documents")
+    private val SKIP = listOf("/config", "/splash", "/files/", "/pdf", "/auth", "/phone/", "/devices", "/fcm", "/documents", "/users/lookup", "/tenants/report", "/kyc")
 
     private class Entry(val code: Int, val message: String, val contentType: String?, val body: ByteArray, val headers: okhttp3.Headers)
 

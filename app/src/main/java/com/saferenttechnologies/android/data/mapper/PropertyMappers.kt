@@ -6,6 +6,7 @@ import com.saferenttechnologies.android.data.remote.dto.FieldDefDto
 import com.saferenttechnologies.android.data.remote.dto.PropertyDocumentDto
 import com.saferenttechnologies.android.data.remote.dto.PropertyDto
 import com.saferenttechnologies.android.data.remote.dto.PropertyImageDto
+import com.saferenttechnologies.android.data.remote.dto.PropertyVideoDto
 import com.saferenttechnologies.android.data.remote.dto.WizardPropertyTypeDto
 import com.saferenttechnologies.android.data.remote.dto.PropertyTypesDto
 import com.saferenttechnologies.android.domain.model.AmenityGroup
@@ -105,6 +106,17 @@ internal fun JsonObject.int(key: String, default: Int): Int = (this[key] as? Jso
 
 fun PropertyImageDto.toDomain() = PropertyImage(id, category, slot, status, url, displayOrder, unitId, roomId)
 
+fun PropertyVideoDto.toDomain() = com.saferenttechnologies.android.domain.model.PropertyVideo(
+    id = id,
+    url = url.ifBlank { "/api/v1/files/property-videos/$id" },
+    thumbnailUrl = thumbnailUrl.orEmpty(),
+    durationSec = durationSec?.toInt() ?: 0,
+    status = status.ifBlank { "PENDING" },
+    unitId = unitId?.ifBlank { null },
+    roomId = roomId?.ifBlank { null },
+    rejectionReason = rejectionReason.orEmpty(),
+)
+
 fun PropertyDocumentDto.toDomain() = PropertyDocument(id, code, docType, status, originalName.orEmpty())
 
 fun CompletenessDto.toDomain() = Completeness(
@@ -176,6 +188,8 @@ fun PropertyDto.toDomain(): Property {
             )
         },
         images = images.map { it.toDomain() },
+        videos = videos.orEmpty().filter { it.id.isNotBlank() }.map { it.toDomain() },
+        videosFromServer = videos != null,
         documents = documents.map { it.toDomain() },
         publicationStatus = publicationStatus,
         verificationStatus = verificationStatus.orEmpty(),
@@ -262,6 +276,9 @@ fun AppError.toPropertyError(json: Json): AppError {
         412 -> AppError.InvalidState(
             message,
             (detailsObj?.get("problems") as? JsonArray)?.mapNotNull { it.asText() }.orEmpty(),
+            errorCode = errorCode ?: reason,
+            // VIDEO_REQUIRED → the flats without a video.
+            unitIds = (detailsObj?.get("unitIds") as? JsonArray)?.mapNotNull { it.asText() }.orEmpty(),
         )
         else -> this
     }

@@ -92,6 +92,12 @@ fun LeaseDetailScreen(
     onOpenPayments: ((leaseId: String, title: String, closed: Boolean) -> Unit)? = null,
     /** "Report a problem" → support ticket; [tenantSide] picks Landlord / Tenant complaint. */
     onReportProblem: ((tenantSide: Boolean) -> Unit)? = null,
+    /** Tenant, active lease: the Emergency screen. */
+    onEmergency: ((leaseId: String) -> Unit)? = null,
+    /** Rental agreement + police verification cards ([landlord] = this side owns the lease). */
+    complianceSection: @Composable (landlord: Boolean) -> Unit = {},
+    /** "Move-in vs move-out" ([landlord] → can go to the inspections). */
+    onOpenComparison: ((leaseId: String, landlord: Boolean) -> Unit)? = null,
 ) {
     BackHandler { onIntent(LeaseDetailIntent.Close) }
     val context = LocalContext.current
@@ -127,6 +133,11 @@ fun LeaseDetailScreen(
                         // The other side asked → their request goes first (needs my answer).
                         exit?.open?.takeIf { it.canRespond && it.isPending }?.let { RespondCard(it, state, onIntent); Spacer(Modifier.height(12.sdp)) }
                         LeaseHeader(state.summary, exit)
+                        // Tenant with an active lease: red "Emergency".
+                        state.summary?.takeIf { onEmergency != null && exit?.isTenant != false && it.isActive && exit?.isClosed != true }?.let { s ->
+                            Spacer(Modifier.height(12.sdp))
+                            com.saferenttechnologies.android.presentation.safety.EmergencyButton { onEmergency?.invoke(s.id) }
+                        }
                         // Tenant: rent paid / due + receipts for this lease (also for an ended one).
                         if (onOpenPayments != null && exit?.isTenant != false && state.summary != null) {
                             Spacer(Modifier.height(12.sdp))
@@ -137,6 +148,13 @@ fun LeaseDetailScreen(
                             }
                         }
                         DepositSection(state, onIntent)
+                        state.summary?.let { s ->
+                            if (onOpenComparison != null) {
+                                Spacer(Modifier.height(12.sdp))
+                                OutlineAction(stringResource(R.string.cmp_title), R.drawable.ic_document, modifier = Modifier.fillMaxWidth()) { onOpenComparison(s.id, exit?.isTenant == false) }
+                            }
+                        }
+                        complianceSection(exit?.isTenant == false)
                         if (exit == null && state.error != null) {
                             Spacer(Modifier.height(12.sdp))
                             Text(state.error, color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
@@ -159,6 +177,8 @@ fun LeaseDetailScreen(
         LeaseSheet.DECLINE -> Sheet(onIntent) { DeclineSheet(state, onIntent) }
         LeaseSheet.REVIEW -> Sheet(onIntent) { WriteReviewSheet(state, onIntent) }
         LeaseSheet.DEPOSIT -> Sheet(onIntent) { DepositSheet(state, onIntent) }
+        LeaseSheet.UNDO -> Sheet(onIntent) { UndoSheet(state, onIntent) }
+        LeaseSheet.UNDO_DECLINE -> Sheet(onIntent) { UndoDeclineSheet(state, onIntent) }
         null -> Unit
     }
     state.confirm?.let { ConfirmDialog(it, state, onIntent) }
@@ -332,7 +352,13 @@ private fun ExitSection(state: LeaseDetailState, exit: LeaseExitState, onIntent:
                 }
                 open.responseNote?.let { Text("“$it”", color = AuthColors.Body, fontFamily = Inter, fontSize = 13.ssp, modifier = Modifier.padding(top = 4.sdp)) }
                 if (open.hasMyReview || state.reviewSaved) ReviewSavedNote()
+                // Changed your mind? Ask the other side to keep the lease (they must agree).
+                if (open.undo == null && open.canUndo) {
+                    Spacer(Modifier.height(10.sdp))
+                    OutlinedDanger(stringResource(R.string.lease_undo_ask), enabled = !state.busy) { onIntent(LeaseDetailIntent.StartUndo) }
+                }
             }
+            open.undo?.let { undo -> UndoCard(undo, other, state, onIntent) }
         }
         // C. I asked — waiting for the other side
         open != null && open.isPending && !open.canRespond -> {
@@ -409,6 +435,91 @@ private fun RespondCard(open: LeaseExitRequest, state: LeaseDetailState, onInten
             )
         }
     }
+}
+
+/** Open "keep the lease" request: mine → waiting (+ withdraw); theirs → Agree / Decline. */
+@Composable
+private fun UndoCard(undo: com.saferenttechnologies.android.domain.model.ExitUndo, other: String, state: LeaseDetailState, onIntent: (LeaseDetailIntent) -> Unit) {
+    Spacer(Modifier.height(12.sdp))
+    val who = undo.requestedBy.ifBlank { stringResource(if (undo.requestedByRole == "TENANT") R.string.lease_the_tenant else R.string.lease_the_landlord) }
+    AmberCard(if (undo.canRespond) stringResource(R.string.lease_undo_wants, who) else stringResource(R.string.lease_undo_waiting, other)) {
+        if (undo.reason.isNotBlank()) {
+            Text(
+                undo.reason,
+                color = AuthColors.Ink,
+                fontFamily = Inter,
+                fontSize = 13.ssp,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.sdp)).background(AuthColors.Background.copy(alpha = 0.7f)).padding(10.sdp),
+            )
+        }
+        if (undo.canRespond) {
+            Spacer(Modifier.height(12.sdp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.sdp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.weight(1f).height(52.sdp).clip(RoundedCornerShape(14.sdp)).background(AuthColors.Background)
+                        .border(1.sdp, AuthColors.Border, RoundedCornerShape(14.sdp))
+                        .clickable(enabled = !state.busy, role = Role.Button) { onIntent(LeaseDetailIntent.StartDeclineUndo) },
+                    contentAlignment = Alignment.Center,
+                ) { Text(stringResource(R.string.invitation_decline), color = if (state.busy) AuthColors.Muted else AuthColors.Ink, fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 15.ssp) }
+                AuthPrimaryButton(
+                    text = stringResource(R.string.lease_undo_agree),
+                    enabled = !state.busy,
+                    loading = false,
+                    onClick = { onIntent(LeaseDetailIntent.AskAcceptUndo) },
+                    modifier = Modifier.weight(1.3f),
+                    fontSize = 15.ssp,
+                    shadow = false,
+                )
+            }
+        } else if (undo.canCancel) {
+            Spacer(Modifier.height(10.sdp))
+            OutlinedDanger(stringResource(R.string.lease_undo_withdraw), enabled = !state.busy) { onIntent(LeaseDetailIntent.AskCancelUndo) }
+        }
+    }
+}
+
+@Composable
+private fun UndoSheet(state: LeaseDetailState, onIntent: (LeaseDetailIntent) -> Unit) {
+    SheetTitle(stringResource(R.string.lease_undo_title))
+    Text(stringResource(R.string.lease_undo_info), color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
+    Spacer(Modifier.height(12.sdp))
+    OutlinedTextField(
+        value = state.reason,
+        onValueChange = { onIntent(LeaseDetailIntent.ReasonChanged(it)) },
+        label = { Text(stringResource(R.string.lease_undo_reason), fontFamily = Inter) },
+        enabled = !state.busy,
+        isError = state.reasonError,
+        minLines = 3,
+        maxLines = 6,
+        supportingText = { if (state.reasonError) Text(stringResource(R.string.lease_reason_min, LeaseExitRules.REASON_MIN), fontFamily = Inter) },
+        colors = propertyFieldColors(),
+        shape = RoundedCornerShape(12.sdp),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(16.sdp))
+    AuthPrimaryButton(text = stringResource(R.string.lease_send_request), enabled = !state.busy, loading = state.busy, onClick = { onIntent(LeaseDetailIntent.SubmitUndo) }, fontSize = 15.ssp)
+}
+
+@Composable
+private fun UndoDeclineSheet(state: LeaseDetailState, onIntent: (LeaseDetailIntent) -> Unit) {
+    SheetTitle(stringResource(R.string.lease_undo_decline_title))
+    Text(stringResource(R.string.lease_undo_decline_info), color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
+    Spacer(Modifier.height(12.sdp))
+    OutlinedTextField(
+        value = state.note,
+        onValueChange = { onIntent(LeaseDetailIntent.NoteChanged(it)) },
+        label = { Text(stringResource(R.string.lease_decline_reason), fontFamily = Inter) },
+        enabled = !state.busy,
+        isError = state.noteError,
+        minLines = 2,
+        maxLines = 5,
+        supportingText = { if (state.noteError) Text(stringResource(R.string.lease_reason_min, LeaseExitRules.DECLINE_MIN), fontFamily = Inter) },
+        colors = propertyFieldColors(),
+        shape = RoundedCornerShape(12.sdp),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(16.sdp))
+    AuthPrimaryButton(text = stringResource(R.string.invitation_decline), enabled = !state.busy, loading = state.busy, onClick = { onIntent(LeaseDetailIntent.SubmitDeclineUndo) }, fontSize = 15.ssp)
 }
 
 @Composable
@@ -672,6 +783,8 @@ private fun ConfirmDialog(kind: LeaseConfirm, state: LeaseDetailState, onIntent:
                 when (kind) {
                     LeaseConfirm.SEND -> stringResource(R.string.lease_confirm_send, day(state.moveOut?.iso()))
                     LeaseConfirm.CANCEL -> stringResource(R.string.lease_confirm_cancel)
+                    LeaseConfirm.UNDO_CANCEL -> stringResource(R.string.lease_undo_confirm_withdraw)
+                    LeaseConfirm.UNDO_ACCEPT -> stringResource(R.string.lease_undo_confirm_agree)
                 },
                 color = AuthColors.Ink,
                 fontFamily = PlusJakartaSans,
@@ -682,8 +795,15 @@ private fun ConfirmDialog(kind: LeaseConfirm, state: LeaseDetailState, onIntent:
         confirmButton = {
             TextButton(enabled = !state.busy, onClick = { onIntent(if (kind == LeaseConfirm.SEND) LeaseDetailIntent.ConfirmSend else LeaseDetailIntent.ConfirmCancel) }) {
                 Text(
-                    stringResource(if (kind == LeaseConfirm.SEND) R.string.lease_send_request else R.string.lease_cancel_request),
-                    color = if (kind == LeaseConfirm.SEND) AuthColors.OrangeText else AuthColors.Error,
+                    stringResource(
+                        when (kind) {
+                            LeaseConfirm.SEND -> R.string.lease_send_request
+                            LeaseConfirm.CANCEL -> R.string.lease_cancel_request
+                            LeaseConfirm.UNDO_CANCEL -> R.string.lease_undo_withdraw
+                            LeaseConfirm.UNDO_ACCEPT -> R.string.lease_undo_agree
+                        },
+                    ),
+                    color = if (kind == LeaseConfirm.SEND || kind == LeaseConfirm.UNDO_ACCEPT) AuthColors.OrangeText else AuthColors.Error,
                     fontFamily = Inter,
                     fontWeight = FontWeight.SemiBold,
                 )

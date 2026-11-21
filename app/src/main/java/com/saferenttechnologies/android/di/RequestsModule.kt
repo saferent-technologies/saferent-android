@@ -18,6 +18,10 @@ abstract class RequestsModule {
     @Singleton
     abstract fun bindRequestsRepository(impl: RequestsRepositoryImpl): RequestsRepository
 
+    @Binds
+    @Singleton
+    abstract fun bindRequestMedia(impl: com.saferenttechnologies.android.data.requests.RequestMediaImpl): com.saferenttechnologies.android.domain.repository.RequestMedia
+
     companion object {
         @Provides
         @Singleton

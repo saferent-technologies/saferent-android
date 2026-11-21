@@ -47,6 +47,8 @@ sealed interface HomeIntent : UiIntent {
     /** A property changed (action / edit) → reload the landlord numbers. */
     data object RefreshSummary : HomeIntent
     data object SignOut : HomeIntent
+    /** Edit profile saved → show the new details (nothing else reloads). */
+    data class UserUpdated(val user: com.saferenttechnologies.android.domain.model.AccountUser) : HomeIntent
 }
 
 sealed interface HomeEffect : UiEffect
@@ -82,6 +84,7 @@ class HomeViewModel @Inject constructor(
 
     override suspend fun handleIntent(intent: HomeIntent) {
         when (intent) {
+            is HomeIntent.UserUpdated -> setState { copy(user = intent.user) }
             is HomeIntent.Open -> {
                 setState { copy(user = intent.dashboard.user, activeRole = intent.dashboard.activeRole, isSigningOut = false) }
                 loadSummary()

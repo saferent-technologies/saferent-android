@@ -8,6 +8,7 @@ import com.saferenttechnologies.android.presentation.account.AccountIntent
 import com.saferenttechnologies.android.presentation.account.AccountViewModel
 import com.saferenttechnologies.android.presentation.account.AccountScreen
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.WindowInsets
@@ -98,6 +99,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -177,6 +182,24 @@ class MainActivity : ComponentActivity() {
     private val tenantLeasesViewModel: TenantLeasesViewModel by viewModels()
     private val accountViewModel: AccountViewModel by viewModels()
     private val supportViewModel: SupportViewModel by viewModels()
+    private val tenantCheckViewModel: com.saferenttechnologies.android.presentation.tenantcheck.TenantCheckViewModel by viewModels()
+    private val kycViewModel: com.saferenttechnologies.android.presentation.kyc.KycViewModel by viewModels()
+    private val ownerDetailsViewModel: com.saferenttechnologies.android.presentation.owner.OwnerDetailsViewModel by viewModels()
+    private val ownershipViewModel: com.saferenttechnologies.android.presentation.owner.OwnershipViewModel by viewModels()
+    private val inspectionsViewModel: com.saferenttechnologies.android.presentation.inspection.InspectionsViewModel by viewModels()
+    private val registerViewModel: com.saferenttechnologies.android.presentation.furnishings.RegisterViewModel by viewModels()
+    private val tenantVisitsViewModel: com.saferenttechnologies.android.presentation.visits.TenantVisitsViewModel by viewModels()
+    private val hostVisitsViewModel: com.saferenttechnologies.android.presentation.visits.HostVisitsViewModel by viewModels()
+    private val safetyViewModel: com.saferenttechnologies.android.presentation.safety.SafetyViewModel by viewModels()
+    private val emergencyViewModel: com.saferenttechnologies.android.presentation.safety.EmergencyViewModel by viewModels()
+    private val complianceViewModel: com.saferenttechnologies.android.presentation.compliance.ComplianceViewModel by viewModels()
+    private val leaseComplianceViewModel: com.saferenttechnologies.android.presentation.compliance.LeaseComplianceViewModel by viewModels()
+    private val societyViewModel: com.saferenttechnologies.android.presentation.society.SocietyViewModel by viewModels()
+    private val leaseSocietyViewModel: com.saferenttechnologies.android.presentation.society.LeaseSocietyViewModel by viewModels()
+    private val comparisonViewModel: com.saferenttechnologies.android.presentation.smart.ComparisonViewModel by viewModels()
+    private val qrViewModel: com.saferenttechnologies.android.presentation.smart.QrViewModel by viewModels()
+    private val reminderViewModel: com.saferenttechnologies.android.presentation.smart.ReminderViewModel by viewModels()
+    private val tenantFurnitureViewModel: com.saferenttechnologies.android.presentation.furnishings.TenantFurnitureViewModel by viewModels()
 
     @Inject
     lateinit var permissionManager: PermissionManager
@@ -229,6 +252,185 @@ class MainActivity : ComponentActivity() {
                     val tenantLeasesState by tenantLeasesViewModel.state.collectAsState()
                     val accountState by accountViewModel.state.collectAsState()
                     val supportState by supportViewModel.state.collectAsState()
+                    val tenantCheckState by tenantCheckViewModel.state.collectAsState()
+                    val kycState by kycViewModel.state.collectAsState()
+                    val ownerDetailsState by ownerDetailsViewModel.state.collectAsState()
+                    val ownershipState by ownershipViewModel.state.collectAsState()
+                    val inspectionsState by inspectionsViewModel.state.collectAsState()
+                    val registerState by registerViewModel.state.collectAsState()
+                    val tenantVisitsState by tenantVisitsViewModel.state.collectAsState()
+                    val hostVisitsState by hostVisitsViewModel.state.collectAsState()
+                    val safetyState by safetyViewModel.state.collectAsState()
+                    val emergencyState by emergencyViewModel.state.collectAsState()
+                    val complianceState by complianceViewModel.state.collectAsState()
+                    val leaseComplianceState by leaseComplianceViewModel.state.collectAsState()
+                    val societyState by societyViewModel.state.collectAsState()
+                    val leaseSocietyState by leaseSocietyViewModel.state.collectAsState()
+                    val comparisonState by comparisonViewModel.state.collectAsState()
+                    val qrState by qrViewModel.state.collectAsState()
+                    val reminderState by reminderViewModel.state.collectAsState()
+                    // QR action that needs the property loaded first (team: inspection / furniture).
+                    var qrPending by remember { mutableStateOf<Pair<String, String>?>(null) }
+                    val notSafeRentQr = stringResource(R.string.qr_not_saferent)
+                    LaunchedEffect(Unit) {
+                        qrViewModel.effect.collect { e ->
+                            if (e is com.saferenttechnologies.android.presentation.smart.QrEffect.Message) {
+                                android.widget.Toast.makeText(this@MainActivity, if (e.text == com.saferenttechnologies.android.presentation.smart.QrViewModel.NOT_SAFERENT) notSafeRentQr else e.text, android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                    // Lease open → its Society card (contacts, my parking, society approval).
+                    LaunchedEffect(leaseDetailState.isOpen, leaseDetailState.summary?.id) {
+                        val id = leaseDetailState.summary?.id
+                        if (leaseDetailState.isOpen && id != null) leaseSocietyViewModel.onIntent(com.saferenttechnologies.android.presentation.society.LeaseSocietyIntent.Load(id))
+                        else if (!leaseDetailState.isOpen) leaseSocietyViewModel.onIntent(com.saferenttechnologies.android.presentation.society.LeaseSocietyIntent.Clear)
+                    }
+                    LaunchedEffect(Unit) {
+                        leaseSocietyViewModel.effect.collect { e ->
+                            if (e is com.saferenttechnologies.android.presentation.society.LeaseSocietyEffect.Message && e.text.isNotBlank()) {
+                                android.widget.Toast.makeText(this@MainActivity, e.text, android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    // Lease open → agreement + police verification (landlord and tenant).
+                    LaunchedEffect(leaseDetailState.isOpen, leaseDetailState.summary?.id, leaseDetailState.summary?.propertyId) {
+                        val s = leaseDetailState.summary
+                        if (leaseDetailState.isOpen && s != null) {
+                            leaseComplianceViewModel.onIntent(com.saferenttechnologies.android.presentation.compliance.LeaseComplianceIntent.Load(s.id, s.propertyId))
+                        } else if (!leaseDetailState.isOpen) {
+                            leaseComplianceViewModel.onIntent(com.saferenttechnologies.android.presentation.compliance.LeaseComplianceIntent.Clear)
+                        }
+                    }
+                    LaunchedEffect(Unit) {
+                        leaseComplianceViewModel.effect.collect { e ->
+                            if (e is com.saferenttechnologies.android.presentation.compliance.LeaseComplianceEffect.Message && e.text.isNotBlank()) {
+                                android.widget.Toast.makeText(this@MainActivity, e.text, android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    // Tenant without an active lease → the saved Emergency copy goes.
+                    LaunchedEffect(tenantHomeState.home) {
+                        if (tenantHomeState.home == com.saferenttechnologies.android.domain.usecase.TenantHomeState.Explore) {
+                            emergencyViewModel.onIntent(com.saferenttechnologies.android.presentation.safety.EmergencyIntent.Forget)
+                        }
+                    }
+                    // Listing opened → is visit booking on? (and my upcoming visit).
+                    LaunchedEffect(listingDetailState.isOpen, listingDetailState.listingId) {
+                        val id = listingDetailState.listingId
+                        if (listingDetailState.isOpen && id != null) {
+                            tenantVisitsViewModel.onIntent(com.saferenttechnologies.android.presentation.visits.TenantVisitsIntent.LoadForListing(id))
+                        }
+                    }
+                    // Back from the document vault during "Share documents with your owner" → fresh list + ticks.
+                    LaunchedEffect(documentsState.isOpen) {
+                        if (!documentsState.isOpen && invitationState.sharingStep) {
+                            invitationViewModel.onIntent(com.saferenttechnologies.android.presentation.invitation.InvitationIntent.RefreshVault)
+                        }
+                    }
+                    val tenantFurnitureState by tenantFurnitureViewModel.state.collectAsState()
+                    // Furniture register places: building first, then flats / rooms (with their furnishing).
+                    fun registerPlaces(units: List<com.saferenttechnologies.android.domain.model.PropertyUnit>, rooms: List<com.saferenttechnologies.android.domain.model.PropertyRoom>, word: String) =
+                        listOf(com.saferenttechnologies.android.presentation.furnishings.RegisterPlace(label = getString(R.string.listing_building_video))) +
+                            units.map { com.saferenttechnologies.android.presentation.furnishings.RegisterPlace(unitId = it.id, label = "$word ${it.unitNumber}".trim(), furnishing = it.values["furnishing"].orEmpty()) } +
+                            rooms.map { com.saferenttechnologies.android.presentation.furnishings.RegisterPlace(roomId = it.id, label = getString(R.string.add_property_room_n, it.roomNumber), furnishing = it.values["furnishing"].orEmpty()) }
+                    // QR team actions: open the property, then its inspections / furniture once it's loaded.
+                    LaunchedEffect(qrPending, propertyDetailState.detail, propertyDetailState.propertyId) {
+                        val (action, pid) = qrPending ?: return@LaunchedEffect
+                        val d = propertyDetailState.detail ?: return@LaunchedEffect
+                        if (propertyDetailState.propertyId != pid) return@LaunchedEffect
+                        qrPending = null
+                        val word = propertyDetailState.unitWord
+                        if (action == "OPEN_FURNITURE") {
+                            registerViewModel.onIntent(
+                                com.saferenttechnologies.android.presentation.furnishings.RegisterIntent.Open(
+                                    propertyId = pid, title = d.property.title, canManage = d.can.manage,
+                                    places = registerPlaces(d.property.units, d.property.rooms, word),
+                                ),
+                            )
+                        } else {
+                            inspectionsViewModel.onIntent(
+                                com.saferenttechnologies.android.presentation.inspection.InspectionsIntent.Open(
+                                    propertyId = pid,
+                                    title = d.property.title,
+                                    canManage = d.can.manage || d.can.inspect,
+                                    units = d.property.units.map { com.saferenttechnologies.android.presentation.inspection.InspectionPlace(it.id, "$word ${it.unitNumber}".trim()) },
+                                    rooms = d.property.rooms.map { com.saferenttechnologies.android.presentation.inspection.InspectionPlace(it.id, getString(R.string.add_property_room_n, it.roomNumber)) },
+                                    leases = propertyDetailState.activeLeases.map { l ->
+                                        com.saferenttechnologies.android.presentation.inspection.InspectionLease(
+                                            l.id, listOf(l.tenantName, l.place).filter { it.isNotBlank() }.joinToString(" · "), l.unitId, l.bedId,
+                                        )
+                                    },
+                                ),
+                            )
+                            // "Start inspection" → straight to scheduling a new one.
+                            if (d.can.manage || d.can.inspect) {
+                                inspectionsViewModel.onIntent(com.saferenttechnologies.android.presentation.inspection.InspectionsIntent.StartSchedule)
+                            }
+                        }
+                    }
+                    // Scan result: "<title> · <flat>" + one button per allowed action.
+                    qrState.resolution?.let { r ->
+                        com.saferenttechnologies.android.presentation.smart.QrResultSheet(
+                            r,
+                            onAction = { a ->
+                                qrViewModel.onIntent(com.saferenttechnologies.android.presentation.smart.QrIntent.DismissResult)
+                                when (a) {
+                                    "OPEN_PROPERTY" -> r.propertyId?.let { propertyDetailViewModel.onIntent(PropertyDetailIntent.Open(it)) }
+                                    "START_INSPECTION", "OPEN_FURNITURE" -> r.propertyId?.let { pid ->
+                                        qrPending = a to pid
+                                        propertyDetailViewModel.onIntent(PropertyDetailIntent.Open(pid))
+                                    }
+                                    "OPEN_LEASE" -> r.leaseId?.let { leaseDetailViewModel.onIntent(LeaseDetailIntent.Open(it)) }
+                                    "RAISE_REQUEST" -> requestsViewModel.onIntent(RequestsIntent.OpenRaise(r.title))
+                                    "EMERGENCY" -> r.leaseId?.let { emergencyViewModel.onIntent(com.saferenttechnologies.android.presentation.safety.EmergencyIntent.Open(it)) }
+                                    "VIEW_LISTING" -> r.propertyId?.let { listingDetailViewModel.onIntent(ListingDetailIntent.Open(it, r.unitId)) }
+                                    "BOOK_VISIT" -> r.propertyId?.let { pid ->
+                                        listingDetailViewModel.onIntent(ListingDetailIntent.Open(pid, r.unitId))
+                                        tenantVisitsViewModel.onIntent(com.saferenttechnologies.android.presentation.visits.TenantVisitsIntent.StartBooking(pid, r.title, emptyList()))
+                                    }
+                                }
+                            },
+                            onDismiss = { qrViewModel.onIntent(com.saferenttechnologies.android.presentation.smart.QrIntent.DismissResult) },
+                        )
+                    }
+                    // Wizard flat panel → "Furniture & appliances" for that flat (change request copy on a live listing).
+                    LaunchedEffect(addPropertyState.openFurniture) {
+                        val target = addPropertyState.openFurniture ?: return@LaunchedEffect
+                        val p = addPropertyState.property
+                        if (p != null) {
+                            val places = registerPlaces(p.units, p.rooms, addPropertyState.unitWord)
+                            registerViewModel.onIntent(
+                                com.saferenttechnologies.android.presentation.furnishings.RegisterIntent.Open(
+                                    propertyId = p.id, title = p.title, canManage = true, places = places,
+                                    draft = addPropertyState.isLiveEdit,
+                                    focus = places.firstOrNull { it.unitId == target.unitId && it.roomId == target.roomId && (target.unitId != null || target.roomId != null) },
+                                ),
+                            )
+                        }
+                        addPropertyViewModel.onIntent(AddPropertyIntent.FurnitureOpened)
+                    }
+                    // Ownership messages ("Ownership details saved", errors) wherever the form is.
+                    LaunchedEffect(Unit) {
+                        ownershipViewModel.effect.collect { e ->
+                            if (e is com.saferenttechnologies.android.presentation.owner.OwnershipEffect.Message) {
+                                android.widget.Toast.makeText(this@MainActivity, e.text, android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                    // Wizard reached the Ownership step → load that property's ownership.
+                    LaunchedEffect(addPropertyState.isOpen, addPropertyState.step, addPropertyState.property?.id) {
+                        val pid = addPropertyState.property?.id
+                        if (addPropertyState.isOpen && pid != null && addPropertyState.step == com.saferenttechnologies.android.domain.model.WizardStep.OWNERSHIP) {
+                            ownershipViewModel.onIntent(com.saferenttechnologies.android.presentation.owner.OwnershipIntent.Load(pid))
+                        }
+                    }
+                    // Owner's property screen → its Ownership card (fresh each time it opens).
+                    LaunchedEffect(propertyDetailState.isOpen, propertyDetailState.propertyId, propertyDetailState.canManage) {
+                        val pid = propertyDetailState.propertyId
+                        if (propertyDetailState.isOpen && pid != null && propertyDetailState.canManage && !addPropertyState.isOpen) {
+                            ownershipViewModel.onIntent(com.saferenttechnologies.android.presentation.owner.OwnershipIntent.Load(pid, force = true))
+                        }
+                    }
                     // "Report a problem" / Help & support → tickets to SafeRent.
                     val supportLandlord = homeState.activeRole != UserRole.TENANT
                     val supportMe = homeState.user?.id.orEmpty()
@@ -253,6 +455,10 @@ class MainActivity : ComponentActivity() {
                                     )
                                     is NavRoute.ListingDetail -> listingDetailViewModel.onIntent(ListingDetailIntent.Open(route.listingId, route.unitId))
                                     is NavRoute.Invitation -> invitationViewModel.onIntent(InvitationIntent.Open(route.token))
+                                    NavRoute.OwnerVerification -> kycViewModel.onIntent(com.saferenttechnologies.android.presentation.kyc.KycIntent.Open)
+                                    is NavRoute.KycReturn -> kycViewModel.onIntent(
+                                        com.saferenttechnologies.android.presentation.kyc.KycIntent.DigiLockerReturned(route.sessionId, route.success, route.errMessage),
+                                    )
                                     is NavRoute.LeaseDetail -> leaseDetailViewModel.onIntent(LeaseDetailIntent.Open(route.leaseId))
                                     // "/leases" (close-request pushes): tenant → their lease; landlord → properties (leases live per property).
                                     // Rent pushes: landlord → Rent (proofs to check first); tenant → their payments.
@@ -270,6 +476,18 @@ class MainActivity : ComponentActivity() {
                                         RequestsIntent.OpenDetail(route.id, landlord = homeViewModel.state.value.activeRole != UserRole.TENANT),
                                     )
                                     NavRoute.MyDocuments -> documentsViewModel.onIntent(DocumentsIntent.OpenMine)
+                                    // Scanned / opened QR sticker → resolve → actions sheet.
+                                    is NavRoute.Qr -> qrViewModel.onIntent(com.saferenttechnologies.android.presentation.smart.QrIntent.Resolve(route.code, route.unit))
+                                    // Extinguisher refill push → the property's Safety form.
+                                    // Document expiry push → the property's Compliance screen.
+                                    is NavRoute.Compliance -> complianceViewModel.onIntent(com.saferenttechnologies.android.presentation.compliance.ComplianceIntent.Open(route.propertyId))
+                                    is NavRoute.Safety -> safetyViewModel.onIntent(com.saferenttechnologies.android.presentation.safety.SafetyIntent.Open(route.propertyId))
+                                    // Visit pushes: tenant → My visits (feedback sheet when asked); host → Visits.
+                                    is NavRoute.Visit -> if (homeViewModel.state.value.activeRole == UserRole.TENANT) {
+                                        tenantVisitsViewModel.onIntent(com.saferenttechnologies.android.presentation.visits.TenantVisitsIntent.OpenMine(route.visitId, route.feedback))
+                                    } else {
+                                        hostVisitsViewModel.onIntent(com.saferenttechnologies.android.presentation.visits.HostVisitsIntent.Open(null, focusId = route.visitId))
+                                    }
                                     // "/support/{id}" → that ticket's chat; "/support" → the list.
                                     is NavRoute.SupportTicket -> {
                                         val landlord = homeViewModel.state.value.activeRole != UserRole.TENANT
@@ -328,6 +546,9 @@ class MainActivity : ComponentActivity() {
                     }
                     // "Add property": location popup first (the flow still opens without it).
                     val locationForAddProperty = rememberPermissionRequester(AppPermission.LOCATION)
+                    // "Scan QR": camera permission through our popup first.
+                    val cameraForQr = rememberPermissionRequester(AppPermission.CAMERA)
+                    val scanQr: () -> Unit = { cameraForQr.request { granted -> if (granted) qrViewModel.onIntent(com.saferenttechnologies.android.presentation.smart.QrIntent.Scan(true)) } }
                     // Non-null = account deleted / deactivated / suspended (login or while using the app).
                     val blockedInfo by blockedAccountStore.info.collectAsState()
                     val blockedState by accountBlockedViewModel.state.collectAsState()
@@ -357,13 +578,28 @@ class MainActivity : ComponentActivity() {
                         when (val destination = postLoginState.destination) {
                             is PostLoginDestination.UserProfile ->
                                 userProfileViewModel.onIntent(UserProfileIntent.Start(destination))
-                            is PostLoginDestination.Dashboard -> homeViewModel.onIntent(HomeIntent.Open(destination))
+                            is PostLoginDestination.Dashboard -> {
+                                homeViewModel.onIntent(HomeIntent.Open(destination))
+                                // Landlord signed in (this or another phone) → owner verification before the dashboard.
+                                if (destination.activeRole == UserRole.LANDLORD) kycViewModel.onIntent(com.saferenttechnologies.android.presentation.kyc.KycIntent.OpenAfterProfile)
+                            }
                             null -> Unit
+                        }
+                    }
+                    // Edit profile saved → new details on the dashboard / Profile tab, back to where they were.
+                    LaunchedEffect(userProfileState.saved) {
+                        userProfileState.saved?.let {
+                            homeViewModel.onIntent(HomeIntent.UserUpdated(it))
+                            userProfileViewModel.onIntent(UserProfileIntent.CloseEdit)
                         }
                     }
                     // UserProfile saved / skipped → dashboard of the returned role.
                     LaunchedEffect(userProfileState.dashboard) {
-                        userProfileState.dashboard?.let { homeViewModel.onIntent(HomeIntent.Open(it)) }
+                        userProfileState.dashboard?.let {
+                            homeViewModel.onIntent(HomeIntent.Open(it))
+                            // Landlord just signed up → owner verification right away ("Skip for now" → dashboard).
+                            if (it.activeRole == UserRole.LANDLORD) kycViewModel.onIntent(com.saferenttechnologies.android.presentation.kyc.KycIntent.OpenAfterProfile)
+                        }
                     }
 
                     // Splash → Onboarding → Login/OTP → phone/complete → UserProfile? → Dashboard
@@ -387,7 +623,9 @@ class MainActivity : ComponentActivity() {
                     val atAppLevel = !showSplash && blockedInfo == null && onboardingState.isFinished && authState.isSignedIn &&
                         postLoginState.error == null && postLoginState.destination != null && homeState.user != null &&
                         !(postLoginState.destination is PostLoginDestination.UserProfile && userProfileState.dashboard == null)
-                    val overlayOpen = addPropertyState.isOpen || supportState.isOpen || leaseDetailState.isOpen || tenantPaymentsState.isOpen ||
+                    val overlayOpen = addPropertyState.isOpen || supportState.isOpen || kycState.isOpen || userProfileState.editing || ownerDetailsState.isOpen || inspectionsState.isOpen || registerState.isOpen ||
+                        tenantVisitsState.isOpen || hostVisitsState.isOpen || safetyState.isOpen || emergencyState.isOpen || complianceState.isOpen || societyState.isOpen ||
+                        comparisonState.isOpen || qrState.isOpen || qrState.scanning || tenantCheckState.isOpen || leaseDetailState.isOpen || tenantPaymentsState.isOpen ||
                         tenantLeasesState.isOpen || rentState.isOpen || announcementsState.isOpen || transactionsState.isOpen ||
                         propertyDetailState.isOpen || listingDetailState.isOpen || invitationState.isOpen ||
                         myApplicationsState.isOpen || notificationsState.isOpen ||
@@ -479,13 +717,67 @@ class MainActivity : ComponentActivity() {
 
                         homeState.user == null -> LoadingScreen()
 
+                        // Help & support and owner verification: above everything that opens them
+                        // (add property wizard, lease, rent, property, profile).
+                        supportState.isOpen -> SupportScreen(state = supportState, effects = supportViewModel.effect, onIntent = supportViewModel::onIntent)
+                        // Edit profile (from the Profile tab card).
+                        userProfileState.editing -> UserProfileScreen(state = userProfileState, onIntent = userProfileViewModel::onIntent)
+                        // Profile → Owner details (landlords).
+                        ownerDetailsState.isOpen -> com.saferenttechnologies.android.presentation.owner.OwnerDetailsScreen(
+                            ownerDetailsState, ownerDetailsViewModel.effect, ownerDetailsViewModel::onIntent,
+                        )
+                        kycState.checking -> LoadingScreen()
+                        kycState.isOpen -> com.saferenttechnologies.android.presentation.kyc.KycScreen(kycState, kycViewModel.effect, kycViewModel::onIntent)
+
+                        // Furniture & appliances (from the property screen or a wizard flat panel): above both.
+                        registerState.isOpen -> com.saferenttechnologies.android.presentation.furnishings.RegisterScreen(
+                            registerState, registerViewModel.effect, registerViewModel::onIntent,
+                        )
                         addPropertyState.isOpen -> AddPropertyScreen(
                             state = addPropertyState,
                             onIntent = addPropertyViewModel::onIntent,
+                            onOpenOwnerVerification = { kycViewModel.onIntent(com.saferenttechnologies.android.presentation.kyc.KycIntent.Open) },
+                            onContactSupport = { pid -> reportProblem("ACCOUNT", pid) },
+                            ownership = ownershipState,
+                            onOwnershipIntent = ownershipViewModel::onIntent,
                         )
 
-                        // Help & support: above the screens that open it (lease, rent, property, profile).
-                        supportState.isOpen -> SupportScreen(state = supportState, effects = supportViewModel.effect, onIntent = supportViewModel::onIntent)
+                        // Screens opened on top of property / lease detail, Rent, home (QR, safety, compliance, society,
+                        // visits, comparison, emergency): they must come before those branches to be shown.
+                        // QR scanner: full screen camera, above everything.
+                        qrState.scanning -> com.saferenttechnologies.android.presentation.smart.QrScannerScreen(
+                            onText = { qrViewModel.onIntent(com.saferenttechnologies.android.presentation.smart.QrIntent.Scanned(it)) },
+                            onClose = { qrViewModel.onIntent(com.saferenttechnologies.android.presentation.smart.QrIntent.Scan(false)) },
+                        )
+                        comparisonState.isOpen -> com.saferenttechnologies.android.presentation.smart.ComparisonScreen(
+                            comparisonState, comparisonViewModel::onIntent,
+                            onStartMoveOut = comparisonState.propertyId.takeIf { it.isNotBlank() }?.let { pid ->
+                                {
+                                    comparisonViewModel.onIntent(com.saferenttechnologies.android.presentation.smart.ComparisonIntent.Close)
+                                    leaseDetailViewModel.onIntent(LeaseDetailIntent.Close)
+                                    qrPending = "START_INSPECTION" to pid
+                                    propertyDetailViewModel.onIntent(PropertyDetailIntent.Open(pid))
+                                }
+                            },
+                        )
+                        qrState.isOpen -> com.saferenttechnologies.android.presentation.smart.QrCodesScreen(qrState, qrViewModel::onIntent)
+                        // Emergency: above everything else it can be opened from.
+                        emergencyState.isOpen -> com.saferenttechnologies.android.presentation.safety.EmergencyScreen(emergencyState, emergencyViewModel::onIntent)
+                        societyState.isOpen -> com.saferenttechnologies.android.presentation.society.SocietyScreen(societyState, societyViewModel.effect, societyViewModel::onIntent)
+                        complianceState.isOpen -> com.saferenttechnologies.android.presentation.compliance.ComplianceScreen(complianceState, complianceViewModel.effect, complianceViewModel::onIntent)
+                        safetyState.isOpen -> com.saferenttechnologies.android.presentation.safety.SafetyScreen(safetyState, safetyViewModel.effect, safetyViewModel::onIntent)
+                        // My visits (tenant) / Visits (host): above the listing and property screens.
+                        tenantVisitsState.isOpen -> com.saferenttechnologies.android.presentation.visits.MyVisitsScreen(
+                            tenantVisitsState, tenantVisitsViewModel.effect, tenantVisitsViewModel::onIntent,
+                        ) { pid ->
+                            tenantVisitsViewModel.onIntent(com.saferenttechnologies.android.presentation.visits.TenantVisitsIntent.Close)
+                            listingDetailViewModel.onIntent(ListingDetailIntent.Open(pid, null))
+                        }
+                        hostVisitsState.isOpen -> com.saferenttechnologies.android.presentation.visits.HostVisitsScreen(
+                            hostVisitsState, hostVisitsViewModel.effect, hostVisitsViewModel::onIntent,
+                        )
+                        // Landlord: "Review tenant".
+                        tenantCheckState.isOpen -> com.saferenttechnologies.android.presentation.tenantcheck.TenantCheckScreen(tenantCheckState, tenantCheckViewModel::onIntent)
 
                         // Above the property screen: a tenant card opens the lease on top, Back returns.
                         // Tenant → deposit + rent history (also opened from a lease, so it sits above it).
@@ -510,6 +802,20 @@ class MainActivity : ComponentActivity() {
                                 tenantPaymentsViewModel.onIntent(TenantPaymentsIntent.Open(id, title, readOnly = closed))
                             },
                             onReportProblem = { tenantSide -> reportProblem(if (tenantSide) "LANDLORD_COMPLAINT" else "TENANT_COMPLAINT", null) },
+                            complianceSection = { landlord ->
+                                com.saferenttechnologies.android.presentation.society.LeaseSocietyCard(
+                                    leaseSocietyState.takeIf { it.leaseId == leaseDetailState.summary?.id } ?: com.saferenttechnologies.android.presentation.society.LeaseSocietyState(),
+                                    leaseSocietyViewModel::onIntent,
+                                ) { leaseDetailState.summary?.id?.let { documentsViewModel.onIntent(DocumentsIntent.OpenShared(it)) } }
+                                com.saferenttechnologies.android.presentation.compliance.LeaseComplianceSection(leaseComplianceState.takeIf { it.leaseId == leaseDetailState.summary?.id } ?: com.saferenttechnologies.android.presentation.compliance.LeaseComplianceState(), landlord, leaseComplianceViewModel::onIntent)
+                            },
+                            onOpenComparison = { leaseId, landlord ->
+                                val s = leaseDetailState.summary
+                                comparisonViewModel.onIntent(
+                                    com.saferenttechnologies.android.presentation.smart.ComparisonIntent.Open(leaseId, listOfNotNull(s?.propertyTitle, s?.place).filter { it.isNotBlank() }.joinToString(" · "), landlord, s?.propertyId.orEmpty()),
+                                )
+                            },
+                            onEmergency = { leaseId -> emergencyViewModel.onIntent(com.saferenttechnologies.android.presentation.safety.EmergencyIntent.Open(leaseId)) },
                         )
 
                         // Tenant → "My leases": active + past (each opens the lease above).
@@ -520,12 +826,16 @@ class MainActivity : ComponentActivity() {
                         )
 
                         // Landlord → this month's rent (Expected / Collected / Overdue).
-                        rentState.isOpen -> RentScreen(
-                            state = rentState,
-                            effects = rentViewModel.effect,
-                            onIntent = rentViewModel::onIntent,
-                            onReportProblem = { reportProblem("PAYMENT", null) },
-                        )
+                        rentState.isOpen -> {
+                            RentScreen(
+                                state = rentState,
+                                effects = rentViewModel.effect,
+                                onIntent = rentViewModel::onIntent,
+                                onReportProblem = { reportProblem("PAYMENT", null) },
+                                onOpenReminders = { reminderViewModel.onIntent(com.saferenttechnologies.android.presentation.smart.ReminderIntent.Open) },
+                            )
+                            if (reminderState.isOpen) com.saferenttechnologies.android.presentation.smart.ReminderSheet(reminderState, reminderViewModel.effect, reminderViewModel::onIntent)
+                        }
 
                         // Requests (maintenance / service / complaint): tenant raises, landlord updates.
                         // ID documents: tenant's encrypted vault / what a tenant shared with this landlord.
@@ -578,6 +888,11 @@ class MainActivity : ComponentActivity() {
                             },
                         )
 
+                        // Inspection reports of the open property (above it; Back returns to it).
+                        inspectionsState.isOpen -> com.saferenttechnologies.android.presentation.inspection.InspectionsScreen(
+                            inspectionsState, inspectionsViewModel.effect, inspectionsViewModel::onIntent,
+                            onCompare = { leaseId -> comparisonViewModel.onIntent(com.saferenttechnologies.android.presentation.smart.ComparisonIntent.Open(leaseId, inspectionsState.propertyTitle, landlord = true, propertyId = inspectionsState.propertyId.orEmpty())) },
+                        )
                         propertyDetailState.isOpen -> PropertyDetailScreen(
                             state = propertyDetailState,
                             effects = propertyDetailViewModel.effect,
@@ -585,6 +900,80 @@ class MainActivity : ComponentActivity() {
                             onOpenEditor = { id, step, newUnit -> addPropertyViewModel.onIntent(AddPropertyIntent.Edit(id, step, newUnit)) },
                             onChanged = onPropertyChanged,
                             onReportProblem = { pid -> reportProblem("PROPERTY", pid) },
+                            onOpenOwnerVerification = { kycViewModel.onIntent(com.saferenttechnologies.android.presentation.kyc.KycIntent.Open) },
+                            onVerificationSupport = { pid -> reportProblem("ACCOUNT", pid) },
+                            ownership = ownershipState,
+                            onOpenFurniture = {
+                                val d = propertyDetailState.detail
+                                val pid = propertyDetailState.propertyId
+                                if (d != null && pid != null) {
+                                    registerViewModel.onIntent(
+                                        com.saferenttechnologies.android.presentation.furnishings.RegisterIntent.Open(
+                                            propertyId = pid, title = d.property.title, canManage = d.can.manage,
+                                            places = registerPlaces(d.property.units, d.property.rooms, propertyDetailState.unitWord),
+                                        ),
+                                    )
+                                }
+                            },
+                            onOpenSociety = propertyDetailState.detail?.property
+                                ?.takeIf { com.saferenttechnologies.android.domain.model.SocietyRules.applies(it.propertyType) }
+                                ?.let { p ->
+                                    {
+                                        val word = com.saferenttechnologies.android.domain.model.UnitPricing.unitWord(p.propertyType)
+                                        societyViewModel.onIntent(
+                                            com.saferenttechnologies.android.presentation.society.SocietyIntent.Open(
+                                                p.id, p.title,
+                                                p.units.map { u -> com.saferenttechnologies.android.presentation.society.SocietyUnit(u.id, "$word ${u.unitNumber}".trim()) },
+                                            ),
+                                        )
+                                    }
+                                },
+                            onOpenQr = {
+                                propertyDetailState.propertyId?.let { pid ->
+                                    qrViewModel.onIntent(com.saferenttechnologies.android.presentation.smart.QrIntent.OpenCodes(pid, propertyDetailState.detail?.property?.title.orEmpty()))
+                                }
+                            },
+                            onOpenCompliance = {
+                                propertyDetailState.propertyId?.let { pid ->
+                                    complianceViewModel.onIntent(com.saferenttechnologies.android.presentation.compliance.ComplianceIntent.Open(pid, propertyDetailState.detail?.property?.title.orEmpty()))
+                                }
+                            },
+                            onOpenSafety = {
+                                propertyDetailState.propertyId?.let { pid ->
+                                    val p = propertyDetailState.detail?.property
+                                    safetyViewModel.onIntent(
+                                        com.saferenttechnologies.android.presentation.safety.SafetyIntent.Open(pid, p?.title.orEmpty(), listOfNotNull(p?.locality, p?.city).filter { it.isNotBlank() }.joinToString(", ")),
+                                    )
+                                }
+                            },
+                            onOpenVisits = {
+                                propertyDetailState.propertyId?.let { pid ->
+                                    hostVisitsViewModel.onIntent(
+                                        com.saferenttechnologies.android.presentation.visits.HostVisitsIntent.Open(pid, propertyDetailState.detail?.property?.title.orEmpty()),
+                                    )
+                                }
+                            },
+                            onOpenInspections = {
+                                val d = propertyDetailState.detail
+                                val pid = propertyDetailState.propertyId
+                                if (d != null && pid != null) {
+                                    val word = propertyDetailState.unitWord
+                                    inspectionsViewModel.onIntent(
+                                        com.saferenttechnologies.android.presentation.inspection.InspectionsIntent.Open(
+                                            propertyId = pid,
+                                            title = d.property.title,
+                                            canManage = d.can.manage || d.can.inspect,
+                                            units = d.property.units.map { com.saferenttechnologies.android.presentation.inspection.InspectionPlace(it.id, "$word ${it.unitNumber}".trim()) },
+                                            rooms = d.property.rooms.map { com.saferenttechnologies.android.presentation.inspection.InspectionPlace(it.id, getString(R.string.add_property_room_n, it.roomNumber)) },
+                                            leases = propertyDetailState.activeLeases.map { l ->
+                                                com.saferenttechnologies.android.presentation.inspection.InspectionLease(
+                                                    l.id, listOf(l.tenantName, l.place).filter { it.isNotBlank() }.joinToString(" · "), l.unitId, l.bedId,
+                                                )
+                                            },
+                                        ),
+                                    )
+                                }
+                            },
                             onNotFound = {
                                 propertyDetailViewModel.onIntent(PropertyDetailIntent.Close)
                                 // App link → stay home with a note; notification → back to the list.
@@ -604,15 +993,37 @@ class MainActivity : ComponentActivity() {
                             },
                         )
 
-                        listingDetailState.isOpen -> ListingDetailScreen(
-                            state = listingDetailState,
-                            effects = listingDetailViewModel.effect,
-                            onIntent = listingDetailViewModel::onIntent,
-                            onApplicationsChanged = {
-                                tenantHomeViewModel.onIntent(TenantHomeIntent.Refresh)
-                                myApplicationsViewModel.onIntent(MyApplicationsIntent.Refresh)
-                            },
-                        )
+                        listingDetailState.isOpen -> {
+                            ListingDetailScreen(
+                                state = listingDetailState,
+                                effects = listingDetailViewModel.effect,
+                                onIntent = listingDetailViewModel::onIntent,
+                                onApplicationsChanged = {
+                                    tenantHomeViewModel.onIntent(TenantHomeIntent.Refresh)
+                                    myApplicationsViewModel.onIntent(MyApplicationsIntent.Refresh)
+                                },
+                                visitSection = {
+                                    val d = listingDetailState.detail
+                                    com.saferenttechnologies.android.presentation.visits.ListingVisitButton(
+                                        tenantVisitsState.listingSlots.takeIf { tenantVisitsState.listingId == listingDetailState.listingId },
+                                        onBook = {
+                                            if (d != null) {
+                                                val places = if (d.isUnitPriced && d.units.size > 1) {
+                                                    d.units.map { com.saferenttechnologies.android.presentation.visits.VisitPlace("${d.unitWord} ${it.unitNumber}".trim(), unitId = it.id) }
+                                                } else emptyList()
+                                                tenantVisitsViewModel.onIntent(com.saferenttechnologies.android.presentation.visits.TenantVisitsIntent.StartBooking(d.id, d.title, places))
+                                            }
+                                        },
+                                        onView = {
+                                            tenantVisitsViewModel.onIntent(com.saferenttechnologies.android.presentation.visits.TenantVisitsIntent.OpenMine(tenantVisitsState.listingSlots?.myUpcomingVisit?.id))
+                                        },
+                                    )
+                                },
+                            )
+                            tenantVisitsState.booking?.let { b ->
+                                com.saferenttechnologies.android.presentation.visits.BookingSheet(b, tenantVisitsViewModel::onIntent)
+                            }
+                        }
 
                         // Under the listing: "View the home" opens the listing on top, Back returns here.
                         invitationState.isOpen -> InvitationScreen(
@@ -624,6 +1035,14 @@ class MainActivity : ComponentActivity() {
                                 myApplicationsViewModel.onIntent(MyApplicationsIntent.Refresh)
                             },
                             onOpenHome = { listingDetailViewModel.onIntent(ListingDetailIntent.Open(it, null)) },
+                            // Share step "Add": my document vault upload (type pre-picked); back here → the list refreshes.
+                            onOpenUpload = { type ->
+                                documentsViewModel.onIntent(com.saferenttechnologies.android.presentation.documents.DocumentsIntent.OpenMine)
+                                if (type != null) {
+                                    documentsViewModel.onIntent(com.saferenttechnologies.android.presentation.documents.DocumentsIntent.StartUpload)
+                                    documentsViewModel.onIntent(com.saferenttechnologies.android.presentation.documents.DocumentsIntent.PickType(type))
+                                }
+                            },
                         )
 
                         myApplicationsState.isOpen -> MyApplicationsScreen(
@@ -647,13 +1066,27 @@ class MainActivity : ComponentActivity() {
                             onSwitchRole = { homeViewModel.onIntent(HomeIntent.SwitchRole(it)) },
                             onSignOut = { homeViewModel.onIntent(HomeIntent.SignOut) },
                             onOpenSupport = { supportViewModel.onIntent(SupportIntent.Open(supportLandlord, supportMe)) },
+                            onEditProfile = {
+                                homeState.user?.let { u ->
+                                    // Verified (server flag or owner verification approved) → name can't change.
+                                    val locked = u.nameLocked || kycState.status?.isApproved == true
+                                    userProfileViewModel.onIntent(UserProfileIntent.StartEdit(u, homeState.activeRole, locked))
+                                }
+                            },
                             shortcuts = if (homeState.activeRole == UserRole.TENANT) listOf(
                                 AccountLink(R.drawable.ic_document, getString(R.string.tenant_my_leases), { tenantLeasesViewModel.onIntent(TenantLeasesIntent.Open) }),
                                 AccountLink(R.drawable.ic_home_outline, getString(R.string.explore_my_applications), { myApplicationsViewModel.onIntent(MyApplicationsIntent.Open) }),
+                                AccountLink(R.drawable.ic_my_location, getString(R.string.visit_my_title), { tenantVisitsViewModel.onIntent(com.saferenttechnologies.android.presentation.visits.TenantVisitsIntent.OpenMine()) }),
                                 AccountLink(R.drawable.ic_campaign, getString(R.string.ann_title), { announcementsViewModel.onIntent(AnnouncementsIntent.Open(landlord = false)) }),
                                 AccountLink(R.drawable.ic_notifications, getString(R.string.account_notifications), { notificationsViewModel.onIntent(NotificationsIntent.Open) }),
                             ) else listOf(
                                 AccountLink(R.drawable.ic_document, getString(R.string.account_transactions), { transactionsViewModel.onIntent(TransactionsIntent.Open) }),
+                                AccountLink(R.drawable.ic_my_location, getString(R.string.visit_host_title), { hostVisitsViewModel.onIntent(com.saferenttechnologies.android.presentation.visits.HostVisitsIntent.Open(null)) }),
+                            ) + listOfNotNull(
+                                // Landlords only (hidden when the server says 403).
+                                AccountLink(R.drawable.ic_person, getString(R.string.owner_title), { ownerDetailsViewModel.onIntent(com.saferenttechnologies.android.presentation.owner.OwnerDetailsIntent.Open) })
+                                    .takeIf { homeState.user?.allRoles?.contains(UserRole.LANDLORD) == true && !ownerDetailsState.forbidden },
+                            ) + listOf(
                                 AccountLink(R.drawable.ic_campaign, getString(R.string.ann_title), { announcementsViewModel.onIntent(AnnouncementsIntent.Open(landlord = true)) }),
                                 AccountLink(R.drawable.ic_notifications, getString(R.string.account_notifications), { notificationsViewModel.onIntent(NotificationsIntent.Open) }),
                             ),
@@ -693,6 +1126,13 @@ class MainActivity : ComponentActivity() {
                                 onToggleHomeAlert = { homeAlertViewModel.onIntent(HomeAlertIntent.QuickToggle(it)) },
                                 homeAlertBusy = homeAlertState.saving,
                                 // No overflow menu: switch role + sign out live in the Profile tab.
+                                topContent = {
+                                    com.saferenttechnologies.android.presentation.invitation.MyInvitationsCard(
+                                        tenantHomeState.invitations,
+                                        onOpen = { invitationViewModel.onIntent(InvitationIntent.Open(it)) },
+                                        modifier = Modifier.padding(top = 12.sdp),
+                                    )
+                                },
                             )
                             LaunchPermissionsHost(launchPermissionsViewModel)
                             LifecycleResumeEffect(Unit) {
@@ -721,6 +1161,27 @@ class MainActivity : ComponentActivity() {
                                 onOpenProperties = { myPropertiesViewModel.onIntent(MyPropertiesIntent.Open(it)) },
                                 unreadNotifications = notificationsState.unread,
                                 onOpenNotifications = { notificationsViewModel.onIntent(NotificationsIntent.Open) },
+                                onScanQr = scanQr,
+                                tenantExtra = {
+                                    // "Furniture in your home" (reduced register items of the leased home).
+                                    val lease = (tenantHomeState.home as? TenantHomeState.Linked)?.lease
+                                    // Red "Emergency": numbers + nearest hospital / police (works offline once loaded).
+                                    if (lease != null) {
+                                        com.saferenttechnologies.android.presentation.safety.EmergencyButton(Modifier.padding(top = 12.sdp)) { emergencyViewModel.onIntent(com.saferenttechnologies.android.presentation.safety.EmergencyIntent.Open(lease.id)) }
+                                    }
+                                    if (lease != null && lease.propertyId.isNotBlank()) {
+                                        LaunchedEffect(lease.propertyId) {
+                                            tenantFurnitureViewModel.onIntent(com.saferenttechnologies.android.presentation.furnishings.TenantFurnitureIntent.Load(lease.propertyId))
+                                        }
+                                        com.saferenttechnologies.android.presentation.furnishings.WhatsIncluded(
+                                            tenantFurnitureState.items.takeIf { tenantFurnitureState.propertyId == lease.propertyId }.orEmpty(),
+                                            getString(R.string.reg_tenant_title),
+                                        ) { item ->
+                                            requestsViewModel.onIntent(RequestsIntent.OpenRaise(listOf(lease.propertyTitle, lease.place).filter { it.isNotBlank() }.joinToString(" · ")))
+                                            requestsViewModel.onIntent(RequestsIntent.RaiseDescription(getString(R.string.reg_report_prefill, item.name)))
+                                        }
+                                    }
+                                },
                                 tenantLease = (tenantHomeState.home as? TenantHomeState.Linked)?.lease
                                     ?.takeIf { homeState.activeRole == UserRole.TENANT },
                                 onExploreHomes = { tenantHomeViewModel.onIntent(TenantHomeIntent.OpenExplore) },
@@ -740,6 +1201,31 @@ class MainActivity : ComponentActivity() {
                                 onToggleHomeAlert = { homeAlertViewModel.onIntent(HomeAlertIntent.QuickToggle(it)) },
                                 onOpenLeases = { tenantLeasesViewModel.onIntent(TenantLeasesIntent.Open) },
                                 tenantInNotice = tenantHomeState.inNotice,
+                                landlordTop = {
+                                    LaunchedEffect(Unit) { kycViewModel.onIntent(com.saferenttechnologies.android.presentation.kyc.KycIntent.LoadStatus) }
+                                    com.saferenttechnologies.android.presentation.kyc.KycDashboardCard(
+                                        kycState.status,
+                                        onOpen = { kycViewModel.onIntent(com.saferenttechnologies.android.presentation.kyc.KycIntent.Open) },
+                                        modifier = Modifier.padding(bottom = 12.sdp),
+                                    )
+                                    // "Complete owner details" while language, contact method or emergency phone is missing.
+                                    LaunchedEffect(Unit) { ownerDetailsViewModel.onIntent(com.saferenttechnologies.android.presentation.owner.OwnerDetailsIntent.LoadSummary) }
+                                    if (ownerDetailsState.showHomeCard) {
+                                        Box(Modifier.padding(bottom = 12.sdp)) {
+                                            com.saferenttechnologies.android.presentation.owner.CompleteOwnerDetailsCard {
+                                                ownerDetailsViewModel.onIntent(com.saferenttechnologies.android.presentation.owner.OwnerDetailsIntent.Open)
+                                            }
+                                        }
+                                    }
+                                },
+                                onCheckTenant = { tenantCheckViewModel.onIntent(com.saferenttechnologies.android.presentation.tenantcheck.TenantCheckIntent.Open) },
+                                tenantTop = {
+                                    com.saferenttechnologies.android.presentation.invitation.MyInvitationsCard(
+                                        tenantHomeState.invitations,
+                                        onOpen = { invitationViewModel.onIntent(InvitationIntent.Open(it)) },
+                                        modifier = Modifier.padding(bottom = 12.sdp),
+                                    )
+                                },
                                 refreshing = homeState.summaryLoading || tenantHomeState.loading,
                                 onRefresh = {
                                     com.saferenttechnologies.android.data.remote.ApiCache.clear()

@@ -101,6 +101,20 @@ interface PropertyApi {
         @Part("roomId") roomId: RequestBody?,
     ): Response<ApiEnvelope<ImagesDataDto>>
 
+    /** Video tour (mp4, ≤ 60 s) of a flat (unitId) / PG room (roomId) / the building (neither). */
+    @Multipart
+    @POST("api/v1/properties/{id}/videos")
+    suspend fun uploadVideo(
+        @Path("id") id: String,
+        @Part file: MultipartBody.Part,
+        @Part("unitId") unitId: RequestBody?,
+        @Part("roomId") roomId: RequestBody?,
+        @Part("durationSec") durationSec: RequestBody,
+    ): Response<ApiEnvelope<JsonElement>>
+
+    @DELETE("api/v1/properties/{id}/videos/{videoId}")
+    suspend fun deleteVideo(@Path("id") id: String, @Path("videoId") videoId: String): Response<ApiEnvelope<JsonElement>>
+
     @DELETE("api/v1/properties/{id}/images/{imageId}")
     suspend fun deleteImage(@Path("id") id: String, @Path("imageId") imageId: String): Response<ApiEnvelope<JsonElement>>
 

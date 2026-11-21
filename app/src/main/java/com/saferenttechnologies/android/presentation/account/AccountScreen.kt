@@ -64,6 +64,8 @@ fun AccountScreen(
     shortcuts: List<AccountLink>,
     /** Help & support tickets to SafeRent. */
     onOpenSupport: () -> Unit = {},
+    /** Tap on the "who I am" card → Edit profile. */
+    onEditProfile: () -> Unit = {},
 ) {
     BackHandler { onIntent(AccountIntent.Close) }
     val context = LocalContext.current
@@ -80,7 +82,9 @@ fun AccountScreen(
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.sdp)) {
             // Who I am
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.sdp)).background(AuthColors.Surface).padding(16.sdp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.sdp)).background(AuthColors.Surface)
+                    .clickable(enabled = user != null && !signingOut, role = androidx.compose.ui.semantics.Role.Button, onClick = onEditProfile)
+                    .padding(16.sdp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(56.sdp).clip(CircleShape).background(AuthColors.OrangeSoft), contentAlignment = Alignment.Center) {
@@ -94,6 +98,10 @@ fun AccountScreen(
                     val where = listOf(user?.city.orEmpty(), user?.state.orEmpty()).filter { it.isNotBlank() }.joinToString(", ")
                     if (where.isNotBlank()) Text(where, color = AuthColors.Muted, fontFamily = Inter, fontSize = 12.ssp)
                 }
+                androidx.compose.material3.Icon(
+                    androidx.compose.ui.res.painterResource(R.drawable.ic_chevron_right), stringResource(R.string.profile_edit_hint),
+                    tint = AuthColors.Body, modifier = Modifier.size(18.sdp),
+                )
             }
 
             // Role (only for accounts with both)

@@ -63,7 +63,7 @@ object NetworkModule {
                 addInterceptor(
                     // Coordinates in query strings (geo/reverse?lat=…&lng=…) are masked in the log.
                     HttpLoggingInterceptor { line ->
-                        HttpLoggingInterceptor.Logger.DEFAULT.log(line.replace(COORDINATE_QUERY, "$1=•••"))
+                        HttpLoggingInterceptor.Logger.DEFAULT.log(line.replace(COORDINATE_QUERY, "$1=•••").replace(QR_QUERY, "$1=•••"))
                     }.apply {
                         level = HttpLoggingInterceptor.Level.HEADERS
                         // Never log credentials, even in debug.
@@ -88,4 +88,6 @@ object NetworkModule {
     }
 }
 
+/** QR codes in qr/resolve?code=…&unit=… are masked too. */
+private val QR_QUERY = Regex("""([?&](?:code|unit))=[^&\s]*""")
 private val COORDINATE_QUERY = Regex("""\b(lat|lng|latitude|longitude)=[^&\s]+""")

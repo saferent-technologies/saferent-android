@@ -41,3 +41,8 @@ annotation class PermissionPreferences
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class BrowsePreferences
+
+/** Preferences DataStore "saferent_kyc" (the open DigiLocker session id, survives process death). */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class KycPreferences

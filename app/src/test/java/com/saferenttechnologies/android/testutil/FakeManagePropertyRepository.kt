@@ -46,6 +46,8 @@ class FakeManagePropertyRepository : ManagePropertyRepository {
     override suspend fun setBedAvailability(id: String, roomId: String, bedId: String, version: Int, status: String) = actionResult
     override suspend fun leases(propertyId: String, active: Boolean) = AppResult.Success(emptyList<Lease>())
     override suspend fun allLeases(active: Boolean) = AppResult.Success(emptyList<Lease>())
+    override suspend fun review(id: String, approve: Boolean, withoutProof: Boolean, reason: String): AppResult<com.saferenttechnologies.android.domain.model.ActionResult> =
+        AppResult.Success(com.saferenttechnologies.android.domain.model.ActionResult(""))
     override suspend fun invitations(propertyId: String, status: String) = AppResult.Success(emptyList<Invitation>())
     override suspend fun createInvitation(propertyId: String, input: CreateInvitation) = invitationResult
     override suspend fun renewInvitationLink(invitationId: String, expiresInDays: Int): AppResult<InvitationLink> =

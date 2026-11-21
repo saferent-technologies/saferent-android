@@ -1,5 +1,6 @@
 package com.saferenttechnologies.android.presentation.manage
 
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -207,7 +208,8 @@ fun UnitsTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) -> Uni
                         AvailabilityChip(bed.availabilityStatus)
                         Spacer(Modifier.weight(1f))
                         if (state.canManage && bed.availabilityStatus.uppercase() == "AVAILABLE" && bed.id !in invitedBeds) {
-                            OutlineAction(stringResource(R.string.manage_invite_tenant)) {
+                            // Not approved yet → grey, not clickable (note under the room).
+                            OutlineAction(stringResource(R.string.manage_invite_tenant), enabled = state.canInvite) {
                                 onIntent(PropertyDetailIntent.StartInvite(null, bed.id, "Room ${room.roomNumber} · ${bed.bedNumber}", bed.rent ?: room.values["rentPerBed"].orEmpty()))
                             }
                         }
@@ -215,6 +217,10 @@ fun UnitsTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) -> Uni
                     if (state.canManage && bed.availabilityStatus.uppercase() != "OCCUPIED") {
                         AvailabilityPicker(bed.availabilityStatus) { onIntent(PropertyDetailIntent.SetBedAvailability(room.id, bed.id, it)) }
                     }
+                }
+                if (state.canManage && !state.canInvite && room.beds.any { it.availabilityStatus.uppercase() == "AVAILABLE" }) {
+                    Spacer(Modifier.height(6.sdp))
+                    InviteLockedNote()
                 }
             }
         }
@@ -255,9 +261,14 @@ fun UnitsTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) -> Uni
                     Spacer(Modifier.height(8.sdp))
                     Line(stringResource(R.string.manage_invite_pending_note))
                 } else if (state.canManage && status.uppercase() == "AVAILABLE") {
+                    val allowed = state.canInvite && com.saferenttechnologies.android.domain.model.InviteRules.placeAllows(unit.values)
                     Spacer(Modifier.height(8.sdp))
-                    OutlineAction(stringResource(R.string.manage_invite_tenant), modifier = Modifier.fillMaxWidth()) {
+                    OutlineAction(stringResource(R.string.manage_invite_tenant), enabled = allowed, modifier = Modifier.fillMaxWidth()) {
                         onIntent(PropertyDetailIntent.StartInvite(unit.id, null, unit.unitNumber, rent))
+                    }
+                    if (!allowed) {
+                        Spacer(Modifier.height(6.sdp))
+                        InviteLockedNote()
                     }
                 }
             }
@@ -348,6 +359,11 @@ fun InvitationsTab(state: PropertyDetailState, onIntent: (PropertyDetailIntent) 
                 }
                 StatusPill(optionLabel(inv.status), invitationStatusColor(inv.status))
             }
+            // Accepted → what the tenant answered (private, owner / managers).
+            if (state.canManage && inv.status.uppercase() == "ACCEPTED") {
+                Spacer(Modifier.height(10.sdp))
+                OutlineAction(stringResource(R.string.inv_tenant_details), modifier = Modifier.fillMaxWidth(), compact = true) { onIntent(PropertyDetailIntent.OpenTenantDetails(inv.id)) }
+            }
             if (state.canManage && inv.status.uppercase() == "PENDING") {
                 Spacer(Modifier.height(10.sdp))
                 // Two equal halves of the card width.
@@ -374,8 +390,54 @@ fun InviteDialog(state: PropertyDetailState, form: InviteForm, onIntent: (Proper
         },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.sdp)) {
+                // 1. Find the tenant on SafeRent (phone or SafeRent ID) → their details come in.
+                val found = form.found
+                if (found != null) {
+                    com.saferenttechnologies.android.presentation.tenantcheck.PersonCard(found)
+                    Text(
+                        stringResource(R.string.manage_invite_found),
+                        color = AuthColors.GreenText,
+                        fontFamily = Inter,
+                        fontSize = 12.ssp,
+                    )
+                    Text(
+                        stringResource(R.string.manage_invite_change_person),
+                        color = AuthColors.OrangeText,
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.ssp,
+                        modifier = Modifier.clickable { onIntent(PropertyDetailIntent.InviteClearFound) }.padding(vertical = 4.sdp),
+                    )
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = form.lookup,
+                            onValueChange = { change(form.copy(lookup = com.saferenttechnologies.android.domain.model.PeopleLookup.cleanInput(it), lookupInvalid = false, notOnSafeRent = false)) },
+                            // One line label: a wrapped label made this box taller than the others.
+                            label = { Text(stringResource(R.string.manage_invite_lookup), fontFamily = Inter, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
+                            singleLine = true,
+                            isError = form.lookupInvalid,
+                            supportingText = if (form.lookupInvalid) ({ Text(stringResource(R.string.tc_invalid), fontFamily = Inter) }) else null,
+                            colors = com.saferenttechnologies.android.presentation.property.propertyFieldColors(),
+                            shape = RoundedCornerShape(12.sdp),
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(8.sdp))
+                        TextButton(enabled = form.lookup.isNotBlank() && !form.lookupBusy, onClick = { onIntent(PropertyDetailIntent.InviteLookup) }) {
+                            Text(
+                                stringResource(R.string.manage_invite_find),
+                                color = if (form.lookup.isNotBlank() && !form.lookupBusy) AuthColors.OrangeText else AuthColors.Muted,
+                                fontFamily = Inter,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                    if (form.notOnSafeRent) Text(stringResource(R.string.manage_invite_not_found), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+                }
                 Field(stringResource(R.string.manage_invite_name), form.recipientName) { change(form.copy(recipientName = it)) }
-                Field(stringResource(R.string.manage_invite_phone), form.recipientPhone, KeyboardType.Phone) { change(form.copy(recipientPhone = it.filter { c -> c.isDigit() || c == '+' }.take(13))) }
+                if (found == null || form.recipientPhone.isNotBlank()) {
+                    Field(stringResource(R.string.manage_invite_phone), form.recipientPhone, KeyboardType.Phone) { change(form.copy(recipientPhone = it.filter { c -> c.isDigit() || c == '+' }.take(13))) }
+                }
                 Field(stringResource(R.string.manage_invite_email), form.recipientEmail, KeyboardType.Email) { change(form.copy(recipientEmail = it)) }
                 Field(stringResource(R.string.prop_field_monthly_rent), form.monthlyRent, KeyboardType.Decimal) { change(form.copy(monthlyRent = it.filter { c -> c.isDigit() || c == '.' })) }
                 Field(stringResource(R.string.prop_field_security_deposit), form.securityDeposit, KeyboardType.Decimal) { change(form.copy(securityDeposit = it.filter { c -> c.isDigit() || c == '.' })) }
@@ -396,6 +458,8 @@ fun InviteDialog(state: PropertyDetailState, form: InviteForm, onIntent: (Proper
                 Field(stringResource(R.string.prop_field_notice_days), form.noticePeriodDays, KeyboardType.Number) { change(form.copy(noticePeriodDays = it.filter(Char::isDigit).take(3))) }
                 Field(stringResource(R.string.prop_field_lock_in_months), form.lockInMonths, KeyboardType.Number) { change(form.copy(lockInMonths = it.filter(Char::isDigit).take(3))) }
                 Field(stringResource(R.string.manage_invite_terms), form.additionalTerms) { change(form.copy(additionalTerms = it.take(1000))) }
+                // What the tenant answers when accepting.
+                AskTheTenant(form.requirements) { change(form.copy(requirements = it)) }
                 form.error?.let {
                     Text(
                         stringResource(
@@ -421,6 +485,16 @@ fun InviteDialog(state: PropertyDetailState, form: InviteForm, onIntent: (Proper
         dismissButton = { TextButton(onClick = { onIntent(PropertyDetailIntent.CancelInvite) }) { Text(stringResource(R.string.add_property_cancel), color = AuthColors.Body) } },
         containerColor = AuthColors.Card,
     )
+}
+
+/** "Invite tenant" is grey until SafeRent approves the property / flat. */
+@Composable
+private fun InviteLockedNote() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(painterResource(R.drawable.ic_lock), null, tint = AuthColors.Muted, modifier = Modifier.size(14.sdp))
+        Spacer(Modifier.width(6.sdp))
+        Text(stringResource(R.string.manage_invite_after_approval), color = AuthColors.Body, fontFamily = Inter, fontSize = 12.ssp)
+    }
 }
 
 @Composable
@@ -673,6 +747,7 @@ internal fun DateInput(
                 .matchParentSize()
                 .padding(end = if (clearable && value.isNotBlank()) 40.sdp else 0.sdp)
                 .clip(RoundedCornerShape(12.sdp))
+                .focusProperties { canFocus = false }
                 .clickable(role = Role.Button) {
                     focusManager.clearFocus()
                     open = true
@@ -791,10 +866,15 @@ fun FlatSheet(state: PropertyDetailState, unit: com.saferenttechnologies.android
                     else -> {
                         Text(stringResource(R.string.manage_flat_no_tenant, word.lowercase()), color = AuthColors.Body, fontFamily = Inter, fontSize = 14.ssp)
                         if (state.canManage && status.uppercase() == "AVAILABLE" && unit.id !in InviteLocks.units(state.pendingInvites)) {
+                            val allowed = state.canInvite && com.saferenttechnologies.android.domain.model.InviteRules.placeAllows(unit.values)
                             Spacer(Modifier.height(10.sdp))
-                            OutlineAction(stringResource(R.string.manage_invite_tenant), modifier = Modifier.fillMaxWidth()) {
+                            OutlineAction(stringResource(R.string.manage_invite_tenant), enabled = allowed, modifier = Modifier.fillMaxWidth()) {
                                 onIntent(PropertyDetailIntent.CloseUnit)
                                 onIntent(PropertyDetailIntent.StartInvite(unit.id, null, unit.unitNumber, unit.values["monthlyRent"].orEmpty()))
+                            }
+                            if (!allowed) {
+                                Spacer(Modifier.height(6.sdp))
+                                InviteLockedNote()
                             }
                         }
                     }

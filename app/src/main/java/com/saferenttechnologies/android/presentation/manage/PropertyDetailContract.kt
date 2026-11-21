@@ -56,6 +56,16 @@ data class InviteForm(
     val lockInMonths: String = "",
     val additionalTerms: String = "",
     val error: String? = null,
+    /** "Tenant's phone or SafeRent ID" → look them up on SafeRent first. */
+    val lookup: String = "",
+    val lookupBusy: Boolean = false,
+    val lookupInvalid: Boolean = false,
+    /** Found on SafeRent (their details shown, invitation goes to their dashboard). */
+    val found: com.saferenttechnologies.android.domain.model.PersonPreview? = null,
+    /** Searched, not on SafeRent → fill the details by hand (invite link by phone). */
+    val notOnSafeRent: Boolean = false,
+    /** "Ask the tenant": answered when they accept. */
+    val requirements: com.saferenttechnologies.android.domain.model.InviteRequirements = com.saferenttechnologies.android.domain.model.InviteRequirements(),
 )
 
 data class DecisionForm(
@@ -79,6 +89,14 @@ data class PropertyDetailState(
     val confirm: PropertyAction? = null,
     /** Submit 412 → checklist (problem, wizard step). */
     val problems: List<Pair<String, Int>> = emptyList(),
+    /** Moderator: "Approve and go live" confirm (true = without ownership document). */
+    val approveConfirm: Boolean? = null,
+    /** Moderator: reject with a reason. */
+    val rejectReason: String? = null,
+    /** 412 owner not verified / ownership proof missing → bottom sheet with what to do. */
+    val approvalBlock: com.saferenttechnologies.android.domain.model.ApprovalBlocker? = null,
+    /** Owner: "Verify your identity" bottom sheet (Verify identity / Contact support). */
+    val verifySheet: Boolean = false,
 
     val leases: List<Lease> = emptyList(),
     val pastTenants: Boolean = false,
@@ -98,6 +116,9 @@ data class PropertyDetailState(
     /** "Review the last tenant of this flat first" popup (Invite tapped on that flat). */
     val reviewPrompt: com.saferenttechnologies.android.domain.model.PendingReview? = null,
     val inviteForm: InviteForm? = null,
+    /** "Tenant details" sheet of an accepted invitation (null = closed; loading while [tenantDetails] is null). */
+    val tenantDetailsFor: String? = null,
+    val tenantDetails: com.saferenttechnologies.android.domain.model.TenantDetailsView? = null,
     val applications: List<RentalApplication> = emptyList(),
     val decision: DecisionForm? = null,
     val history: List<StatusChange> = emptyList(),
@@ -117,6 +138,14 @@ data class PropertyDetailState(
     val actions: List<PropertyAction>
         get() = detail?.let { PropertyActions.allowed(it.property, it.can, it.pendingRevision) }.orEmpty()
     val canManage: Boolean get() = detail?.can?.manage == true
+    /** Approved + active property → "Invite tenant" works (otherwise shown grey with a note). */
+    val canInvite: Boolean get() = canManage && detail?.property?.let(com.saferenttechnologies.android.domain.model.InviteRules::propertyAllows) == true
+    /** SafeRent moderator looking at a property waiting for verification. */
+    val isModerating: Boolean
+        get() = detail?.can?.review == true && detail.property.publicationStatus.equals("PENDING_VERIFICATION", true)
+    /** The owner's own property waiting for verification (approval banners). */
+    val ownerWaiting: Boolean
+        get() = canManage && detail?.property?.publicationStatus.equals("PENDING_VERIFICATION", true) && detail?.approval != null
     /** Apartment / independent building / commercial complex / villa community: flats with their own rent + photos. */
     val isUnitPriced: Boolean
         get() = detail?.property?.let { UnitPricing.isUnitPriced(it.propertyType, it.building["villaListing"]) } == true
@@ -129,6 +158,24 @@ data class PropertyDetailState(
 }
 
 sealed interface PropertyDetailIntent : UiIntent {
+    /** Accepted invitation → what the tenant answered. */
+    data class OpenTenantDetails(val invitationId: String) : PropertyDetailIntent
+    data object CloseTenantDetails : PropertyDetailIntent
+    /** "Continue changes" on the change request card. */
+    data object ContinueChanges : PropertyDetailIntent
+    // ---- approval (moderator) ----
+    data class AskApprove(val withoutProof: Boolean) : PropertyDetailIntent
+    data object ConfirmApprove : PropertyDetailIntent
+    data object AskReject : PropertyDetailIntent
+    data class RejectReason(val text: String) : PropertyDetailIntent
+    data object ConfirmReject : PropertyDetailIntent
+    data object DismissApproval : PropertyDetailIntent
+    /** Blocker action: OWNERSHIP_PROOF_REQUIRED → Documents tab. */
+    data object CheckDocuments : PropertyDetailIntent
+    // ---- owner ----
+    data object OpenVerifySheet : PropertyDetailIntent
+    data object VerifyIdentity : PropertyDetailIntent
+    data object ContactSupportVerify : PropertyDetailIntent
     /** [tab] from a notification link (?tab=documents). */
     data class Open(val propertyId: String, val tab: DetailTab = DetailTab.UNITS) : PropertyDetailIntent
     data object Close : PropertyDetailIntent
@@ -156,6 +203,9 @@ sealed interface PropertyDetailIntent : UiIntent {
 
     data class StartInvite(val unitId: String?, val bedId: String?, val target: String, val rent: String) : PropertyDetailIntent
     data object DismissReviewPrompt : PropertyDetailIntent
+    /** Invite form: look the tenant up by phone / SafeRent ID. */
+    data object InviteLookup : PropertyDetailIntent
+    data object InviteClearFound : PropertyDetailIntent
     data class InviteChanged(val form: InviteForm) : PropertyDetailIntent
     data object SendInvite : PropertyDetailIntent
     data object CancelInvite : PropertyDetailIntent
@@ -188,6 +238,10 @@ sealed interface PropertyDetailIntent : UiIntent {
 }
 
 sealed interface PropertyDetailEffect : UiEffect {
+    /** Owner → Owner verification screen. */
+    data object OpenOwnerVerification : PropertyDetailEffect
+    /** Owner → a support ticket about verification. */
+    data class OpenVerificationSupport(val propertyId: String) : PropertyDetailEffect
     /** Server `message` (or our text) in a snackbar. */
     data class Message(val text: String) : PropertyDetailEffect
     data class Share(val text: String, val url: String) : PropertyDetailEffect

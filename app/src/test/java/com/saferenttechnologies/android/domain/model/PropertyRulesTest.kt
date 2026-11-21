@@ -120,4 +120,11 @@ class BuildingLimitsTest {
         org.junit.Assert.assertTrue(BuildingLimits.canAddUnit(emptyMap(), 10)) // no total → no cap
         org.junit.Assert.assertEquals("totalFlats" to FieldError.BelowMin(5.0), BuildingLimits.unitsError(building, 5))
     }
+
+    @Test fun `water availability is hours a day, digits 0 to 24`() {
+        val water = PropertyForms.utilWater(null).first { it.key == "waterAvailability" }
+        org.junit.Assert.assertTrue(water.digitsOnly)
+        org.junit.Assert.assertTrue(FieldValidator.validate(listOf(water), mapOf("waterAvailability" to "24")).isEmpty())
+        org.junit.Assert.assertEquals(FieldError.AboveMax(24.0), FieldValidator.validate(listOf(water), mapOf("waterAvailability" to "30"))["waterAvailability"])
+    }
 }

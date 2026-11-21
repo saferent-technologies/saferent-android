@@ -1,5 +1,7 @@
 package com.saferenttechnologies.android.presentation.property
 
+import androidx.compose.ui.focus.focusRequester
+import com.saferenttechnologies.android.presentation.common.skipKeyboardFocus
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -81,8 +83,16 @@ fun DynamicFieldForm(
     val shown = com.saferenttechnologies.android.domain.model.FormVisibility.visible(fields, values)
     // Keyboard "Next" moves to the next text field; only the last one shows "Done" and closes it.
     val lastTextKey = shown.lastOrNull { it.type.isTyped() }?.key
+    // "Next" goes straight to the next text box by its own FocusRequester. The generic
+    // moveFocus(Down) can stop on the scroll container first when the next box is under the
+    // keyboard: focus leaves the text fields for a moment and the keyboard closes and reopens.
+    val typedKeys = shown.filter { it.type.isTyped() }.map { it.key }
+    val requesters = remember { mutableMapOf<String, androidx.compose.ui.focus.FocusRequester>() }
+    fun requester(key: String) = requesters.getOrPut(key) { androidx.compose.ui.focus.FocusRequester() }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(14.sdp)) {
-        shown.forEach { field ->
+        // key(): a field keeps its own box (and the keyboard focus) when follow-up questions
+        // appear or disappear above it; otherwise the focus jumps and the keyboard closes.
+        shown.forEach { field -> androidx.compose.runtime.key(field.key) {
             val label = fieldLabel(field) + if (FieldValidator.isRequired(field, values)) " *" else ""
             val value = values[field.key].orEmpty()
             val error = errors[field.key]?.let { fieldErrorText(it) }
@@ -91,9 +101,17 @@ fun DynamicFieldForm(
                 FieldType.DISCLOSURE -> ChoiceGrid(label, field.options.ifEmpty { DISCLOSURE }, value, error, enabled) { onChange(field.key, it) }
                 FieldType.SELECT -> SelectField(label, field.options, value, error, enabled) { onChange(field.key, it) }
                 FieldType.DATE -> DateField(label, value, error, enabled) { onChange(field.key, it) }
-                else -> TextInput(field, label, value, error, enabled, isLast = field.key == lastTextKey) { onChange(field.key, it) }
+                else -> {
+                    val next = typedKeys.getOrNull(typedKeys.indexOf(field.key) + 1)
+                    TextInput(
+                        field, label, value, error, enabled,
+                        isLast = field.key == lastTextKey,
+                        focusRequester = requester(field.key),
+                        onNext = next?.let { k -> { runCatching { requester(k).requestFocus() }.isSuccess } },
+                    ) { onChange(field.key, it) }
+                }
             }
-        }
+        } }
     }
 }
 
@@ -126,7 +144,18 @@ fun propertyFieldColors(locked: Boolean = false) = OutlinedTextFieldDefaults.col
 )
 
 @Composable
-private fun TextInput(field: FieldDef, label: String, value: String, error: String?, enabled: Boolean, isLast: Boolean, onChange: (String) -> Unit) {
+private fun TextInput(
+    field: FieldDef,
+    label: String,
+    value: String,
+    error: String?,
+    enabled: Boolean,
+    isLast: Boolean,
+    focusRequester: androidx.compose.ui.focus.FocusRequester? = null,
+    /** Focus the next text box directly; false / null → fall back to moving focus down. */
+    onNext: (() -> Boolean)? = null,
+    onChange: (String) -> Unit,
+) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val multiLine = field.type == FieldType.TEXTAREA
@@ -163,7 +192,14 @@ private fun TextInput(field: FieldDef, label: String, value: String, error: Stri
             capitalization = if (field.type == FieldType.TEXT || field.type == FieldType.TEXTAREA) KeyboardCapitalization.Sentences else KeyboardCapitalization.None,
         ),
         keyboardActions = KeyboardActions(
-            onNext = { if (!focusManager.moveFocus(FocusDirection.Down)) keyboardController?.hide() },
+            onNext = {
+                when {
+                    // Same frame as the focus move: cancels the "hide" the old box sends on losing focus.
+                    onNext?.invoke() == true -> keyboardController?.show()
+                    focusManager.moveFocus(FocusDirection.Down) -> keyboardController?.show()
+                    else -> keyboardController?.hide()
+                }
+            },
             onDone = {
                 keyboardController?.hide()
                 focusManager.clearFocus()
@@ -171,7 +207,7 @@ private fun TextInput(field: FieldDef, label: String, value: String, error: Stri
         ),
         shape = RoundedCornerShape(12.sdp),
         colors = propertyFieldColors(locked = !enabled),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
     )
 }
 
@@ -274,6 +310,7 @@ fun SelectField(
             Modifier
                 .matchParentSize()
                 .clip(RoundedCornerShape(12.sdp))
+                .skipKeyboardFocus()
                 .clickable(enabled = enabled, role = Role.DropdownList) { expanded = true },
         )
         // Non-focusable popup: picking an option doesn't take focus from the text field, so the
@@ -329,7 +366,7 @@ internal fun DateField(
         )
         // The calendar is a dialog (needs focus) → close the keyboard once, so it doesn't pop back up after.
         Box(
-            Modifier.matchParentSize().clickable(enabled = enabled, role = Role.Button) {
+            Modifier.matchParentSize().skipKeyboardFocus().clickable(enabled = enabled, role = Role.Button) {
                 focusManager.clearFocus()
                 open = true
             },

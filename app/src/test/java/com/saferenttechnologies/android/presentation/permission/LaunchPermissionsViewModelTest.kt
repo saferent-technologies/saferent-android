@@ -62,16 +62,16 @@ class LaunchPermissionsViewModelTest {
     }
 
     @Test
-    fun `permanently denied shows Open settings`() = runTest {
-        manager.asked += AppPermission.LOCATION // asked before + no rationale = permanently denied
+    fun `asked before still tries Android's dialog first`() = runTest {
+        manager.asked += AppPermission.LOCATION // asked before + no rationale (may be an expired one-time grant)
         manager.granted += AppPermission.NOTIFICATIONS
         val vm = viewModel()
         val effects = effectsOf(vm)
         vm.start(rationale = mapOf(AppPermission.LOCATION to false))
 
-        assertEquals(PermissionStatus.PERMANENTLY_DENIED, vm.state.value.prompt?.status)
+        assertEquals(PermissionStatus.DENIED, vm.state.value.prompt?.status)
         vm.onIntent(LaunchPermissionsIntent.Enable)
-        assertEquals(listOf<LaunchPermissionsEffect>(LaunchPermissionsEffect.OpenSettings), effects)
+        assertEquals(listOf<LaunchPermissionsEffect>(LaunchPermissionsEffect.RequestSystem(AppPermission.LOCATION)), effects)
     }
 
     @Test

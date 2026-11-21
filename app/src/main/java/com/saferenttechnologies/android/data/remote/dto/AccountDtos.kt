@@ -50,6 +50,8 @@ data class UserDto(
     val email: String? = null,
     val occupation: String? = null,
     val isProfileCompleted: Boolean = false,
+    /** Identity verified (owner verification approved) → the name can't be changed. */
+    val nameLocked: Boolean = false,
 )
 
 /** GET api/v1/auth/me → data */

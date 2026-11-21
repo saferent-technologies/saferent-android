@@ -5,6 +5,12 @@ package com.saferenttechnologies.android.domain.model
  * SafeRent's own guided 360 camera ([PanoramaCapture]); tenants look around in an OpenGL viewer
  * (drag, pinch, or move the phone).
  */
+/** App features built but switched off for now (turn on to ship). Not the server's config Features. */
+object AppFeatureFlags {
+    /** 360° photos: capture in the wizard + viewer in listings. Off until we launch it. */
+    const val PANORAMA_360 = false
+}
+
 object PanoramaRules {
     /** Image category used for these photos (kept out of the normal 4:3 galleries). */
     const val CATEGORY = "PANORAMA_360"

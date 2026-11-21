@@ -36,6 +36,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
@@ -124,6 +125,7 @@ class ManagePropertyRepositoryImpl @Inject constructor(
                 property = it,
                 can = PropertyPermissions(
                     manage = can?.manage ?: false,
+                    review = can?.review ?: false,
                     inspect = can?.inspect ?: false,
                     editRevision = can?.editRevision ?: false,
                     submitRevision = can?.submitRevision ?: false,
@@ -131,6 +133,7 @@ class ManagePropertyRepositoryImpl @Inject constructor(
                 ),
                 pendingRevision = revisionOf(data.pendingRevision),
                 lastRevision = revisionOf(data.lastRevision),
+                approval = approvalOf(data.approval),
             )
         }
     }
@@ -249,7 +252,8 @@ class ManagePropertyRepositoryImpl @Inject constructor(
             input.unitId?.let { put("unitId", it) }
             input.bedId?.let { put("bedId", it) }
             put("recipientName", input.recipientName.trim())
-            put("recipientPhone", input.recipientPhone.trim())
+            if (input.recipientPhone.isNotBlank()) put("recipientPhone", input.recipientPhone.trim())
+            input.recipientUserId?.let { put("recipientUserId", it) }
             put("recipientEmail", input.recipientEmail.trim())
             input.monthlyRent.toDoubleOrNull()?.let { put("monthlyRent", it) }
             input.securityDeposit.toDoubleOrNull()?.let { put("securityDeposit", it) }
@@ -261,6 +265,18 @@ class ManagePropertyRepositoryImpl @Inject constructor(
             input.lockInMonths?.let { put("lockInMonths", it) }
             put("additionalTerms", input.additionalTerms.trim())
             put("expiresInDays", input.expiresInDays)
+            input.requirements?.takeIf { it.asksAnything }?.let { r ->
+                put(
+                    "requirements",
+                    buildJsonObject {
+                        put("askDetails", r.askDetails)
+                        put("companyName", r.companyName)
+                        put("references", r.references)
+                        put("backgroundVerification", r.backgroundVerification)
+                        put("documents", kotlinx.serialization.json.buildJsonArray { r.documents.distinct().take(4).forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } })
+                    },
+                )
+            }
         }
         return withMessage("POST invitation", { api.createInvitation(propertyId, body) }) { data, message ->
             val o = data as? JsonObject ?: return@withMessage null
@@ -273,6 +289,40 @@ class ManagePropertyRepositoryImpl @Inject constructor(
         call("POST invitation link", { api.renewInvitationLink(invitationId, buildJsonObject { put("expiresInDays", expiresInDays) }) }) { data, _ ->
             val o = data as? JsonObject ?: return@call null
             ((o["link"] as? JsonObject) ?: o).toLink()
+        }
+
+    override suspend fun tenantDetails(invitationId: String): AppResult<com.saferenttechnologies.android.domain.model.TenantDetailsView> =
+        call("GET invitation tenant details", { api.tenantDetails(invitationId) }) { data, _ ->
+            val o = data as? JsonObject ?: return@call null
+            val d = o["details"] as? JsonObject
+            fun JsonObject.boolOrNull(k: String) = (this[k] as? JsonPrimitive)?.let { p -> if (p is kotlinx.serialization.json.JsonNull) null else p.content.toBooleanStrictOrNull() }
+            fun JsonObject.intOrNullOf(k: String) = (this[k] as? JsonPrimitive)?.intOrNull
+            com.saferenttechnologies.android.domain.model.TenantDetailsView(
+                requirements = com.saferenttechnologies.android.data.invitation.InvitationMapper.requirements(o["requirements"]),
+                details = d?.let {
+                    com.saferenttechnologies.android.domain.model.AnsweredDetails(
+                        tenantType = it.text("tenantType").uppercase(),
+                        employmentType = it.text("employmentType").uppercase(),
+                        companyName = it.text("companyName"),
+                        adults = it.intOrNullOf("adults"),
+                        children = it.intOrNullOf("children"),
+                        hasPets = it.boolOrNull("hasPets"),
+                        petDetails = it.text("petDetails"),
+                        smokes = it.boolOrNull("smokes"),
+                        stayMonths = it.intOrNullOf("stayMonths"),
+                        references = (it["references"] as? JsonArray)?.mapNotNull { r ->
+                            (r as? JsonObject)?.let { x -> com.saferenttechnologies.android.domain.model.TenantReference(x.text("name"), x.text("relation"), x.text("phone")) }
+                        }.orEmpty(),
+                        backgroundConsentAt = it.text("backgroundConsentAt"),
+                        leaseActive = it.boolOrNull("leaseActive") ?: true,
+                        answeredAt = it.text("answeredAt"),
+                    )
+                },
+                documents = (o["documents"] as? JsonArray)?.mapNotNull { x ->
+                    (x as? JsonObject)?.let { com.saferenttechnologies.android.domain.model.DocShareState(it.text("key"), it.text("label"), it.boolOrNull("shared") == true) }
+                }.orEmpty(),
+                conflicts = (o["conflicts"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content }.orEmpty(),
+            )
         }
 
     override suspend fun revokeInvitation(invitationId: String) =
@@ -377,8 +427,40 @@ class ManagePropertyRepositoryImpl @Inject constructor(
         is ApiResult.Failure -> AppResult.Failure(r.error.toPropertyError(json))
     }
 
+    override suspend fun review(id: String, approve: Boolean, withoutProof: Boolean, reason: String): AppResult<ActionResult> =
+        withMessage("POST property review", {
+            api.review(id, buildJsonObject {
+                put("decision", if (approve) "APPROVE" else "REJECT")
+                if (approve && withoutProof) put("withoutOwnershipDocument", true)
+                if (!approve) put("reason", reason.trim())
+            })
+        }) { _, message -> ActionResult(message) }
+
     private companion object {
         const val MAX_LEASE_PAGES = 10
+
+        /** { ownerVerified, ownerKycSubmitted, ownershipProofVerified, blockers[], canApprove, … } | null */
+        fun approvalOf(e: JsonElement?): com.saferenttechnologies.android.domain.model.PropertyApproval? {
+            val o = e as? JsonObject ?: return null
+            fun b(k: String) = (o[k] as? JsonPrimitive)?.content.equals("true", true)
+            return com.saferenttechnologies.android.domain.model.PropertyApproval(
+                ownerVerified = b("ownerVerified"),
+                ownerKycSubmitted = b("ownerKycSubmitted"),
+                ownershipProofVerified = b("ownershipProofVerified"),
+                blockers = (o["blockers"] as? kotlinx.serialization.json.JsonArray).orEmpty().mapNotNull { x ->
+                    val bo = x as? JsonObject ?: return@mapNotNull null
+                    com.saferenttechnologies.android.domain.model.ApprovalBlocker(
+                        code = bo.text("code").uppercase(),
+                        message = bo.text("message"),
+                        ownerKycSubmitted = (bo["ownerKycSubmitted"] as? JsonPrimitive)?.content.equals("true", true),
+                    )
+                },
+                canApprove = b("canApprove"),
+                canApproveWithoutProof = b("canApproveWithoutProof"),
+                confirmTitle = o.text("confirmTitle"),
+                confirmMessage = o.text("confirmMessage"),
+            )
+        }
         const val PAGE_SIZE = 20
 
         /** { id, status, changedSections[], createdAt, submittedAt, decidedAt, moderationNote } | null. */

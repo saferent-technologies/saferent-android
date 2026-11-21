@@ -63,6 +63,23 @@ data class RevisionResult(val message: String, val revision: PropertyRevision?)
 fun isLiveListing(publicationStatus: String): Boolean =
     publicationStatus.equals("APPROVED", true) || publicationStatus.equals("PUBLISHED", true)
 
+/**
+ * Tenants can be invited only to an approved (live) and active property, and only to a flat / bed the
+ * server doesn't mark as still waiting for approval (a flat added in a change request).
+ */
+object InviteRules {
+    private val NOT_APPROVED = setOf("DRAFT", "PENDING", "PENDING_VERIFICATION", "PENDING_APPROVAL", "REJECTED", "IN_REVIEW")
+
+    fun propertyAllows(p: Property): Boolean =
+        isLiveListing(p.publicationStatus) && (p.activeStatus.isBlank() || p.activeStatus.equals("ACTIVE", true))
+
+    /** Flat / bed values (approvalStatus / verificationStatus / publicationStatus when the server sends one). */
+    fun placeAllows(values: Map<String, String>): Boolean =
+        listOf("approvalStatus", "verificationStatus", "publicationStatus", "moderationStatus")
+            .mapNotNull { values[it]?.trim()?.uppercase()?.ifBlank { null } }
+            .none { it in NOT_APPROVED }
+}
+
 /** "My properties" tabs → query filters. */
 enum class PropertyFilter(val publicationStatus: String? = null, val activeStatus: String? = null) {
     ALL,
@@ -106,6 +123,8 @@ data class Page<T>(val items: List<T>, val page: Int, val totalPages: Int, val t
 /** `can` from GET properties/{id}. */
 data class PropertyPermissions(
     val manage: Boolean = false,
+    /** SafeRent moderator: approve / reject a property waiting for verification. */
+    val review: Boolean = false,
     val inspect: Boolean = false,
     val editRevision: Boolean = false,
     val submitRevision: Boolean = false,
@@ -119,7 +138,33 @@ data class PropertyDetail(
     val pendingRevision: PropertyRevision? = null,
     /** Latest finished change (only when none is open). */
     val lastRevision: PropertyRevision? = null,
+    /** What still blocks approval (owner KYC, ownership proof) + what the viewer may do. */
+    val approval: PropertyApproval? = null,
 )
+
+/** GET properties/{id} → approval. Messages come from the server (shown as they are). */
+data class PropertyApproval(
+    val ownerVerified: Boolean = false,
+    /** Owner sent DigiLocker + selfie, staff hasn't reviewed it yet. */
+    val ownerKycSubmitted: Boolean = false,
+    val ownershipProofVerified: Boolean = false,
+    val blockers: List<ApprovalBlocker> = emptyList(),
+    val canApprove: Boolean = false,
+    val canApproveWithoutProof: Boolean = false,
+    val confirmTitle: String = "",
+    val confirmMessage: String = "",
+) {
+    val ownerBlocked: Boolean get() = blockers.any { it.code == ApprovalBlocker.OWNER_NOT_VERIFIED }
+    val proofBlocked: Boolean get() = blockers.any { it.code == ApprovalBlocker.OWNERSHIP_PROOF_REQUIRED }
+}
+
+data class ApprovalBlocker(val code: String, val message: String, val ownerKycSubmitted: Boolean = false) {
+    companion object {
+        const val OWNER_NOT_VERIFIED = "OWNER_NOT_VERIFIED"
+        const val OWNERSHIP_PROOF_REQUIRED = "OWNERSHIP_PROOF_REQUIRED"
+        val CODES = setOf(OWNER_NOT_VERIFIED, OWNERSHIP_PROOF_REQUIRED)
+    }
+}
 
 /** Server message to show in a snackbar + the updated property (when it returns one). */
 data class ActionResult(val message: String, val property: Property? = null, val deleted: Boolean = false, val archived: Boolean = false)
@@ -186,6 +231,8 @@ data class CreateInvitation(
     val recipientName: String,
     val recipientPhone: String,
     val recipientEmail: String = "",
+    /** Tenant already on SafeRent (found by SafeRent ID / phone) → their invitation shows on their dashboard. */
+    val recipientUserId: String? = null,
     val monthlyRent: String,
     val securityDeposit: String = "",
     val maintenanceCharges: String = "",
@@ -196,6 +243,8 @@ data class CreateInvitation(
     val lockInMonths: Int? = null,
     val additionalTerms: String = "",
     val expiresInDays: Int = 7,
+    /** "Ask the tenant": null / everything off = ask nothing (left out). */
+    val requirements: InviteRequirements? = null,
 )
 
 data class InvitationCreated(val message: String, val invitation: Invitation, val link: InvitationLink?)

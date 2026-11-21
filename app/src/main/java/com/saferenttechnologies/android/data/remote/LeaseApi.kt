@@ -34,6 +34,19 @@ interface LeaseApi {
     @POST("api/v1/leases/{id}/exit/cancel")
     suspend fun cancelExit(@Path("id") id: String, @Body body: JsonObject): Response<ApiEnvelope<JsonElement>>
 
+    /** Agreed closing → "keep the lease" request { reason }; the other side accepts / declines. */
+    @POST("api/v1/leases/{id}/exit/undo")
+    suspend fun requestUndo(@Path("id") id: String, @Body body: JsonObject): Response<ApiEnvelope<JsonElement>>
+
+    @POST("api/v1/leases/{id}/exit/undo/accept")
+    suspend fun acceptUndo(@Path("id") id: String, @Body body: JsonObject): Response<ApiEnvelope<JsonElement>>
+
+    @POST("api/v1/leases/{id}/exit/undo/decline")
+    suspend fun declineUndo(@Path("id") id: String, @Body body: JsonObject): Response<ApiEnvelope<JsonElement>>
+
+    @POST("api/v1/leases/{id}/exit/undo/cancel")
+    suspend fun cancelUndo(@Path("id") id: String, @Body body: JsonObject): Response<ApiEnvelope<JsonElement>>
+
     /** Closed leases I still have to review (tenant: before using the app; landlord: before the next invite). */
     @GET("api/v1/reviews/pending")
     suspend fun pendingReviews(): Response<ApiEnvelope<JsonElement>>

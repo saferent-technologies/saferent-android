@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import com.saferenttechnologies.android.core.di.SessionPreferences
 import com.saferenttechnologies.android.domain.repository.PropertyDraftStore
 import kotlinx.coroutines.flow.catch
@@ -25,7 +26,16 @@ class PropertyDraftStoreImpl @Inject constructor(
         runCatching { dataStore.edit { if (id == null) it.remove(KEY) else it[KEY] = id } }
     }
 
+    override suspend fun lastStep(propertyId: String): Int? =
+        runCatching { dataStore.data.first()[stepKey(propertyId)] }.getOrNull()
+
+    override suspend fun saveLastStep(propertyId: String, step: Int?) {
+        if (propertyId.isBlank()) return
+        runCatching { dataStore.edit { if (step == null) it.remove(stepKey(propertyId)) else it[stepKey(propertyId)] = step } }
+    }
+
     private companion object {
         val KEY = stringPreferencesKey("add_property_draft_id")
+        fun stepKey(id: String) = intPreferencesKey("wizard_last_step_$id")
     }
 }
